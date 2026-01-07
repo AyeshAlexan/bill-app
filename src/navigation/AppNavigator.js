@@ -22,13 +22,14 @@ export default function AppNavigator() {
         headerTitleStyle: { fontWeight: "bold" },
         headerTitleAlign: "center",
       }}
+      
     >
-      <Stack.Screen name="Login" component={LoginScreen} options={{ headerShown: false }} />
-      <Stack.Screen name="Dashboard" component={DashboardScreen} options={{ title: "Dashboard" }} />
-      <Stack.Screen name="Shops" component={ShopListScreen} options={{ title: "My Shops" }} />
-      <Stack.Screen name="Bills" component={BillListScreen} options={{ title: "Bills" }} />
-      <Stack.Screen name="BillDetails" component={BillDetailScreen} options={{ title: "Bill Details" }} />
-      <Stack.Screen name="Payment" component={PaymentScreen} options={{ title: "Collect Payment" }} />
+  <Stack.Screen name="Login" component={LoginScreen} options={{ headerShown: false }} />
+  <Stack.Screen name="Dashboard" component={DashboardScreen} options={{ headerShown: false }} />
+  <Stack.Screen name="ShopList" component={ShopListScreen} options={{ headerShown: false }} /> 
+  <Stack.Screen name="BillList" component={BillListScreen} options={{ headerShown: false }} />
+  <Stack.Screen name="BillDetail" component={BillDetailScreen} options={{ headerShown: false }}/>
+  <Stack.Screen name="Payment" component={PaymentScreen} options={{ headerShown: false }} />
     </Stack.Navigator>
   );
 }
