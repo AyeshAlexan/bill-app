@@ -8,6 +8,7 @@ import ShopListScreen from "../screens/ShopListScreen";
 import BillListScreen from "../screens/BillListScreen";
 import BillDetailScreen from "../screens/BillDetailScreen";
 import PaymentScreen from "../screens/PaymentScreen";
+import PendingBillsScreen from "../screens/PendingBillsScreen";
 
 const Stack = createStackNavigator();
 
@@ -30,6 +31,7 @@ export default function AppNavigator() {
   <Stack.Screen name="BillList" component={BillListScreen} options={{ headerShown: false }} />
   <Stack.Screen name="BillDetail" component={BillDetailScreen} options={{ headerShown: false }}/>
   <Stack.Screen name="Payment" component={PaymentScreen} options={{ headerShown: false }} />
-    </Stack.Navigator>
+  <Stack.Screen name="PendingBills" component={PendingBillsScreen} options={{ headerShown: false }} />
+  </Stack.Navigator>
   );
 }

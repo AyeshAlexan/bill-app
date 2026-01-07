@@ -1,7 +1,5 @@
 import React from 'react';
-import ShopList from "../screens/ShopListScreen"
-import PendingBills from "../screens/PaymentScreen"
-import Payment from "../screens/PaymentScreen"
+import PendingBillsScreen from './PendingBillsScreen';
 // 1. Add Image to imports
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Image } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
@@ -34,7 +32,7 @@ export default function DashboardScreen({ navigation }) {
     isCustomImage 
     imageSource={require('../assets/pending.png')} 
     label="Pending Bills" 
-    onPress={() => navigation.navigate("BillList", { filter: 'pending' })} // Navigates to the list
+     onPress={() => navigation.navigate("PendingBills")} // Matches name in Navigator
   />
   
   <ActionBtn 
