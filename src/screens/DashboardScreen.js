@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+
 import {
   View,
   Text,
@@ -98,6 +99,12 @@ export default function DashboardScreen({ navigation }) {
       <View style={styles.activityBox}>
         {renderRecentActivity(activeStat)}
       </View>
+      {/* FAB to Add Bill */}
+      <TouchableOpacity 
+        style={styles.fab} 
+        onPress={() => navigation.navigate("AddBill")} >
+        <MaterialCommunityIcons name="plus" size={32} color="white" />
+      </TouchableOpacity>
     </ScrollView>
   );
 }
@@ -260,4 +267,21 @@ const styles = StyleSheet.create({
     marginBottom: 8,
     color: "#374151",
   },
+
+// Add this to your StyleSheet
+fab: {
+  position: 'absolute',
+  width: 60,
+  height: 60,
+  alignItems: 'center',
+  justifyContent: 'center',
+  right: 20,
+  bottom: 20,
+  backgroundColor: '#2563eb', // Matches your dashboard header
+  borderRadius: 30,
+  elevation: 8,
+  shadowColor: '#000',
+  shadowOpacity: 0.3,
+  shadowRadius: 3,
+}
 });
