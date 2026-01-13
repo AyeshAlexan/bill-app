@@ -1,5 +1,12 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, FlatList, StyleSheet, TouchableOpacity, ActivityIndicator } from 'react-native';
+import {
+  View,
+  Text,
+  FlatList,
+  StyleSheet,
+  TouchableOpacity,
+  ActivityIndicator
+} from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import axios from 'axios';
 
@@ -42,6 +49,8 @@ export default function ShopListScreen({ navigation }) {
 
   return (
     <View style={styles.container}>
+
+      {/* HEADER */}
       <View style={styles.header}>
         <TouchableOpacity onPress={() => navigation.goBack()}>
           <MaterialCommunityIcons name="arrow-left" size={24} color="white" />
@@ -50,10 +59,11 @@ export default function ShopListScreen({ navigation }) {
         <Text style={styles.headerSub}>Manage your assigned shops</Text>
       </View>
 
+      {/* SHOP LIST */}
       <FlatList
         data={shops}
         keyExtractor={(item) => item.id.toString()}
-        contentContainerStyle={{ padding: 20 }}
+        contentContainerStyle={{ padding: 20, paddingBottom: 120 }}
         renderItem={({ item }) => (
           <TouchableOpacity
             style={styles.shopCard}
@@ -69,24 +79,35 @@ export default function ShopListScreen({ navigation }) {
                 <Text style={styles.shopLoc}>{item.location ?? '—'}</Text>
               </View>
 
-              <MaterialCommunityIcons name="chevron-right" size={24} color="#cbd5e1" />
+              <MaterialCommunityIcons
+                name="chevron-right"
+                size={24}
+                color="#cbd5e1"
+              />
             </View>
 
-            {/* Placeholder until backend provides these values */}
             <View style={styles.shopBottom}>
               <Text style={styles.pendingText}>0 pending bills</Text>
               <View style={styles.amtBadge}>
                 <Text style={styles.amtText}>Rs.0</Text>
               </View>
             </View>
-
           </TouchableOpacity>
         )}
       />
+
+      {/* FLOATING ADD SHOP BUTTON (FIXED POSITION) */}
+      <TouchableOpacity
+        style={styles.fab}
+        onPress={() => navigation.navigate('AddShop')}
+        activeOpacity={0.8}
+      >
+        <MaterialCommunityIcons name="plus" size={30} color="white" />
+      </TouchableOpacity>
+
     </View>
   );
 }
-
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#f8fafc' },
   header: { backgroundColor: '#00b894', padding: 30, paddingTop: 50, borderBottomLeftRadius: 40, borderBottomRightRadius: 40 },
@@ -100,5 +121,18 @@ const styles = StyleSheet.create({
   shopBottom: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 15, borderTopWidth: 1, borderTopColor: '#f1f5f9', paddingTop: 10 },
   pendingText: { color: '#64748b' },
   amtBadge: { backgroundColor: '#fee2e2', paddingHorizontal: 10, paddingVertical: 5, borderRadius: 10 },
-  amtText: { color: '#ef4444', fontWeight: 'bold', fontSize: 12 }
+  amtText: { color: '#ef4444', fontWeight: 'bold', fontSize: 12 },
+
+  fab :{
+    position :'absolute',
+    bottom:25,
+    right:25,
+    backgroundColor:'#10b981',
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    alignItems:'center',
+    justifyContent: 'center',
+    elevation: 5
+  }
 });

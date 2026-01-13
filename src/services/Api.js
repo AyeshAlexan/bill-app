@@ -1,23 +1,11 @@
-import axios from 'axios';
+import axios from "axios";
 
-const API_URL = 'http://127.0.0.1:8000/api';
+const Api = axios.create({
+  baseURL: "http://127.0.0.1:8000/api", // ✅ HTTP (not HTTPS)
+  headers: {
+    Accept: "application/json",
+    "Content-Type": "application/json",
+  },
+});
 
-export const loginUser = async (email, password) => {
-  try {
-    const response = await axios.post(`${API_URL}/login`, { email, password });
-    return response.data;
-  } catch (error) {
-    console.error(error);
-    throw error;
-  }
-};
-
-export const getBills = async () => {
-  try {
-    const response = await axios.get(`${API_URL}/bills`);
-    return response.data;
-  } catch (error) {
-    console.error(error);
-    throw error;
-  }
-};
+export default Api;

@@ -1,8 +1,13 @@
-import axios from "axios";
+import Api from "./Api";
 
-const API_URL ="https://127.0.0.1:8000/api";
-
+//Get the shop
 export const fetchShops = async () => {
-    const response = await axios.get(`${API_URL}/shops`);
-    return response.data.shops;
+  const res = await Api.get("/shops");
+  return res.data.shops;
+};
+
+//Add the Shop
+export const addShop = async (data) => {
+  const res = await Api.post("/shops", data);
+  return res.data; // { message, shop }
 };
