@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import {
   View,
   Text,
@@ -9,24 +9,65 @@ import {
 } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import axios from 'axios';
+import { useFocusEffect } from '@react-navigation/native';
 
-const API_URL = 'http://127.0.0.1:8000/api/shops';
+const SHOPS_URL = 'http://127.0.0.1:8000/api/shops';
+const BILLS_URL = 'http://127.0.0.1:8000/api/bills';
 
 export default function ShopListScreen({ navigation }) {
 
   const [shops, setShops] = useState([]);
   const [loading, setLoading] = useState(true);
 
+  // ✅ Load every time screen is focused (auto refresh)
+  useFocusEffect(
+    useCallback(() => {
+      fetchShopsWithSummary();
+    }, [])
+  );
+
+  // Keep initial load too
   useEffect(() => {
-    fetchShops();
+    fetchShopsWithSummary();
   }, []);
 
-  const fetchShops = async () => {
+  const fetchShopsWithSummary = async () => {
     try {
-      const response = await axios.get(API_URL);
-      setShops(response.data.shops);
+      setLoading(true);
+
+      // ✅ Fetch shops + bills
+      const [shopRes, billRes] = await Promise.all([
+        axios.get(SHOPS_URL),
+        axios.get(BILLS_URL),
+      ]);
+
+      const shopsData = shopRes.data.shops || [];
+      const billsData = billRes.data || [];
+
+      // ✅ Map pending counts + due totals per shop
+      const updated = shopsData.map((shop) => {
+        const shopBills = billsData.filter((b) => b.shop_id === shop.id);
+
+        // Pending = anything NOT Paid (Pending + Partial)
+        const pendingBills = shopBills.filter((b) => b.status !== 'Paid');
+
+        const pendingCount = pendingBills.length;
+
+        // Sum due_amount from pending bills
+        const dueTotal = pendingBills.reduce((sum, b) => {
+          return sum + (Number(b.due_amount) || 0);
+        }, 0);
+
+        return {
+          ...shop,
+          pendingCount,
+          dueTotal,
+        };
+      });
+
+      setShops(updated);
     } catch (error) {
-      console.error('Error fetching shops:', error);
+      console.error('Error fetching shops/bills:', error);
     } finally {
       setLoading(false);
     }
@@ -86,10 +127,15 @@ export default function ShopListScreen({ navigation }) {
               />
             </View>
 
+            {/* ✅ UPDATED VALUES */}
             <View style={styles.shopBottom}>
-              <Text style={styles.pendingText}>0 pending bills</Text>
+              <Text style={styles.pendingText}>
+                {item.pendingCount || 0} pending bills
+              </Text>
               <View style={styles.amtBadge}>
-                <Text style={styles.amtText}>Rs.0</Text>
+                <Text style={styles.amtText}>
+                  Rs.{Number(item.dueTotal || 0).toLocaleString()}
+                </Text>
               </View>
             </View>
           </TouchableOpacity>
@@ -108,6 +154,7 @@ export default function ShopListScreen({ navigation }) {
     </View>
   );
 }
+
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#f8fafc' },
   header: { backgroundColor: '#00b894', padding: 30, paddingTop: 50, borderBottomLeftRadius: 40, borderBottomRightRadius: 40 },
@@ -123,15 +170,15 @@ const styles = StyleSheet.create({
   amtBadge: { backgroundColor: '#fee2e2', paddingHorizontal: 10, paddingVertical: 5, borderRadius: 10 },
   amtText: { color: '#ef4444', fontWeight: 'bold', fontSize: 12 },
 
-  fab :{
-    position :'absolute',
-    bottom:25,
-    right:25,
-    backgroundColor:'#10b981',
+  fab: {
+    position: 'absolute',
+    bottom: 25,
+    right: 25,
+    backgroundColor: '#10b981',
     width: 60,
     height: 60,
     borderRadius: 30,
-    alignItems:'center',
+    alignItems: 'center',
     justifyContent: 'center',
     elevation: 5
   }
