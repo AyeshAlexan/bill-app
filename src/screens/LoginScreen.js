@@ -15,13 +15,18 @@ import { login } from "../services/authApi";
 import { setAuthToken } from "../services/Api";
 
 export default function LoginScreen({ navigation }) {
-  const [username, setUsername] = useState(""); // ✅ username (name)
+  const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
 
+  // ✅ show error message on screen
+  const [errorText, setErrorText] = useState("");
+
   const onSignIn = async () => {
+    setErrorText("");
+
     if (!username.trim() || !password.trim()) {
-      Alert.alert("Validation", "Please enter username and password");
+      setErrorText("Please enter username and password");
       return;
     }
 
@@ -39,13 +44,21 @@ export default function LoginScreen({ navigation }) {
     } catch (e) {
       console.log("LOGIN ERROR:", e?.response?.data || e.message);
 
-      const msg =
-        e?.response?.data?.message ||
-        (e?.response?.status === 401
-          ? "Invalid username or password"
-          : "Login failed. Please try again.");
+      const status = e?.response?.status;
+      const backendMsg = e?.response?.data?.message;
 
-      Alert.alert("Error", msg);
+      // ✅ best user friendly message
+      let msg = "Login failed. Please try again.";
+
+      if (status === 401) {
+        msg = backendMsg || "Invalid username or password";
+      } else if (status === 422) {
+        msg = "Please fill all fields correctly";
+      } else if (e.message?.includes("Network Error")) {
+        msg = "Cannot connect to server. Check backend is running.";
+      }
+
+      setErrorText(msg);
     } finally {
       setLoading(false);
     }
@@ -62,6 +75,13 @@ export default function LoginScreen({ navigation }) {
 
         <Text style={styles.welcomeText}>Welcome Back</Text>
         <Text style={styles.signInSub}>Sign in to continue bill collection</Text>
+
+        {/* ✅ Error message on screen */}
+        {!!errorText && (
+          <View style={styles.errorBox}>
+            <Text style={styles.errorText}>{errorText}</Text>
+          </View>
+        )}
 
         <View style={styles.inputGroup}>
           <Text style={styles.label}>Username</Text>
@@ -119,4 +139,16 @@ const styles = StyleSheet.create({
   button: { backgroundColor: "#10b981", padding: 18, borderRadius: 15, width: "100%", alignItems: "center", marginTop: 20 },
   buttonText: { color: "white", fontWeight: "bold", fontSize: 18 },
   footerText: { color: "#94a3b8", fontSize: 10, marginTop: 30, textTransform: "uppercase" },
+
+  // ✅ Added small error styles (does not remove your original)
+  errorBox: {
+    width: "100%",
+    backgroundColor: "#fee2e2",
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 15,
+    borderWidth: 1,
+    borderColor: "#fecaca",
+  },
+  errorText: { color: "#b91c1c", fontWeight: "600", textAlign: "center" },
 });
