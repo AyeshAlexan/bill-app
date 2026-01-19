@@ -1,18 +1,18 @@
-import React, { useEffect, useMemo, useState } from "react";
+import { MaterialCommunityIcons } from "@expo/vector-icons";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import axios from "axios";
+import { useEffect, useMemo, useState } from "react";
 import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  TextInput,
-  TouchableOpacity,
   ActivityIndicator,
   Alert,
   Modal,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from "react-native";
-import { MaterialCommunityIcons } from "@expo/vector-icons";
-import axios from "axios";
-import AsyncStorage from "@react-native-async-storage/async-storage";
 
 const BILL_API = "http://127.0.0.1:8000/api/bills";
 const PAY_API = "http://127.0.0.1:8000/api/payments";
@@ -26,6 +26,16 @@ export default function BillDetailScreen({ route, navigation }) {
   const [payAmount, setPayAmount] = useState("");
   const [payMethod, setPayMethod] = useState("Cash");
   const [payLoading, setPayLoading] = useState(false);
+
+  // ✅ Card fields
+  const [cardHolder, setCardHolder] = useState("");
+  const [cardLast4, setCardLast4] = useState("");
+  const [cardRef, setCardRef] = useState("");
+
+  // ✅ Cheque fields
+  const [chequeNo, setChequeNo] = useState("");
+  const [chequeBank, setChequeBank] = useState("");
+  const [chequeDate, setChequeDate] = useState(""); // YYYY-MM-DD
 
   // ✅ success modal
   const [successVisible, setSuccessVisible] = useState(false);
@@ -63,8 +73,39 @@ export default function BillDetailScreen({ route, navigation }) {
 
   const paidSoFar = useMemo(
     () => Math.max(totalAmount - dueAmount, 0),
-    [totalAmount, dueAmount]
+    [totalAmount, dueAmount],
   );
+
+  const resetMethodFields = (method) => {
+    if (method !== "Card") {
+      setCardHolder("");
+      setCardLast4("");
+      setCardRef("");
+    }
+    if (method !== "Cheque") {
+      setChequeNo("");
+      setChequeBank("");
+      setChequeDate("");
+    }
+  };
+
+  const validateMethodFields = () => {
+    if (payMethod === "Card") {
+      if (!cardHolder.trim()) return "Enter card holder name";
+      if (!/^\d{4}-\d{4}-\d{4}-\d{4}$/.test(cardLast4.trim()))
+        return "Card number must be in format XXXX-XXXX-XXXX-XXXX";
+      if (!cardRef.trim()) return "Enter card reference/transaction id";
+    }
+
+    if (payMethod === "Cheque") {
+      if (!chequeNo.trim()) return "Enter cheque number";
+      if (!chequeBank.trim()) return "Enter bank name";
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(chequeDate.trim()))
+        return "Cheque date must be YYYY-MM-DD";
+    }
+
+    return null;
+  };
 
   const onSubmitPayment = async () => {
     if (!bill) return;
@@ -80,10 +121,15 @@ export default function BillDetailScreen({ route, navigation }) {
       return;
     }
 
+    const methodErr = validateMethodFields();
+    if (methodErr) {
+      Alert.alert("Validation", methodErr);
+      return;
+    }
+
     try {
       setPayLoading(true);
 
-      // ✅ optional logged user
       let userId = null;
       try {
         const userStr = await AsyncStorage.getItem("user");
@@ -93,22 +139,38 @@ export default function BillDetailScreen({ route, navigation }) {
 
       const beforeDue = dueAmount;
 
-      await axios.post(PAY_API, {
+      const payload = {
         bill_id: bill.id,
-        user_id: userId, // optional
+        user_id: userId,
         amount: pay,
         method: payMethod,
-      });
+      };
 
-      // ✅ refresh bill so due + status update
+      // ✅ attach details based on method
+      if (payMethod === "Card") {
+        payload.card_holder_name = cardHolder.trim();
+        payload.card_last4 = cardLast4.trim();
+        payload.card_ref = cardRef.trim();
+      }
+
+      if (payMethod === "Cheque") {
+        payload.cheque_no = chequeNo.trim();
+        payload.cheque_bank = chequeBank.trim();
+        payload.cheque_date = chequeDate.trim();
+      }
+
+      await axios.post(PAY_API, payload);
+
       await fetchBill();
 
       const afterDue = Math.max(beforeDue - pay, 0);
 
       setPayAmount("");
+      resetMethodFields("Cash"); // clear all
+      setPayMethod("Cash");
 
       setSuccessText(
-        `You paid Rs.${pay.toFixed(2)}\nRemaining due Rs.${afterDue.toFixed(2)}`
+        `You paid Rs.${pay.toFixed(2)}\nRemaining due Rs.${afterDue.toFixed(2)}`,
       );
       setSuccessVisible(true);
       setTimeout(() => setSuccessVisible(false), 1600);
@@ -133,7 +195,9 @@ export default function BillDetailScreen({ route, navigation }) {
 
   if (!bill) {
     return (
-      <View style={[styles.container, { justifyContent: "center", padding: 20 }]}>
+      <View
+        style={[styles.container, { justifyContent: "center", padding: 20 }]}
+      >
         <Text>Bill not found</Text>
       </View>
     );
@@ -168,8 +232,15 @@ export default function BillDetailScreen({ route, navigation }) {
                 <Text style={styles.date}>{bill.bill_date}</Text>
               </View>
 
-              <View style={[styles.statusBadge, { backgroundColor: "#f1f5f9" }]}>
-                <Text style={[styles.statusText, { color: statusColor(bill.status) }]}>
+              <View
+                style={[styles.statusBadge, { backgroundColor: "#f1f5f9" }]}
+              >
+                <Text
+                  style={[
+                    styles.statusText,
+                    { color: statusColor(bill.status) },
+                  ]}
+                >
                   {bill.status}
                 </Text>
               </View>
@@ -182,18 +253,20 @@ export default function BillDetailScreen({ route, navigation }) {
                 <View>
                   <Text style={styles.itemName}>{it.item_name}</Text>
                 </View>
-                <Text style={styles.itemPrice}>Rs.{Number(it.price).toFixed(2)}</Text>
+                <Text style={styles.itemPrice}>
+                  Rs.{Number(it.price).toFixed(2)}
+                </Text>
               </View>
             ))}
 
             <View style={styles.divider} />
 
-            {/* ✅ Bill breakdown */}
             <View style={styles.totalRow}>
               <Text style={styles.totalLabel}>Subtotal</Text>
               <Text style={styles.totalValue}>Rs.{subtotal.toFixed(2)}</Text>
             </View>
 
+            {/* VAT might be 0 if disabled */}
             <View style={styles.totalRow}>
               <Text style={styles.totalLabel}>VAT (15%)</Text>
               <Text style={styles.totalValue}>Rs.{vatAmount.toFixed(2)}</Text>
@@ -246,21 +319,101 @@ export default function BillDetailScreen({ route, navigation }) {
               {["Cash", "Card", "Cheque"].map((m) => (
                 <TouchableOpacity
                   key={m}
-                  style={[styles.methodBtn, payMethod === m && styles.methodBtnActive]}
-                  onPress={() => setPayMethod(m)}
+                  style={[
+                    styles.methodBtn,
+                    payMethod === m && styles.methodBtnActive,
+                  ]}
+                  onPress={() => {
+                    setPayMethod(m);
+                    resetMethodFields(m);
+                  }}
                   activeOpacity={0.85}
                 >
-                  <Text style={[styles.methodText, payMethod === m && styles.methodTextActive]}>
+                  <Text
+                    style={[
+                      styles.methodText,
+                      payMethod === m && styles.methodTextActive,
+                    ]}
+                  >
                     {m}
                   </Text>
                 </TouchableOpacity>
               ))}
             </View>
 
+            {/* ✅ Card details */}
+            {payMethod === "Card" && (
+              <View style={styles.detailBox}>
+                <Text style={styles.detailTitle}>Card Details</Text>
+
+                <Text style={styles.inputLabel}>Card Holder Name</Text>
+                <TextInput
+                  style={styles.input}
+                  placeholder="Name on card"
+                  value={cardHolder}
+                  onChangeText={setCardHolder}
+                />
+
+                <Text style={styles.inputLabel}>Last 4 Digits</Text>
+                <TextInput
+                  style={styles.input}
+                  placeholder="1234"
+                  keyboardType="numeric"
+                  maxLength={4}
+                  value={cardLast4}
+                  onChangeText={setCardLast4}
+                />
+
+                <Text style={styles.inputLabel}>Transaction Reference</Text>
+                <TextInput
+                  style={styles.input}
+                  placeholder="REF-XXXX"
+                  value={cardRef}
+                  onChangeText={setCardRef}
+                />
+              </View>
+            )}
+
+            {/* ✅ Cheque details */}
+            {payMethod === "Cheque" && (
+              <View style={styles.detailBox}>
+                <Text style={styles.detailTitle}>Cheque Details</Text>
+
+                <Text style={styles.inputLabel}>Cheque Number</Text>
+                <TextInput
+                  style={styles.input}
+                  placeholder="Cheque No"
+                  value={chequeNo}
+                  onChangeText={setChequeNo}
+                />
+
+                <Text style={styles.inputLabel}>Bank Name</Text>
+                <TextInput
+                  style={styles.input}
+                  placeholder="Bank"
+                  value={chequeBank}
+                  onChangeText={setChequeBank}
+                />
+
+                <Text style={styles.inputLabel}>Cheque Date (YYYY-MM-DD)</Text>
+                <TextInput
+                  style={styles.input}
+                  placeholder="2026-01-19"
+                  value={chequeDate}
+                  onChangeText={setChequeDate}
+                />
+              </View>
+            )}
+
             <View style={styles.noteBox}>
-              <MaterialCommunityIcons name="information-outline" size={18} color="#64748b" />
+              <MaterialCommunityIcons
+                name="information-outline"
+                size={18}
+                color="#64748b"
+              />
               <Text style={styles.noteText}>
-                VAT is already included in this bill. Payment will reduce only the Due Amount.
+                VAT is already included in this bill. Payment will reduce only
+                the Due Amount.
               </Text>
             </View>
 
@@ -301,7 +454,6 @@ export default function BillDetailScreen({ route, navigation }) {
   );
 }
 
-/* ✅ STYLES NOT REMOVED (payment history styles removed only) */
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#f8fafc" },
   header: {
@@ -327,27 +479,48 @@ const styles = StyleSheet.create({
   iconBox: { backgroundColor: "#dbeafe", padding: 10, borderRadius: 15 },
   billNo: { fontSize: 16, fontWeight: "bold" },
   date: { color: "#94a3b8", fontSize: 12 },
-  statusBadge: { backgroundColor: "#fee2e2", paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8 },
+  statusBadge: {
+    backgroundColor: "#fee2e2",
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 8,
+  },
   statusText: { color: "#ef4444", fontSize: 10, fontWeight: "bold" },
 
   sectionLabel: { fontSize: 14, fontWeight: "bold", marginBottom: 15 },
-  itemRow: { flexDirection: "row", justifyContent: "space-between", marginBottom: 10 },
+  itemRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginBottom: 10,
+  },
   itemName: { fontWeight: "500" },
-  itemQty: { color: "#94a3b8", fontSize: 12 },
   itemPrice: { fontWeight: "bold" },
 
   divider: { height: 1, backgroundColor: "#f1f5f9", marginVertical: 15 },
 
-  totalRow: { flexDirection: "row", justifyContent: "space-between", marginBottom: 5 },
+  totalRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginBottom: 5,
+  },
   totalLabel: { color: "#64748b" },
   totalValue: { fontWeight: "bold", fontSize: 16 },
 
   cardTitle: { fontSize: 18, fontWeight: "bold", marginBottom: 15 },
 
   inputLabel: { fontSize: 13, color: "#64748b", marginBottom: 8 },
-  input: { backgroundColor: "#f1f5f9", padding: 15, borderRadius: 15, marginBottom: 15 },
+  input: {
+    backgroundColor: "#f1f5f9",
+    padding: 15,
+    borderRadius: 15,
+    marginBottom: 15,
+  },
 
-  methodRow: { flexDirection: "row", justifyContent: "space-between", marginBottom: 15 },
+  methodRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginBottom: 15,
+  },
   methodBtn: {
     flex: 1,
     paddingVertical: 12,
@@ -362,7 +535,23 @@ const styles = StyleSheet.create({
   methodText: { color: "#64748b", fontWeight: "600" },
   methodTextActive: { color: "white", fontWeight: "700" },
 
-  submitBtn: { backgroundColor: "#0061ff", padding: 18, borderRadius: 15, alignItems: "center" },
+  // ✅ NEW detail box styles (small addition)
+  detailBox: {
+    backgroundColor: "#f8fafc",
+    borderRadius: 16,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: "#e2e8f0",
+    marginBottom: 12,
+  },
+  detailTitle: { fontWeight: "800", color: "#0f172a", marginBottom: 10 },
+
+  submitBtn: {
+    backgroundColor: "#0061ff",
+    padding: 18,
+    borderRadius: 15,
+    alignItems: "center",
+  },
   submitText: { color: "white", fontSize: 18, fontWeight: "bold" },
 
   noteBox: {
@@ -381,7 +570,6 @@ const styles = StyleSheet.create({
     lineHeight: 16,
   },
 
-  // ✅ modal styles
   modalOverlay: {
     flex: 1,
     backgroundColor: "rgba(0,0,0,0.35)",

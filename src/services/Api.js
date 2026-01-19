@@ -16,4 +16,9 @@ export const setAuthToken = (token) => {
   }
 };
 
+const validateCard = (cardNumber) => {
+  const regex = /^(\d{4}-){3}\d{4}$/;
+  return regex.test(cardNumber);
+};
+
 export default Api;

@@ -9,5 +9,5 @@ export const fetchShops = async () => {
 //Add the Shop
 export const addShop = async (data) => {
   const res = await Api.post("/shops", data);
-  return res.data; // { message, shop }
+  return res.data; //
 };
