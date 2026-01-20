@@ -12,7 +12,6 @@ import {
   TextInput,
   TouchableOpacity,
   View,
-  
 } from "react-native";
 import Toast from "react-native-toast-message";
 
@@ -39,6 +38,8 @@ export default function AddBillScreen({ navigation }) {
 
   const [status, setStatus] = useState("Pending");
   const [saving, setSaving] = useState(false);
+  const [showPaymentPrompt, setShowPaymentPrompt] = useState(false);
+  const [pendingBillId, setPendingBillId] = useState(null);
 
   useEffect(() => {
     loadShops();
@@ -73,8 +74,8 @@ export default function AddBillScreen({ navigation }) {
     0,
   );
 
-  // ✅ VAT only if enabled
-  const vat = isVatEnabled ? baseAmount * 0.15 : 0;
+  // ✅ VAT only if enabled (18%)
+  const vat = isVatEnabled ? baseAmount * 0.18 : 0;
 
   const extraTax = isTaxEnabled ? parseFloat(additionalTax || 0) : 0;
   const total = (baseAmount + vat + extraTax).toFixed(2);
@@ -154,30 +155,11 @@ export default function AddBillScreen({ navigation }) {
       });
 
       const newBillId = res?.bill?.id;
+      console.log("✅ Bill saved with ID:", newBillId);
 
-      // ✅ Ask Pay Now
-      Alert.alert(
-        "Bill Saved",
-        "Do you want to pay now?",
-        [
-          {
-            text: "No",
-            style: "cancel",
-            onPress: () => navigation.navigate("ShopList"),
-          },
-          {
-            text: "Yes",
-            onPress: () => {
-              if (newBillId) {
-                navigation.replace("BillDetail", { billId: newBillId });
-              } else {
-                navigation.navigate("ShopList");
-              }
-            },
-          },
-        ],
-        { cancelable: true },
-      );
+      // ✅ Show modal instead of alert
+      setPendingBillId(newBillId);
+      setShowPaymentPrompt(true);
     } catch (e) {
       console.log("ADD BILL ERROR STATUS:", e?.response?.status);
       console.log("ADD BILL ERROR DATA:", e?.response?.data);
@@ -301,7 +283,7 @@ export default function AddBillScreen({ navigation }) {
 
           {/* ✅ VAT toggle row (NEW) */}
           <View style={styles.taxToggleRow}>
-            <Text style={styles.label}>Apply VAT (15%)?</Text>
+            <Text style={styles.label}>Apply VAT (18%)?</Text>
             <Switch
               value={isVatEnabled}
               onValueChange={setIsVatEnabled}
@@ -310,7 +292,7 @@ export default function AddBillScreen({ navigation }) {
           </View>
 
           <View style={styles.calcRow}>
-            <Text style={styles.calcLabel}>VAT (15%)</Text>
+            <Text style={styles.calcLabel}>VAT (18%)</Text>
             <Text style={styles.calcValue}>Rs. {vat.toFixed(2)}</Text>
           </View>
 
@@ -401,6 +383,54 @@ export default function AddBillScreen({ navigation }) {
             >
               <Text style={{ color: "#ef4444" }}>Close</Text>
             </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      {/* ✅ PAYMENT CONFIRMATION MODAL */}
+      <Modal visible={showPaymentPrompt} transparent animationType="fade">
+        <View style={styles.modalOverlay}>
+          <View style={styles.confirmCard}>
+            <View style={styles.confirmIcon}>
+              <MaterialCommunityIcons
+                name="file-document-check"
+                size={36}
+                color="white"
+              />
+            </View>
+            <Text style={styles.confirmTitle}>Bill Saved Successfully!</Text>
+            <Text style={styles.confirmMsg}>
+              Do you want to pay the bill now?
+            </Text>
+
+            <View style={styles.buttonRow}>
+              <TouchableOpacity
+                style={[styles.confirmBtn, { backgroundColor: "#94a3b8" }]}
+                onPress={() => {
+                  setShowPaymentPrompt(false);
+                  navigation.navigate("Dashboard");
+                }}
+              >
+                <Text style={styles.confirmBtnText}>No, Later</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.confirmBtn, { backgroundColor: "#10b981" }]}
+                onPress={() => {
+                  console.log("✅ Paying bill - pendingBillId:", pendingBillId);
+                  setShowPaymentPrompt(false);
+                  if (pendingBillId) {
+                    navigation.replace("BillDetails", {
+                      billId: pendingBillId,
+                    });
+                  } else {
+                    console.log("❌ No pendingBillId found!");
+                  }
+                }}
+              >
+                <Text style={styles.confirmBtnText}>Yes, Pay Now</Text>
+              </TouchableOpacity>
+            </View>
           </View>
         </View>
       </Modal>
@@ -541,4 +571,51 @@ const styles = StyleSheet.create({
   statusChipActive: { backgroundColor: "#2563eb", borderColor: "#2563eb" },
   statusText: { color: "#64748b", fontWeight: "500" },
   statusTextActive: { color: "white", fontWeight: "700" },
+
+  // ✅ Confirmation Modal Styles
+  confirmCard: {
+    backgroundColor: "white",
+    borderRadius: 22,
+    padding: 25,
+    width: "100%",
+    maxWidth: 380,
+    alignItems: "center",
+  },
+  confirmIcon: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    backgroundColor: "#2563eb",
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 15,
+  },
+  confirmTitle: {
+    fontSize: 18,
+    fontWeight: "bold",
+    color: "#0f172a",
+    marginBottom: 8,
+  },
+  confirmMsg: {
+    textAlign: "center",
+    color: "#475569",
+    marginBottom: 20,
+    lineHeight: 18,
+  },
+  buttonRow: {
+    flexDirection: "row",
+    gap: 12,
+    width: "100%",
+  },
+  confirmBtn: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: 12,
+    alignItems: "center",
+  },
+  confirmBtnText: {
+    color: "white",
+    fontWeight: "bold",
+    fontSize: 14,
+  },
 });
