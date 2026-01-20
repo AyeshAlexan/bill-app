@@ -248,13 +248,13 @@ export default function AddBillScreen({ navigation }) {
           <View key={item.id} style={styles.itemRowContainer}>
             <View style={styles.itemRow}>
               <TextInput
-                style={[styles.input, { flex: 2 }]}
+                style={[styles.input, styles.itemNameInput]}
                 placeholder="Item Name"
                 value={item.name}
                 onChangeText={(t) => updateItem(item.id, "name", t)}
               />
               <TextInput
-                style={[styles.input, { flex: 1, marginLeft: 10 }]}
+                style={[styles.input, styles.itemPriceInput]}
                 placeholder="Price"
                 keyboardType="numeric"
                 value={String(item.price)}
@@ -484,7 +484,11 @@ const styles = StyleSheet.create({
   addBtnText: { color: "#10b981", fontWeight: "bold", marginLeft: 5 },
 
   itemRowContainer: { marginBottom: 10 },
-  itemRow: { flexDirection: "row", alignItems: "center" },
+  itemRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
 
   input: {
     backgroundColor: "white",
@@ -493,7 +497,20 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     padding: 10,
   },
-  deleteBtn: { marginLeft: 10, padding: 5 },
+  itemNameInput: {
+    flex: 2,
+  },
+  itemPriceInput: {
+    flex: 1,
+  },
+  deleteBtn: {
+    width: 42,
+    height: 42,
+    borderRadius: 10,
+    backgroundColor: "#fff5f5",
+    justifyContent: "center",
+    alignItems: "center",
+  },
 
   summaryBox: {
     backgroundColor: "#f1f5f9",
