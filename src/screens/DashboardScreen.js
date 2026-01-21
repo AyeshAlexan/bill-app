@@ -1,17 +1,79 @@
-import React, { useState } from "react";
+import { useEffect, useState } from "react";
 
-import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  TouchableOpacity,
-  Image,
-} from "react-native";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
+import {
+  Image,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from "react-native";
+import { getBills } from "../services/billApi";
+import { fetchShops } from "../services/shopApi";
 
 export default function DashboardScreen({ navigation }) {
   const [activeStat, setActiveStat] = useState("shops");
+  const [stats, setStats] = useState({
+    shops: 0,
+    pending: 0,
+    collected: 0,
+    paid: 0,
+  });
+
+  useEffect(() => {
+    const fetchStats = async () => {
+      try {
+        const [billsData, shopsData] = await Promise.all([
+          getBills(),
+          fetchShops(),
+        ]);
+
+        // Count shops
+        const shopCount = shopsData ? shopsData.length : 0;
+
+        // Count pending bills
+        const pendingCount = billsData.filter(
+          (bill) => parseFloat(bill.due_amount || 0) > 0,
+        ).length;
+
+        // Calculate collected amount - SAME LOGIC AS PAYMENT SCREEN
+        const paidBills = billsData.filter(
+          (bill) =>
+            bill.status === "Paid" ||
+            (parseFloat(bill.due_amount || 0) === 0 &&
+              parseFloat(bill.total_amount || 0) > 0),
+        );
+        const collectedAmount = paidBills.reduce(
+          (sum, bill) => sum + parseFloat(bill.total_amount || 0),
+          0,
+        );
+
+        // Count paid bills
+        const paidCount = paidBills.length;
+
+        console.log(
+          "Dashboard Stats - Pending:",
+          pendingCount,
+          "Collected:",
+          collectedAmount,
+          "Paid Count:",
+          paidCount,
+        );
+
+        setStats({
+          shops: shopCount,
+          pending: pendingCount,
+          collected: collectedAmount,
+          paid: paidCount,
+        });
+      } catch (err) {
+        console.error("Error fetching stats:", err);
+      }
+    };
+
+    fetchStats();
+  }, []);
 
   return (
     <ScrollView style={styles.container}>
@@ -36,7 +98,7 @@ export default function DashboardScreen({ navigation }) {
           color="#10b981"
           icon="store"
           label="Shops"
-          value="3"
+          value={stats.shops.toString()}
           active={activeStat === "shops"}
           onPress={() => setActiveStat("shops")}
         />
@@ -45,7 +107,7 @@ export default function DashboardScreen({ navigation }) {
           color="#ef4444"
           icon="clock-outline"
           label="Pending Bills"
-          value="5"
+          value={stats.pending.toString()}
           active={activeStat === "pending"}
           onPress={() => setActiveStat("pending")}
         />
@@ -54,7 +116,7 @@ export default function DashboardScreen({ navigation }) {
           color="#f97316"
           icon="trending-up"
           label="Collected"
-          value="Rs. 4,500"
+          value={`Rs. ${stats.collected.toLocaleString()}`}
           active={activeStat === "collected"}
           onPress={() => setActiveStat("collected")}
         />
@@ -63,7 +125,7 @@ export default function DashboardScreen({ navigation }) {
           color="#3b82f6"
           icon="check-all"
           label="Paid Bills"
-          value="1"
+          value={stats.paid.toString()}
           active={activeStat === "paid"}
           onPress={() => setActiveStat("paid")}
         />
@@ -96,13 +158,12 @@ export default function DashboardScreen({ navigation }) {
 
       {/* RECENT ACTIVITY */}
       <Text style={styles.sectionTitle}>Recent Activity</Text>
-      <View style={styles.activityBox}>
-        {renderRecentActivity(activeStat)}
-      </View>
+      <View style={styles.activityBox}>{renderRecentActivity(activeStat)}</View>
       {/* FAB to Add Bill */}
-      <TouchableOpacity 
-        style={styles.fab} 
-        onPress={() => navigation.navigate("AddBill")} >
+      <TouchableOpacity
+        style={styles.fab}
+        onPress={() => navigation.navigate("AddBill")}
+      >
         <MaterialCommunityIcons name="plus" size={32} color="white" />
       </TouchableOpacity>
     </ScrollView>
@@ -116,9 +177,13 @@ const renderRecentActivity = (type) => {
     case "shops":
       return (
         <>
-          <Text style={styles.activityItem}>🏪 Visited: Kandy Central Stores</Text>
+          <Text style={styles.activityItem}>
+            🏪 Visited: Kandy Central Stores
+          </Text>
           <Text style={styles.activityItem}>🏪 Visited: Katugastota Mart</Text>
-          <Text style={styles.activityItem}>🏪 Not Visited: Peradeniya Stores</Text>
+          <Text style={styles.activityItem}>
+            🏪 Not Visited: Peradeniya Stores
+          </Text>
         </>
       );
 
@@ -134,8 +199,12 @@ const renderRecentActivity = (type) => {
     case "collected":
       return (
         <>
-          <Text style={styles.activityItem}>💰 Rs. 1,500 from Katugastota Mart</Text>
-          <Text style={styles.activityItem}>💰 Rs. 2,000 from Kandy Stores</Text>
+          <Text style={styles.activityItem}>
+            💰 Rs. 1,500 from Katugastota Mart
+          </Text>
+          <Text style={styles.activityItem}>
+            💰 Rs. 2,000 from Kandy Stores
+          </Text>
           <Text style={styles.activityItem}>💰 Rs. 1,000 from Peradeniya</Text>
         </>
       );
@@ -175,9 +244,7 @@ const StatCard = ({ color, icon, label, value, onPress, active }) => (
 
 const ActionBtn = ({ label, onPress, isCustomImage, imageSource }) => (
   <TouchableOpacity style={styles.actionBtn} onPress={onPress}>
-    {isCustomImage && (
-      <Image source={imageSource} style={styles.customIcon} />
-    )}
+    {isCustomImage && <Image source={imageSource} style={styles.customIcon} />}
     <Text style={styles.actionLabel}>{label}</Text>
   </TouchableOpacity>
 );
@@ -268,20 +335,20 @@ const styles = StyleSheet.create({
     color: "#374151",
   },
 
-// Add this to your StyleSheet
-fab: {
-  position: 'absolute',
-  width: 60,
-  height: 60,
-  alignItems: 'center',
-  justifyContent: 'center',
-  right: 20,
-  bottom: 20,
-  backgroundColor: '#2563eb', // Matches your dashboard header
-  borderRadius: 30,
-  elevation: 8,
-  shadowColor: '#000',
-  shadowOpacity: 0.3,
-  shadowRadius: 3,
-}
+  // Add this to your StyleSheet
+  fab: {
+    position: "absolute",
+    width: 60,
+    height: 60,
+    alignItems: "center",
+    justifyContent: "center",
+    right: 20,
+    bottom: 20,
+    backgroundColor: "#2563eb", // Matches your dashboard header
+    borderRadius: 30,
+    elevation: 8,
+    shadowColor: "#000",
+    shadowOpacity: 0.3,
+    shadowRadius: 3,
+  },
 });

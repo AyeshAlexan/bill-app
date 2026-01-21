@@ -1,29 +1,53 @@
 import { MaterialCommunityIcons } from "@expo/vector-icons";
+import { useEffect, useState } from "react";
 import {
+  ActivityIndicator,
   FlatList,
   StyleSheet,
   Text,
   TouchableOpacity,
   View,
 } from "react-native";
+import { getBills } from "../services/billApi";
 
 export default function PaymentScreen({ navigation }) {
-  const history = [
-    {
-      id: "1",
-      billNo: "INV-2025-098",
-      shop: "Kandy City Store",
-      location: "Kandy",
-      amount: "4,500",
-      date: "2026-01-05",
-      time: "10:30 AM",
-    },
-  ];
+  const [history, setHistory] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [totalCollected, setTotalCollected] = useState(0);
 
-  const validateCard = (cardNumber) => {
-    const regex = /^(\d{4}-){3}\d{4}$/;
-    return regex.test(cardNumber);
-  };
+  useEffect(() => {
+    const fetchPaymentHistory = async () => {
+      try {
+        setLoading(true);
+        const data = await getBills();
+        // Filter bills with status "Paid" or due_amount === 0 (fully paid)
+        const paidBills = data.filter(
+          (bill) =>
+            bill.status === "Paid" ||
+            (parseFloat(bill.due_amount || 0) === 0 &&
+              parseFloat(bill.total_amount || 0) > 0),
+        );
+        setHistory(paidBills);
+        console.log("Payment history:", paidBills);
+
+        // Calculate total collected from all paid bills
+        const total = paidBills.reduce(
+          (sum, bill) => sum + parseFloat(bill.total_amount || 0),
+          0,
+        );
+        setTotalCollected(total);
+        console.log("Total collected:", total);
+      } catch (err) {
+        setError(err.message);
+        console.error("Error fetching payment history:", err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchPaymentHistory();
+  }, []);
 
   return (
     <View style={styles.container}>
@@ -35,52 +59,84 @@ export default function PaymentScreen({ navigation }) {
         <Text style={styles.headerSub}>All collected payments</Text>
         <View style={styles.totalBox}>
           <Text style={styles.totalLabel}>Total Collected</Text>
-          <Text style={styles.totalValue}>Rs.4,500</Text>
-          <Text style={styles.totalSub}>1 payments</Text>
+          <Text style={styles.totalValue}>
+            Rs.{totalCollected.toLocaleString()}
+          </Text>
+          <Text style={styles.totalSub}>{history.length} payments</Text>
         </View>
       </View>
 
-      <FlatList
-        data={history}
-        contentContainerStyle={{ padding: 20 }}
-        renderItem={({ item }) => (
-          <View style={styles.historyCard}>
-            <View style={styles.cardHeader}>
-              <View style={styles.iconCircle}>
-                <MaterialCommunityIcons
-                  name="check"
-                  size={20}
-                  color="#10b981"
-                />
+      {loading ? (
+        <View
+          style={{ flex: 1, justifyContent: "center", alignItems: "center" }}
+        >
+          <ActivityIndicator size="large" color="#00b894" />
+        </View>
+      ) : error ? (
+        <View
+          style={{ flex: 1, justifyContent: "center", alignItems: "center" }}
+        >
+          <Text style={{ color: "#ef4444", fontSize: 16 }}>Error: {error}</Text>
+        </View>
+      ) : history.length === 0 ? (
+        <View
+          style={{ flex: 1, justifyContent: "center", alignItems: "center" }}
+        >
+          <Text style={{ color: "#94a3b8", fontSize: 16 }}>
+            No payments yet
+          </Text>
+        </View>
+      ) : (
+        <FlatList
+          data={history}
+          contentContainerStyle={{ padding: 20 }}
+          keyExtractor={(item) => item.id.toString()}
+          renderItem={({ item }) => (
+            <View style={styles.historyCard}>
+              <View style={styles.cardHeader}>
+                <View style={styles.iconCircle}>
+                  <MaterialCommunityIcons
+                    name="check"
+                    size={20}
+                    color="#10b981"
+                  />
+                </View>
+                <View style={{ flex: 1, marginLeft: 12 }}>
+                  <Text style={styles.historyBill}>
+                    Bill #{item.bill_number || item.billNo}
+                  </Text>
+                  <Text style={styles.historyTime}>
+                    {item.bill_date || "2026-01-05"} • {item.time || "N/A"}
+                  </Text>
+                </View>
+                <View style={styles.cashBadge}>
+                  <Text style={styles.cashText}>
+                    {item.payment_method || "Cash"}
+                  </Text>
+                </View>
               </View>
-              <View style={{ flex: 1, marginLeft: 12 }}>
-                <Text style={styles.historyBill}>Bill #{item.billNo}</Text>
-                <Text style={styles.historyTime}>
-                  {item.date} • {item.time}
+              <View style={styles.shopInfo}>
+                <MaterialCommunityIcons
+                  name="storefront"
+                  size={16}
+                  color="#94a3b8"
+                />
+                <Text style={styles.shopNameText}>
+                  {item.shop?.name || item.shop_name || "N/A"} •{" "}
+                  {item.shop?.location || item.location || "N/A"}
                 </Text>
               </View>
-              <View style={styles.cashBadge}>
-                <Text style={styles.cashText}>Cash</Text>
+              <View style={styles.divider} />
+              <View style={styles.finalRow}>
+                <Text style={styles.finalLabel}>Amount Collected</Text>
+                <Text style={styles.finalAmount}>
+                  Rs.{item.total_amount || item.amount}
+                </Text>
               </View>
             </View>
-            <View style={styles.shopInfo}>
-              <MaterialCommunityIcons
-                name="storefront"
-                size={16}
-                color="#94a3b8"
-              />
-              <Text style={styles.shopNameText}>
-                {item.shop} • {item.location}
-              </Text>
-            </View>
-            <View style={styles.divider} />
-            <View style={styles.finalRow}>
-              <Text style={styles.finalLabel}>Amount Collected</Text>
-              <Text style={styles.finalAmount}>Rs.{item.amount}</Text>
-            </View>
-          </View>
-        )}
-      />
+          )}
+        />
+      )}
     </View>
   );
 }
