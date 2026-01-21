@@ -79,7 +79,7 @@ export default function DashboardScreen({ navigation }) {
   );
 
   return (
-    <ScrollView 
+    <ScrollView
       style={styles.container}
       scrollEnabled={true}
       showsVerticalScrollIndicator={true}

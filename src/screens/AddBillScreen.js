@@ -487,7 +487,7 @@ const styles = StyleSheet.create({
   itemRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 8,
+    gap: 6,
   },
 
   input: {
@@ -498,10 +498,11 @@ const styles = StyleSheet.create({
     padding: 10,
   },
   itemNameInput: {
-    flex: 2,
+    flex: 1.5,
   },
   itemPriceInput: {
-    flex: 1,
+    flex: 0.6,
+    padding: 8,
   },
   deleteBtn: {
     width: 42,
