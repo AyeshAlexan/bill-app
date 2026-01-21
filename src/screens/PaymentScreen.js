@@ -1,8 +1,9 @@
 import { MaterialCommunityIcons } from "@expo/vector-icons";
-import { useEffect, useState } from "react";
+import { useFocusEffect } from "@react-navigation/native";
+import { useCallback, useState } from "react";
 import {
   ActivityIndicator,
-  FlatList,
+  ScrollView,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -16,38 +17,41 @@ export default function PaymentScreen({ navigation }) {
   const [error, setError] = useState(null);
   const [totalCollected, setTotalCollected] = useState(0);
 
-  useEffect(() => {
-    const fetchPaymentHistory = async () => {
-      try {
-        setLoading(true);
-        const data = await getBills();
-        // Filter bills with status "Paid" or due_amount === 0 (fully paid)
-        const paidBills = data.filter(
-          (bill) =>
-            bill.status === "Paid" ||
-            (parseFloat(bill.due_amount || 0) === 0 &&
-              parseFloat(bill.total_amount || 0) > 0),
-        );
-        setHistory(paidBills);
-        console.log("Payment history:", paidBills);
+  const fetchPaymentHistory = useCallback(async () => {
+    try {
+      setLoading(true);
+      const data = await getBills();
+      // Filter bills with status "Paid" or due_amount === 0 (fully paid)
+      const paidBills = data.filter(
+        (bill) =>
+          bill.status === "Paid" ||
+          (parseFloat(bill.due_amount || 0) === 0 &&
+            parseFloat(bill.total_amount || 0) > 0),
+      );
+      setHistory(paidBills);
+      console.log("Payment history:", paidBills);
 
-        // Calculate total collected from all paid bills
-        const total = paidBills.reduce(
-          (sum, bill) => sum + parseFloat(bill.total_amount || 0),
-          0,
-        );
-        setTotalCollected(total);
-        console.log("Total collected:", total);
-      } catch (err) {
-        setError(err.message);
-        console.error("Error fetching payment history:", err);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchPaymentHistory();
+      // Calculate total collected from all paid bills
+      const total = paidBills.reduce(
+        (sum, bill) => sum + parseFloat(bill.total_amount || 0),
+        0,
+      );
+      setTotalCollected(total);
+      console.log("Total collected:", total);
+    } catch (err) {
+      setError(err.message);
+      console.error("Error fetching payment history:", err);
+    } finally {
+      setLoading(false);
+    }
   }, []);
+
+  // Refresh when screen is focused
+  useFocusEffect(
+    useCallback(() => {
+      fetchPaymentHistory();
+    }, [fetchPaymentHistory]),
+  );
 
   return (
     <View style={styles.container}>
@@ -87,12 +91,14 @@ export default function PaymentScreen({ navigation }) {
           </Text>
         </View>
       ) : (
-        <FlatList
-          data={history}
-          contentContainerStyle={{ padding: 20 }}
-          keyExtractor={(item) => item.id.toString()}
-          renderItem={({ item }) => (
-            <View style={styles.historyCard}>
+        <ScrollView
+          style={{ flex: 1 }}
+          scrollEnabled={true}
+          showsVerticalScrollIndicator={true}
+          contentContainerStyle={{ padding: 20, paddingBottom: 100 }}
+        >
+          {history.map((item) => (
+            <View key={item.id.toString()} style={styles.historyCard}>
               <View style={styles.cardHeader}>
                 <View style={styles.iconCircle}>
                   <MaterialCommunityIcons
@@ -134,8 +140,8 @@ export default function PaymentScreen({ navigation }) {
                 </Text>
               </View>
             </View>
-          )}
-        />
+          ))}
+        </ScrollView>
       )}
     </View>
   );

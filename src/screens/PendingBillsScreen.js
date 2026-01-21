@@ -1,8 +1,9 @@
 import { MaterialCommunityIcons } from "@expo/vector-icons";
-import { useEffect, useState } from "react";
+import { useFocusEffect } from "@react-navigation/native";
+import { useCallback, useState } from "react";
 import {
   ActivityIndicator,
-  FlatList,
+  ScrollView,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -15,29 +16,32 @@ export default function PendingBillsScreen({ navigation }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  useEffect(() => {
-    const fetchPendingBills = async () => {
-      try {
-        setLoading(true);
-        const data = await getBills();
-        // Filter bills with status "Pending" or "Partial"
-        const filtered = data.filter(
-          (bill) =>
-            bill.status === "Pending" ||
-            bill.status === "Partial" ||
-            bill.due_amount > 0,
-        );
-        setPendingBills(filtered);
-      } catch (err) {
-        setError(err.message);
-        console.error("Error fetching pending bills:", err);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchPendingBills();
+  const fetchPendingBills = useCallback(async () => {
+    try {
+      setLoading(true);
+      const data = await getBills();
+      // Filter bills with status "Pending" or "Partial"
+      const filtered = data.filter(
+        (bill) =>
+          bill.status === "Pending" ||
+          bill.status === "Partial" ||
+          bill.due_amount > 0,
+      );
+      setPendingBills(filtered);
+    } catch (err) {
+      setError(err.message);
+      console.error("Error fetching pending bills:", err);
+    } finally {
+      setLoading(false);
+    }
   }, []);
+
+  // Refresh when screen is focused
+  useFocusEffect(
+    useCallback(() => {
+      fetchPendingBills();
+    }, [fetchPendingBills]),
+  );
 
   return (
     <View style={styles.container}>
@@ -79,13 +83,15 @@ export default function PendingBillsScreen({ navigation }) {
           </Text>
         </View>
       ) : (
-        <FlatList
-          data={pendingBills}
-          contentContainerStyle={{ padding: 20 }}
-          keyExtractor={(item) => item.id.toString()}
-          renderItem={({ item }) => (
-            /* Clicking this card takes the user to BillDetails */
+        <ScrollView
+          style={{ flex: 1 }}
+          scrollEnabled={true}
+          showsVerticalScrollIndicator={true}
+          contentContainerStyle={{ padding: 20, paddingBottom: 100 }}
+        >
+          {pendingBills.map((item) => (
             <TouchableOpacity
+              key={item.id.toString()}
               style={styles.card}
               activeOpacity={0.7}
               onPress={() =>
@@ -161,8 +167,8 @@ export default function PendingBillsScreen({ navigation }) {
                 </View>
               </View>
             </TouchableOpacity>
-          )}
-        />
+          ))}
+        </ScrollView>
       )}
     </View>
   );

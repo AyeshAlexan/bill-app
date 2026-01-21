@@ -1,6 +1,6 @@
-import { useEffect, useState } from "react";
-
 import { MaterialCommunityIcons } from "@expo/vector-icons";
+import { useFocusEffect } from "@react-navigation/native";
+import { useCallback, useState } from "react";
 import {
   Image,
   ScrollView,
@@ -21,62 +21,70 @@ export default function DashboardScreen({ navigation }) {
     paid: 0,
   });
 
-  useEffect(() => {
-    const fetchStats = async () => {
-      try {
-        const [billsData, shopsData] = await Promise.all([
-          getBills(),
-          fetchShops(),
-        ]);
+  const fetchStats = useCallback(async () => {
+    try {
+      const [billsData, shopsData] = await Promise.all([
+        getBills(),
+        fetchShops(),
+      ]);
 
-        // Count shops
-        const shopCount = shopsData ? shopsData.length : 0;
+      // Count shops
+      const shopCount = shopsData ? shopsData.length : 0;
 
-        // Count pending bills
-        const pendingCount = billsData.filter(
-          (bill) => parseFloat(bill.due_amount || 0) > 0,
-        ).length;
+      // Count pending bills
+      const pendingCount = billsData.filter(
+        (bill) => parseFloat(bill.due_amount || 0) > 0,
+      ).length;
 
-        // Calculate collected amount - SAME LOGIC AS PAYMENT SCREEN
-        const paidBills = billsData.filter(
-          (bill) =>
-            bill.status === "Paid" ||
-            (parseFloat(bill.due_amount || 0) === 0 &&
-              parseFloat(bill.total_amount || 0) > 0),
-        );
-        const collectedAmount = paidBills.reduce(
-          (sum, bill) => sum + parseFloat(bill.total_amount || 0),
-          0,
-        );
+      // Calculate collected amount - SAME LOGIC AS PAYMENT SCREEN
+      const paidBills = billsData.filter(
+        (bill) =>
+          bill.status === "Paid" ||
+          (parseFloat(bill.due_amount || 0) === 0 &&
+            parseFloat(bill.total_amount || 0) > 0),
+      );
+      const collectedAmount = paidBills.reduce(
+        (sum, bill) => sum + parseFloat(bill.total_amount || 0),
+        0,
+      );
 
-        // Count paid bills
-        const paidCount = paidBills.length;
+      // Count paid bills
+      const paidCount = paidBills.length;
 
-        console.log(
-          "Dashboard Stats - Pending:",
-          pendingCount,
-          "Collected:",
-          collectedAmount,
-          "Paid Count:",
-          paidCount,
-        );
+      console.log(
+        "Dashboard Stats - Pending:",
+        pendingCount,
+        "Collected:",
+        collectedAmount,
+        "Paid Count:",
+        paidCount,
+      );
 
-        setStats({
-          shops: shopCount,
-          pending: pendingCount,
-          collected: collectedAmount,
-          paid: paidCount,
-        });
-      } catch (err) {
-        console.error("Error fetching stats:", err);
-      }
-    };
-
-    fetchStats();
+      setStats({
+        shops: shopCount,
+        pending: pendingCount,
+        collected: collectedAmount,
+        paid: paidCount,
+      });
+    } catch (err) {
+      console.error("Error fetching stats:", err);
+    }
   }, []);
 
+  // Refresh when screen is focused
+  useFocusEffect(
+    useCallback(() => {
+      fetchStats();
+    }, [fetchStats]),
+  );
+
   return (
-    <ScrollView style={styles.container}>
+    <ScrollView 
+      style={styles.container}
+      scrollEnabled={true}
+      showsVerticalScrollIndicator={true}
+      nestedScrollEnabled={true}
+    >
       {/* HEADER */}
       <View style={styles.header}>
         <View>
@@ -166,6 +174,7 @@ export default function DashboardScreen({ navigation }) {
       >
         <MaterialCommunityIcons name="plus" size={32} color="white" />
       </TouchableOpacity>
+      <View style={{ height: 40 }} />
     </ScrollView>
   );
 }
