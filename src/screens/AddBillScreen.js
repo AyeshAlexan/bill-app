@@ -472,6 +472,7 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
   },
 
+  
   selectedText: { color: "#1e293b", fontWeight: "500" },
   placeholderText: { color: "#94a3b8" },
 
