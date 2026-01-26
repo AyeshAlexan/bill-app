@@ -10,6 +10,7 @@ import PaymentScreen from "../screens/PaymentScreen";
 import PendingBillsScreen from "../screens/PendingBillsScreen";
 import AddBillScreen from "../screens/AddBillScreen";
 import AddShopScreen from "../screens/AddShopScreen";
+import ViewBillScreen from "../screens/ViewBillScreen";
 
 const Stack = createStackNavigator();
 
@@ -17,21 +18,20 @@ export default function AppNavigator() {
   return (
     <Stack.Navigator
       initialRouteName="Login"
-      screenOptions={{
-        headerShown: false, // Since you are using custom headers in every screen
-      }}
+      screenOptions={{ headerShown: false }}
     >
       <Stack.Screen name="Login" component={LoginScreen} />
       <Stack.Screen name="Dashboard" component={DashboardScreen} />
-      <Stack.Screen name="ShopList" component={ShopListScreen} /> 
+      <Stack.Screen name="ShopList" component={ShopListScreen} />
       <Stack.Screen name="BillList" component={BillListScreen} />
-      {/* Changed name to BillDetails to match your button logic */}
       <Stack.Screen name="BillDetails" component={BillDetailScreen} />
       <Stack.Screen name="Payment" component={PaymentScreen} />
       <Stack.Screen name="PendingBills" component={PendingBillsScreen} />
       <Stack.Screen name="AddBill" component={AddBillScreen} />
-      <Stack.Screen name= "AddShop" component={AddShopScreen}/>
-      
+      <Stack.Screen name="AddShop" component={AddShopScreen} />
+
+      {/* ✅ NEW */}
+      <Stack.Screen name="ViewBill" component={ViewBillScreen} />
     </Stack.Navigator>
   );
 }
