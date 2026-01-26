@@ -12,4 +12,7 @@ export const getBills = async () => {
 export const addBill = async (data) => {
   const res = await Api.post("/bills", data);
   return res.data; // ✅ must return full data, includes bill.id
+
+  
 };
+
