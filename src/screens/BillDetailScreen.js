@@ -78,6 +78,23 @@ export default function BillDetailScreen({ route, navigation }) {
     [totalAmount, dueAmount],
   );
 
+  // Bill-level discount (support different possible keys from backend)
+  const billDiscountPercent = useMemo(() => {
+    return (
+      Number(bill?.discount_percent ?? bill?.bill_discount_percent ?? 0) || 0
+    );
+  }, [bill]);
+  const billDiscountAmount = useMemo(() => {
+    return (
+      Number(
+        bill?.discount_amount ??
+          bill?.bill_discount_amount ??
+          bill?.bill_discount ??
+          0,
+      ) || 0
+    );
+  }, [bill]);
+
   // ✅ NEW: helper for money
   const money = (v) => `Rs.${Number(v || 0).toFixed(2)}`;
 
@@ -390,7 +407,9 @@ export default function BillDetailScreen({ route, navigation }) {
                   <View style={styles.itemMetaRow}>
                     <Text style={styles.metaText}>Qty: {qty}</Text>
                     <Text style={styles.metaText}>Free: {freeQty}</Text>
-                    <Text style={styles.metaText}>Unit: {money(unitPrice)}</Text>
+                    <Text style={styles.metaText}>
+                      Unit: {money(unitPrice)}
+                    </Text>
                   </View>
 
                   {(discPct > 0 || discAmt > 0) && (
@@ -409,6 +428,18 @@ export default function BillDetailScreen({ route, navigation }) {
               <Text style={styles.totalLabel}>Subtotal</Text>
               <Text style={styles.totalValue}>Rs.{subtotal.toFixed(2)}</Text>
             </View>
+
+            {billDiscountPercent > 0 || billDiscountAmount > 0 ? (
+              <View style={styles.totalRow}>
+                <Text style={styles.totalLabel}>
+                  Bill Discount
+                  {billDiscountPercent > 0 ? ` (${billDiscountPercent}%)` : ""}
+                </Text>
+                <Text style={styles.totalValue}>
+                  - {money(billDiscountAmount)}
+                </Text>
+              </View>
+            ) : null}
 
             <View style={styles.totalRow}>
               <Text style={styles.totalLabel}>VAT</Text>

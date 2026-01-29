@@ -1,3 +1,4 @@
+// src/screens/AddBillScreen.js
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { useEffect, useMemo, useState } from "react";
 import {
@@ -16,7 +17,7 @@ import {
 import Toast from "react-native-toast-message";
 
 import { addBill } from "../services/billApi";
-import { fetchItems } from "../services/itemApi"; // ✅ NEW (we will give below)
+import { fetchItems } from "../services/itemApi";
 import { fetchShopLocations, fetchShops } from "../services/shopApi";
 
 export default function AddBillScreen({ navigation }) {
@@ -42,7 +43,7 @@ export default function AddBillScreen({ navigation }) {
   const [activeRowId, setActiveRowId] = useState(null);
 
   /**
-   * ✅ NEW itemsList format
+   * ✅ itemsList format
    * item_id, item_name, unit_price, stock_qty, qty, free_qty, discount_percent
    */
   const [itemsList, setItemsList] = useState([
@@ -57,6 +58,10 @@ export default function AddBillScreen({ navigation }) {
       discount_percent: "0",
     },
   ]);
+
+  // ✅ NEW: Bill-level discount (optional)
+  const [isBillDiscountEnabled, setIsBillDiscountEnabled] = useState(false);
+  const [billDiscountPercent, setBillDiscountPercent] = useState("0");
 
   // ✅ VAT toggle
   const [isVatEnabled, setIsVatEnabled] = useState(true);
@@ -79,52 +84,22 @@ export default function AddBillScreen({ navigation }) {
       setLoadingRoutes(true);
       setLoadingItems(true);
 
-      try {
-        const shopData = await fetchShops();
-        console.log("✅ shops:", shopData?.length);
-        setShops(shopData || []);
-      } catch (e) {
-        console.log(
-          "❌ SHOPS ERROR:",
-          e?.message,
-          "Status:",
-          e?.response?.status,
-        );
-        throw new Error(`Failed to load shops: ${e?.message}`);
-      }
+      const [shopData, locations, itemsData] = await Promise.all([
+        fetchShops(),
+        fetchShopLocations(),
+        fetchItems(),
+      ]);
 
-      try {
-        const locations = await fetchShopLocations();
-        console.log("✅ locations:", locations?.length);
-        const cleanedRoutes = (locations || [])
-          .map((x) => (x || "").trim())
-          .filter((x) => x.length > 0);
-        setRoutes(cleanedRoutes);
-      } catch (e) {
-        console.log(
-          "❌ LOCATIONS ERROR:",
-          e?.message,
-          "Status:",
-          e?.response?.status,
-        );
-        throw new Error(`Failed to load locations: ${e?.message}`);
-      }
+      setShops(shopData || []);
 
-      try {
-        const itemsData = await fetchItems();
-        console.log("✅ items:", itemsData?.length);
-        setItemsMaster(itemsData || []);
-      } catch (e) {
-        console.log(
-          "❌ ITEMS ERROR:",
-          e?.message,
-          "Status:",
-          e?.response?.status,
-        );
-        throw new Error(`Failed to load items: ${e?.message}`);
-      }
+      const cleanedRoutes = (locations || [])
+        .map((x) => (x || "").trim())
+        .filter((x) => x.length > 0);
+      setRoutes(cleanedRoutes);
+
+      setItemsMaster(itemsData || []);
     } catch (e) {
-      console.log("❌ LOAD ALL ERROR:", e?.message);
+      console.log("❌ LOAD ALL ERROR:", e?.response?.data || e?.message);
 
       Toast.show({
         type: "error",
@@ -164,8 +139,8 @@ export default function AddBillScreen({ navigation }) {
   }, [itemsMaster, itemSearch]);
 
   const addNewItem = () =>
-    setItemsList([
-      ...itemsList,
+    setItemsList((prev) => [
+      ...prev,
       {
         id: Date.now(),
         item_id: null,
@@ -197,22 +172,33 @@ export default function AddBillScreen({ navigation }) {
     return Number.isFinite(n) ? n : 0;
   };
 
+  const clampPercent = (v) => Math.min(Math.max(toNum(v), 0), 100);
+
   const lineTotal = (row) => {
     const qty = Math.max(parseInt(row.qty || "0", 10) || 0, 0);
     const unit = toNum(row.unit_price);
     const gross = qty * unit;
-    const disc = Math.min(Math.max(toNum(row.discount_percent), 0), 100);
+    const disc = clampPercent(row.discount_percent);
     const discountAmount = gross * (disc / 100);
     return Math.max(gross - discountAmount, 0);
   };
 
+  // ✅ subtotal is sum of line totals AFTER item discounts
   const subtotal = useMemo(() => {
     return itemsList.reduce((sum, row) => sum + lineTotal(row), 0);
   }, [itemsList]);
 
-  const vat = isVatEnabled ? subtotal * 0.18 : 0;
+  // ✅ NEW bill discount amount (applied after item discounts)
+  const billDiscPercent = isBillDiscountEnabled ? clampPercent(billDiscountPercent) : 0;
+  const billDiscAmount = useMemo(() => subtotal * (billDiscPercent / 100), [subtotal, billDiscPercent]);
+  const discountedSubtotal = useMemo(() => Math.max(subtotal - billDiscAmount, 0), [subtotal, billDiscAmount]);
+
+  // ✅ VAT calculated on discounted subtotal (same as backend)
+  const vat = isVatEnabled ? discountedSubtotal * 0.18 : 0;
+
   const extraTax = isTaxEnabled ? toNum(additionalTax) : 0;
-  const total = (subtotal + vat + extraTax).toFixed(2);
+
+  const total = (discountedSubtotal + vat + extraTax).toFixed(2);
 
   const validateBeforeSave = () => {
     if (!selectedRoute) return "Please select a route/location first";
@@ -233,7 +219,12 @@ export default function AddBillScreen({ navigation }) {
       }
 
       const disc = toNum(row.discount_percent);
-      if (disc < 0 || disc > 100) return "Discount must be between 0 and 100";
+      if (disc < 0 || disc > 100) return "Item discount must be between 0 and 100";
+    }
+
+    if (isBillDiscountEnabled) {
+      const d = toNum(billDiscountPercent);
+      if (d < 0 || d > 100) return "Bill discount must be between 0 and 100";
     }
 
     return null;
@@ -257,18 +248,21 @@ export default function AddBillScreen({ navigation }) {
     try {
       const billDate = new Date().toISOString().split("T")[0];
 
-      // ✅ payload for NEW backend
       const payload = {
         shop_id: selectedShop.id,
         bill_date: billDate,
         vat_enabled: isVatEnabled,
         additional_tax: isTaxEnabled ? toNum(additionalTax) : 0,
+
+        // ✅ NEW: bill-level discount (optional)
+        bill_discount_percent: isBillDiscountEnabled ? clampPercent(billDiscountPercent) : 0,
+
         status,
         items: itemsList.map((row) => ({
           item_id: row.item_id,
           qty: parseInt(row.qty || "0", 10) || 0,
           free_qty: parseInt(row.free_qty || "0", 10) || 0,
-          discount_percent: toNum(row.discount_percent),
+          discount_percent: clampPercent(row.discount_percent),
         })),
       };
 
@@ -289,7 +283,7 @@ export default function AddBillScreen({ navigation }) {
 
       let msg = "Bill creation failed";
       if (e?.response?.data?.message) msg = e.response.data.message;
-      if (e?.response?.status === 422) msg = msg || "Validation failed";
+      if (e?.response?.status === 422 && !msg) msg = "Validation failed";
 
       Toast.show({
         type: "error",
@@ -311,19 +305,11 @@ export default function AddBillScreen({ navigation }) {
         <Text style={styles.headerTitle}>Add New Bill</Text>
       </View>
 
-      <ScrollView
-        style={styles.form}
-        contentContainerStyle={{ paddingBottom: 40 }}
-      >
+      <ScrollView style={styles.form} contentContainerStyle={{ paddingBottom: 40 }}>
         {/* ROUTE */}
         <Text style={styles.label}>Route (Location)</Text>
-        <TouchableOpacity
-          style={styles.dropdown}
-          onPress={() => setShowRouteModal(true)}
-        >
-          <Text
-            style={selectedRoute ? styles.selectedText : styles.placeholderText}
-          >
+        <TouchableOpacity style={styles.dropdown} onPress={() => setShowRouteModal(true)}>
+          <Text style={selectedRoute ? styles.selectedText : styles.placeholderText}>
             {selectedRoute ? selectedRoute : "Select Route"}
           </Text>
           <MaterialCommunityIcons name="map-marker" size={20} color="#64748b" />
@@ -331,13 +317,8 @@ export default function AddBillScreen({ navigation }) {
 
         {/* SHOP */}
         <Text style={styles.label}>Shop Name</Text>
-        <TouchableOpacity
-          style={styles.dropdown}
-          onPress={() => setShowShopModal(true)}
-        >
-          <Text
-            style={selectedShop ? styles.selectedText : styles.placeholderText}
-          >
+        <TouchableOpacity style={styles.dropdown} onPress={() => setShowShopModal(true)}>
+          <Text style={selectedShop ? styles.selectedText : styles.placeholderText}>
             {selectedShop ? selectedShop.name : "Select Shop"}
           </Text>
           <MaterialCommunityIcons name="store" size={20} color="#64748b" />
@@ -349,21 +330,11 @@ export default function AddBillScreen({ navigation }) {
           {["Pending", "Paid", "Partial"].map((s) => (
             <TouchableOpacity
               key={s}
-              style={[
-                styles.statusChip,
-                status === s && styles.statusChipActive,
-              ]}
+              style={[styles.statusChip, status === s && styles.statusChipActive]}
               onPress={() => setStatus(s)}
               activeOpacity={0.85}
             >
-              <Text
-                style={[
-                  styles.statusText,
-                  status === s && styles.statusTextActive,
-                ]}
-              >
-                {s}
-              </Text>
+              <Text style={[styles.statusText, status === s && styles.statusTextActive]}>{s}</Text>
             </TouchableOpacity>
           ))}
         </View>
@@ -372,11 +343,7 @@ export default function AddBillScreen({ navigation }) {
         <View style={styles.sectionHeader}>
           <Text style={styles.label}>Items</Text>
           <TouchableOpacity onPress={addNewItem} style={styles.addBtn}>
-            <MaterialCommunityIcons
-              name="plus-circle"
-              size={20}
-              color="#10b981"
-            />
+            <MaterialCommunityIcons name="plus-circle" size={20} color="#10b981" />
             <Text style={styles.addBtnText}>Add Item</Text>
           </TouchableOpacity>
         </View>
@@ -393,38 +360,24 @@ export default function AddBillScreen({ navigation }) {
                 }}
                 activeOpacity={0.85}
               >
-                <Text
-                  style={
-                    row.item_id ? styles.selectedText : styles.placeholderText
-                  }
-                >
+                <Text style={row.item_id ? styles.selectedText : styles.placeholderText}>
                   {row.item_id ? row.item_name : "Select Item"}
                 </Text>
               </TouchableOpacity>
 
-              <TouchableOpacity
-                onPress={() => deleteItem(row.id)}
-                style={styles.deleteBtn}
-              >
-                <MaterialCommunityIcons
-                  name="trash-can-outline"
-                  size={22}
-                  color="#ef4444"
-                />
+              <TouchableOpacity onPress={() => deleteItem(row.id)} style={styles.deleteBtn}>
+                <MaterialCommunityIcons name="trash-can-outline" size={22} color="#ef4444" />
               </TouchableOpacity>
             </View>
 
             {/* STOCK + UNIT PRICE */}
             <View style={styles.metaRow}>
               <Text style={styles.metaText}>
-                Stock:{" "}
-                <Text style={{ fontWeight: "800" }}>{row.stock_qty ?? 0}</Text>
+                Stock: <Text style={{ fontWeight: "800" }}>{row.stock_qty ?? 0}</Text>
               </Text>
               <Text style={styles.metaText}>
                 Unit Price:{" "}
-                <Text style={{ fontWeight: "800" }}>
-                  Rs.{toNum(row.unit_price).toFixed(2)}
-                </Text>
+                <Text style={{ fontWeight: "800" }}>Rs.{toNum(row.unit_price).toFixed(2)}</Text>
               </Text>
             </View>
 
@@ -436,9 +389,7 @@ export default function AddBillScreen({ navigation }) {
                   style={styles.input}
                   keyboardType="numeric"
                   value={String(row.qty)}
-                  onChangeText={(t) =>
-                    updateRow(row.id, { qty: t.replace(/[^0-9]/g, "") })
-                  }
+                  onChangeText={(t) => updateRow(row.id, { qty: t.replace(/[^0-9]/g, "") })}
                   placeholder="1"
                 />
               </View>
@@ -449,9 +400,7 @@ export default function AddBillScreen({ navigation }) {
                   style={styles.input}
                   keyboardType="numeric"
                   value={String(row.free_qty)}
-                  onChangeText={(t) =>
-                    updateRow(row.id, { free_qty: t.replace(/[^0-9]/g, "") })
-                  }
+                  onChangeText={(t) => updateRow(row.id, { free_qty: t.replace(/[^0-9]/g, "") })}
                   placeholder="0"
                 />
               </View>
@@ -463,9 +412,7 @@ export default function AddBillScreen({ navigation }) {
                   keyboardType="numeric"
                   value={String(row.discount_percent)}
                   onChangeText={(t) =>
-                    updateRow(row.id, {
-                      discount_percent: t.replace(/[^0-9.]/g, ""),
-                    })
+                    updateRow(row.id, { discount_percent: t.replace(/[^0-9.]/g, "") })
                   }
                   placeholder="0"
                 />
@@ -474,9 +421,7 @@ export default function AddBillScreen({ navigation }) {
 
             <View style={styles.lineTotalRow}>
               <Text style={styles.calcLabel}>Line Total</Text>
-              <Text style={styles.calcValue}>
-                Rs. {lineTotal(row).toFixed(2)}
-              </Text>
+              <Text style={styles.calcValue}>Rs. {lineTotal(row).toFixed(2)}</Text>
             </View>
           </View>
         ))}
@@ -488,13 +433,43 @@ export default function AddBillScreen({ navigation }) {
             <Text style={styles.calcValue}>Rs. {subtotal.toFixed(2)}</Text>
           </View>
 
+          {/* ✅ NEW: Bill-level Discount (optional) */}
           <View style={styles.taxToggleRow}>
-            <Text style={styles.label}>Apply VAT (18%)?</Text>
+            <Text style={styles.label}>Bill Discount?</Text>
             <Switch
-              value={isVatEnabled}
-              onValueChange={setIsVatEnabled}
+              value={isBillDiscountEnabled}
+              onValueChange={(v) => {
+                setIsBillDiscountEnabled(v);
+                if (!v) setBillDiscountPercent("0");
+              }}
               trackColor={{ true: "#2563eb" }}
             />
+          </View>
+
+          {isBillDiscountEnabled && (
+            <View style={{ marginTop: 10 }}>
+              <Text style={styles.inputLabel}>Bill Discount %</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="0"
+                keyboardType="numeric"
+                value={billDiscountPercent}
+                onChangeText={(t) => setBillDiscountPercent(t.replace(/[^0-9.]/g, ""))}
+              />
+              <View style={styles.calcRow}>
+                <Text style={styles.calcLabel}>Bill Discount Amount</Text>
+                <Text style={styles.calcValue}>- Rs. {billDiscAmount.toFixed(2)}</Text>
+              </View>
+              <View style={styles.calcRow}>
+                <Text style={styles.calcLabel}>Subtotal After Discount</Text>
+                <Text style={styles.calcValue}>Rs. {discountedSubtotal.toFixed(2)}</Text>
+              </View>
+            </View>
+          )}
+
+          <View style={styles.taxToggleRow}>
+            <Text style={styles.label}>Apply VAT (18%)?</Text>
+            <Switch value={isVatEnabled} onValueChange={setIsVatEnabled} trackColor={{ true: "#2563eb" }} />
           </View>
 
           <View style={styles.calcRow}>
@@ -504,11 +479,7 @@ export default function AddBillScreen({ navigation }) {
 
           <View style={styles.taxToggleRow}>
             <Text style={styles.label}>Extra Tax?</Text>
-            <Switch
-              value={isTaxEnabled}
-              onValueChange={setIsTaxEnabled}
-              trackColor={{ true: "#2563eb" }}
-            />
+            <Switch value={isTaxEnabled} onValueChange={setIsTaxEnabled} trackColor={{ true: "#2563eb" }} />
           </View>
 
           {isTaxEnabled && (
@@ -539,9 +510,7 @@ export default function AddBillScreen({ navigation }) {
           {saving ? (
             <View style={{ flexDirection: "row", alignItems: "center" }}>
               <ActivityIndicator size="small" color="white" />
-              <Text style={[styles.submitText, { marginLeft: 10 }]}>
-                Saving...
-              </Text>
+              <Text style={[styles.submitText, { marginLeft: 10 }]}>Saving...</Text>
             </View>
           ) : (
             <Text style={styles.submitText}>Save & Create Bill</Text>
@@ -602,11 +571,7 @@ export default function AddBillScreen({ navigation }) {
           <View style={styles.modalContent}>
             <TextInput
               style={styles.searchBar}
-              placeholder={
-                selectedRoute
-                  ? `Search shops in ${selectedRoute}...`
-                  : "Search shops..."
-              }
+              placeholder={selectedRoute ? `Search shops in ${selectedRoute}...` : "Search shops..."}
               value={searchQuery}
               onChangeText={setSearchQuery}
             />
@@ -622,8 +587,7 @@ export default function AddBillScreen({ navigation }) {
                 ListEmptyComponent={
                   <View style={{ padding: 18 }}>
                     <Text style={{ color: "#64748b" }}>
-                      No shops found{" "}
-                      {selectedRoute ? `in ${selectedRoute}` : ""}.
+                      No shops found {selectedRoute ? `in ${selectedRoute}` : ""}.
                     </Text>
                   </View>
                 }
@@ -636,9 +600,7 @@ export default function AddBillScreen({ navigation }) {
                     }}
                   >
                     <Text style={{ fontWeight: "700" }}>{item.name}</Text>
-                    <Text style={{ color: "#94a3b8", marginTop: 2 }}>
-                      {item.location ?? "—"}
-                    </Text>
+                    <Text style={{ color: "#94a3b8", marginTop: 2 }}>{item.location ?? "—"}</Text>
                   </TouchableOpacity>
                 )}
               />
@@ -682,7 +644,6 @@ export default function AddBillScreen({ navigation }) {
                   <TouchableOpacity
                     style={styles.shopItem}
                     onPress={() => {
-                      // ✅ prevent duplicate selection (optional)
                       updateRow(activeRowId, {
                         item_id: item.id,
                         item_name: item.name,
@@ -697,8 +658,7 @@ export default function AddBillScreen({ navigation }) {
                   >
                     <Text style={{ fontWeight: "800" }}>{item.name}</Text>
                     <Text style={{ color: "#94a3b8", marginTop: 2 }}>
-                      Stock: {item.stock_qty} • Unit: Rs.
-                      {Number(item.unit_price).toFixed(2)}
+                      Stock: {item.stock_qty} • Unit: Rs.{Number(item.unit_price).toFixed(2)}
                     </Text>
                   </TouchableOpacity>
                 )}
@@ -720,16 +680,10 @@ export default function AddBillScreen({ navigation }) {
         <View style={styles.modalOverlay}>
           <View style={styles.confirmCard}>
             <View style={styles.confirmIcon}>
-              <MaterialCommunityIcons
-                name="file-document-check"
-                size={36}
-                color="white"
-              />
+              <MaterialCommunityIcons name="file-document-check" size={36} color="white" />
             </View>
             <Text style={styles.confirmTitle}>Bill Saved Successfully!</Text>
-            <Text style={styles.confirmMsg}>
-              Do you want to pay the bill now?
-            </Text>
+            <Text style={styles.confirmMsg}>Do you want to pay the bill now?</Text>
 
             <View style={styles.buttonRow}>
               <TouchableOpacity
@@ -747,9 +701,7 @@ export default function AddBillScreen({ navigation }) {
                 onPress={() => {
                   setShowPaymentPrompt(false);
                   if (pendingBillId) {
-                    navigation.replace("BillDetails", {
-                      billId: pendingBillId,
-                    });
+                    navigation.replace("BillDetails", { billId: pendingBillId });
                   }
                 }}
               >

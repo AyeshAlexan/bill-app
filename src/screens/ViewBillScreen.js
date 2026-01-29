@@ -1,4 +1,6 @@
-import React, { useEffect, useMemo, useState } from "react";
+import { MaterialCommunityIcons } from "@expo/vector-icons";
+import axios from "axios";
+import { useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -9,8 +11,6 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import { MaterialCommunityIcons } from "@expo/vector-icons";
-import axios from "axios";
 
 const BILL_API = "http://127.0.0.1:8000/api/bills";
 
@@ -45,11 +45,28 @@ export default function ViewBillScreen({ route, navigation }) {
   const totalAmount = useMemo(() => Number(bill?.total_amount || 0), [bill]);
   const dueAmount = useMemo(() => Number(bill?.due_amount || 0), [bill]);
 
+  // Bill-level discount support
+  const billDiscountPercent = useMemo(() => {
+    return (
+      Number(bill?.discount_percent ?? bill?.bill_discount_percent ?? 0) || 0
+    );
+  }, [bill]);
+  const billDiscountAmount = useMemo(() => {
+    return (
+      Number(
+        bill?.discount_amount ??
+          bill?.bill_discount_amount ??
+          bill?.bill_discount ??
+          0,
+      ) || 0
+    );
+  }, [bill]);
+
   const payments = useMemo(() => bill?.payments || [], [bill]);
 
   const paidSoFar = useMemo(
     () => Math.max(totalAmount - dueAmount, 0),
-    [totalAmount, dueAmount]
+    [totalAmount, dueAmount],
   );
 
   const statusColor = (s) => {
@@ -60,10 +77,24 @@ export default function ViewBillScreen({ route, navigation }) {
 
   const formatDateTime = (dt) => {
     if (!dt) return "—";
+
+    // Laravel timestamp like "2024-06-15 14:30:00" -> make ISO safe
     const safe = String(dt).replace(" ", "T");
+
     const d = new Date(safe);
     if (Number.isNaN(d.getTime())) return String(dt);
-    return d.toLocaleString();
+
+    // ✅ Force Sri Lanka time zone
+    return d.toLocaleString("en-LK", {
+      timeZone: "Asia/Colombo",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+      hour12: true,
+    });
   };
 
   const escapeHtml = (s) =>
@@ -103,16 +134,16 @@ export default function ViewBillScreen({ route, navigation }) {
               <div style="font-weight:700;">${escapeHtml(it.item_name)}</div>
               <div style="color:#64748b;font-size:11px;margin-top:4px;">
                 Qty: ${qty} ${free > 0 ? `• Free: ${free}` : ""} ${
-          discP > 0 ? `• Discount: ${discP}%` : ""
-        }
+                  discP > 0 ? `• Discount: ${discP}%` : ""
+                }
               </div>
             </td>
             <td style="text-align:right;">
               <div>Rs.${line.toFixed(2)}</div>
               <div style="color:#64748b;font-size:11px;margin-top:4px;">
                 Unit: Rs.${unit.toFixed(2)} ${
-          discAmt > 0 ? `<br/>- Rs.${discAmt.toFixed(2)}` : ""
-        }
+                  discAmt > 0 ? `<br/>- Rs.${discAmt.toFixed(2)}` : ""
+                }
               </div>
             </td>
           </tr>
@@ -130,7 +161,7 @@ export default function ViewBillScreen({ route, navigation }) {
             <td>${escapeHtml(collector)}</td>
             <td>${escapeHtml(formatDateTime(getPayDate(p)))}</td>
             <td style="text-align:right;">Rs.${Number(p.amount || 0).toFixed(
-              2
+              2,
             )}</td>
           </tr>
         `;
@@ -163,8 +194,8 @@ export default function ViewBillScreen({ route, navigation }) {
       <h1>Bill ${escapeHtml(billNo)}</h1>
       <div class="muted">${escapeHtml(billDate)}</div>
       <div class="muted">${escapeHtml(shopName)} ${
-      shopLocation ? "• " + escapeHtml(shopLocation) : ""
-    }</div>
+        shopLocation ? "• " + escapeHtml(shopLocation) : ""
+      }</div>
     </div>
     <div style="text-align:right;">
       <div class="muted">Status</div>
@@ -182,11 +213,20 @@ export default function ViewBillScreen({ route, navigation }) {
 
     <div class="totals">
       <div><span>Subtotal</span><span>Rs.${subtotal.toFixed(2)}</span></div>
+      ${
+        bill?.discount_percent ||
+        bill?.discount_amount ||
+        bill?.bill_discount ||
+        bill?.bill_discount_amount ||
+        bill?.bill_discount_percent
+          ? `
+        <div><span>Bill Discount${billDiscountPercent > 0 ? ` (${billDiscountPercent}%)` : ""}</span><span>- Rs.${billDiscountAmount.toFixed(2)}</span></div>
+      `
+          : ""
+      }
       <div><span>VAT</span><span>Rs.${vatAmount.toFixed(2)}</span></div>
       <div><span>Additional Tax</span><span>Rs.${extraTax.toFixed(2)}</span></div>
-      <div class="grand"><span>Total</span><span>Rs.${totalAmount.toFixed(
-        2
-      )}</span></div>
+      <div class="grand"><span>Total</span><span>Rs.${totalAmount.toFixed(2)}</span></div>
       <div><span>Paid</span><span>Rs.${paidSoFar.toFixed(2)}</span></div>
       <div><span>Due</span><span>Rs.${dueAmount.toFixed(2)}</span></div>
     </div>
@@ -269,7 +309,9 @@ export default function ViewBillScreen({ route, navigation }) {
 
   if (!bill) {
     return (
-      <View style={[styles.container, { justifyContent: "center", padding: 20 }]}>
+      <View
+        style={[styles.container, { justifyContent: "center", padding: 20 }]}
+      >
         <Text>Bill not found</Text>
       </View>
     );
@@ -286,12 +328,19 @@ export default function ViewBillScreen({ route, navigation }) {
         <Text style={styles.headerSub}>{bill?.shop?.name || "—"}</Text>
       </View>
 
-      <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 20, paddingBottom: 40 }}>
+      <ScrollView
+        style={{ flex: 1 }}
+        contentContainerStyle={{ padding: 20, paddingBottom: 40 }}
+      >
         {/* Bill card */}
         <View style={styles.card}>
           <View style={styles.billTop}>
             <View style={styles.iconBox}>
-              <MaterialCommunityIcons name="file-document" size={24} color="#3b82f6" />
+              <MaterialCommunityIcons
+                name="file-document"
+                size={24}
+                color="#3b82f6"
+              />
             </View>
 
             <View style={{ flex: 1, marginLeft: 12 }}>
@@ -300,7 +349,9 @@ export default function ViewBillScreen({ route, navigation }) {
             </View>
 
             <View style={[styles.statusBadge, { backgroundColor: "#f1f5f9" }]}>
-              <Text style={[styles.statusText, { color: statusColor(bill.status) }]}>
+              <Text
+                style={[styles.statusText, { color: statusColor(bill.status) }]}
+              >
                 {bill.status}
               </Text>
             </View>
@@ -326,7 +377,9 @@ export default function ViewBillScreen({ route, navigation }) {
                 <View style={styles.itemMetaRow}>
                   <Text style={styles.metaText}>Qty: {qty}</Text>
                   <Text style={styles.metaText}>Free: {free}</Text>
-                  <Text style={styles.metaText}>Unit: Rs.{unit.toFixed(2)}</Text>
+                  <Text style={styles.metaText}>
+                    Unit: Rs.{unit.toFixed(2)}
+                  </Text>
                 </View>
 
                 <View style={styles.itemMetaRow}>
@@ -343,6 +396,19 @@ export default function ViewBillScreen({ route, navigation }) {
             <Text style={styles.totalLabel}>Subtotal</Text>
             <Text style={styles.totalValue}>Rs.{subtotal.toFixed(2)}</Text>
           </View>
+
+          {billDiscountPercent > 0 || billDiscountAmount > 0 ? (
+            <View style={styles.totalRow}>
+              <Text style={styles.totalLabel}>
+                Bill Discount
+                {billDiscountPercent > 0 ? ` (${billDiscountPercent}%)` : ""}
+              </Text>
+              <Text style={styles.totalValue}>
+                - Rs.{billDiscountAmount.toFixed(2)}
+              </Text>
+            </View>
+          ) : null}
+
           <View style={styles.totalRow}>
             <Text style={styles.totalLabel}>VAT</Text>
             <Text style={styles.totalValue}>Rs.{vatAmount.toFixed(2)}</Text>
@@ -360,11 +426,15 @@ export default function ViewBillScreen({ route, navigation }) {
           </View>
           <View style={styles.totalRow}>
             <Text style={styles.totalLabel}>Paid</Text>
-            <Text style={[styles.totalValue, { color: "#10b981" }]}>Rs.{paidSoFar.toFixed(2)}</Text>
+            <Text style={[styles.totalValue, { color: "#10b981" }]}>
+              Rs.{paidSoFar.toFixed(2)}
+            </Text>
           </View>
           <View style={styles.totalRow}>
             <Text style={styles.totalLabel}>Due</Text>
-            <Text style={[styles.totalValue, { color: "#ef4444" }]}>Rs.{dueAmount.toFixed(2)}</Text>
+            <Text style={[styles.totalValue, { color: "#ef4444" }]}>
+              Rs.{dueAmount.toFixed(2)}
+            </Text>
           </View>
         </View>
 
@@ -374,7 +444,11 @@ export default function ViewBillScreen({ route, navigation }) {
 
           {payments.length === 0 ? (
             <View style={styles.emptyBox}>
-              <MaterialCommunityIcons name="cash-remove" size={22} color="#94a3b8" />
+              <MaterialCommunityIcons
+                name="cash-remove"
+                size={22}
+                color="#94a3b8"
+              />
               <Text style={styles.emptyText}>No payments recorded</Text>
             </View>
           ) : (
@@ -399,13 +473,15 @@ export default function ViewBillScreen({ route, navigation }) {
 
                     {method === "Card" && (last4 || cardRef) ? (
                       <Text style={styles.payMeta}>
-                        Card: {last4 ? `**** ${last4}` : "—"} {cardRef ? `• Ref: ${cardRef}` : ""}
+                        Card: {last4 ? `**** ${last4}` : "—"}{" "}
+                        {cardRef ? `• Ref: ${cardRef}` : ""}
                       </Text>
                     ) : null}
 
                     {method === "Cheque" && (chequeNo || chequeBank) ? (
                       <Text style={styles.payMeta}>
-                        Cheque: {chequeNo || "—"} {chequeBank ? `• Bank: ${chequeBank}` : ""}
+                        Cheque: {chequeNo || "—"}{" "}
+                        {chequeBank ? `• Bank: ${chequeBank}` : ""}
                       </Text>
                     ) : null}
                   </View>
@@ -475,15 +551,27 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "#eef2f7",
   },
-  itemRow: { flexDirection: "row", justifyContent: "space-between", marginBottom: 6 },
+  itemRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginBottom: 6,
+  },
   itemName: { fontWeight: "800", color: "#0f172a" },
   itemPrice: { fontWeight: "900", color: "#0f172a" },
-  itemMetaRow: { flexDirection: "row", justifyContent: "space-between", marginTop: 2 },
+  itemMetaRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginTop: 2,
+  },
   metaText: { color: "#64748b", fontSize: 11, fontWeight: "600" },
 
   divider: { height: 1, backgroundColor: "#f1f5f9", marginVertical: 12 },
 
-  totalRow: { flexDirection: "row", justifyContent: "space-between", marginBottom: 6 },
+  totalRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginBottom: 6,
+  },
   totalLabel: { color: "#64748b" },
   totalValue: { fontWeight: "bold", fontSize: 16, color: "#0f172a" },
 
