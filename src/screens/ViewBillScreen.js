@@ -62,7 +62,7 @@ export default function ViewBillScreen({ route, navigation }) {
     if (!dt) return "—";
     const safe = String(dt).replace(" ", "T");
     const d = new Date(safe);
-    if (Number.isNaN(d.getTime())) return dt;
+    if (Number.isNaN(d.getTime())) return String(dt);
     return d.toLocaleString();
   };
 
@@ -74,6 +74,14 @@ export default function ViewBillScreen({ route, navigation }) {
       .replaceAll('"', "&quot;")
       .replaceAll("'", "&#039;");
 
+  const getPayDate = (p) => p?.paid_at || p?.created_at || null;
+
+  const getCardLast4 = (p) => {
+    const raw = String(p?.card_number || "").replace(/\D/g, "");
+    if (raw.length >= 4) return raw.slice(-4);
+    return p?.card_last4 || "";
+  };
+
   const buildPrintableHtml = () => {
     const shopName = bill?.shop?.name || "—";
     const shopLocation = bill?.shop?.location || "";
@@ -81,14 +89,35 @@ export default function ViewBillScreen({ route, navigation }) {
     const billDate = bill?.bill_date || "—";
 
     const itemsHtml = (bill?.items || [])
-      .map(
-        (it) => `
-        <tr>
-          <td>${escapeHtml(it.item_name)}</td>
-          <td style="text-align:right;">Rs.${Number(it.price || 0).toFixed(2)}</td>
-        </tr>
-      `
-      )
+      .map((it) => {
+        const qty = Number(it.qty || 0);
+        const free = Number(it.free_qty || 0);
+        const unit = Number(it.unit_price || 0);
+        const discP = Number(it.discount_percent || 0);
+        const discAmt = Number(it.discount_amount || 0);
+        const line = Number(it.line_total || it.price || 0);
+
+        return `
+          <tr>
+            <td>
+              <div style="font-weight:700;">${escapeHtml(it.item_name)}</div>
+              <div style="color:#64748b;font-size:11px;margin-top:4px;">
+                Qty: ${qty} ${free > 0 ? `• Free: ${free}` : ""} ${
+          discP > 0 ? `• Discount: ${discP}%` : ""
+        }
+              </div>
+            </td>
+            <td style="text-align:right;">
+              <div>Rs.${line.toFixed(2)}</div>
+              <div style="color:#64748b;font-size:11px;margin-top:4px;">
+                Unit: Rs.${unit.toFixed(2)} ${
+          discAmt > 0 ? `<br/>- Rs.${discAmt.toFixed(2)}` : ""
+        }
+              </div>
+            </td>
+          </tr>
+        `;
+      })
       .join("");
 
     const paymentsHtml = (payments || [])
@@ -99,7 +128,7 @@ export default function ViewBillScreen({ route, navigation }) {
             <td>${idx + 1}</td>
             <td>${escapeHtml(p.method || "Cash")}</td>
             <td>${escapeHtml(collector)}</td>
-            <td>${escapeHtml(formatDateTime(p.paid_at))}</td>
+            <td>${escapeHtml(formatDateTime(getPayDate(p)))}</td>
             <td style="text-align:right;">Rs.${Number(p.amount || 0).toFixed(
               2
             )}</td>
@@ -121,7 +150,7 @@ export default function ViewBillScreen({ route, navigation }) {
     h1 { margin:0; font-size:18px; }
     .muted { color:#64748b; font-size:12px; margin-top:6px; }
     table { width:100%; border-collapse: collapse; margin-top:10px; }
-    th, td { border-bottom:1px solid #eef2f7; padding:10px 6px; font-size:12px; }
+    th, td { border-bottom:1px solid #eef2f7; padding:10px 6px; font-size:12px; vertical-align:top; }
     th { text-align:left; color:#0f172a; }
     .totals { margin-top:10px; }
     .totals div { display:flex; justify-content:space-between; padding:4px 0; font-size:12px; }
@@ -133,7 +162,9 @@ export default function ViewBillScreen({ route, navigation }) {
     <div>
       <h1>Bill ${escapeHtml(billNo)}</h1>
       <div class="muted">${escapeHtml(billDate)}</div>
-      <div class="muted">${escapeHtml(shopName)} ${shopLocation ? "• " + escapeHtml(shopLocation) : ""}</div>
+      <div class="muted">${escapeHtml(shopName)} ${
+      shopLocation ? "• " + escapeHtml(shopLocation) : ""
+    }</div>
     </div>
     <div style="text-align:right;">
       <div class="muted">Status</div>
@@ -197,7 +228,7 @@ export default function ViewBillScreen({ route, navigation }) {
     try {
       setPrinting(true);
 
-      // ✅ Web: open new window + print
+      // ✅ Web
       if (Platform.OS === "web") {
         const w = window.open("", "_blank");
         if (!w) {
@@ -210,7 +241,7 @@ export default function ViewBillScreen({ route, navigation }) {
         return;
       }
 
-      // ✅ Native (when you later run on phone): expo-print + expo-sharing
+      // ✅ Native (later)
       const Print = await import("expo-print");
       const Sharing = await import("expo-sharing");
 
@@ -276,12 +307,35 @@ export default function ViewBillScreen({ route, navigation }) {
           </View>
 
           <Text style={styles.sectionLabel}>Items</Text>
-          {(bill.items || []).map((it) => (
-            <View key={it.id} style={styles.itemRow}>
-              <Text style={styles.itemName}>{it.item_name}</Text>
-              <Text style={styles.itemPrice}>Rs.{Number(it.price).toFixed(2)}</Text>
-            </View>
-          ))}
+
+          {(bill.items || []).map((it) => {
+            const qty = Number(it.qty || 0);
+            const free = Number(it.free_qty || 0);
+            const unit = Number(it.unit_price || 0);
+            const discP = Number(it.discount_percent || 0);
+            const discAmt = Number(it.discount_amount || 0);
+            const line = Number(it.line_total || it.price || 0);
+
+            return (
+              <View key={it.id} style={styles.itemBlock}>
+                <View style={styles.itemRow}>
+                  <Text style={styles.itemName}>{it.item_name}</Text>
+                  <Text style={styles.itemPrice}>Rs.{line.toFixed(2)}</Text>
+                </View>
+
+                <View style={styles.itemMetaRow}>
+                  <Text style={styles.metaText}>Qty: {qty}</Text>
+                  <Text style={styles.metaText}>Free: {free}</Text>
+                  <Text style={styles.metaText}>Unit: Rs.{unit.toFixed(2)}</Text>
+                </View>
+
+                <View style={styles.itemMetaRow}>
+                  <Text style={styles.metaText}>Discount: {discP}%</Text>
+                  <Text style={styles.metaText}>- Rs.{discAmt.toFixed(2)}</Text>
+                </View>
+              </View>
+            );
+          })}
 
           <View style={styles.divider} />
 
@@ -324,31 +378,42 @@ export default function ViewBillScreen({ route, navigation }) {
               <Text style={styles.emptyText}>No payments recorded</Text>
             </View>
           ) : (
-            payments.map((p, idx) => (
-              <View key={p.id} style={styles.payRow}>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.payTitle}>
-                    {idx + 1}. {p.method || "Cash"} • {p?.user?.name || "—"}
-                  </Text>
-                  <Text style={styles.paySub}>{formatDateTime(p.paid_at)}</Text>
+            payments.map((p, idx) => {
+              const collector = p?.user?.name || "—";
+              const method = p?.method || "Cash";
+              const payDate = formatDateTime(getPayDate(p));
+              const amount = Number(p?.amount || 0).toFixed(2);
 
-                  {/* Optional method details */}
-                  {p.method === "Card" && (p.card_last4 || p.card_ref) ? (
-                    <Text style={styles.payMeta}>
-                      Card: {p.card_last4 || "—"} {p.card_ref ? `• Ref: ${p.card_ref}` : ""}
-                    </Text>
-                  ) : null}
+              const last4 = getCardLast4(p);
+              const cardRef = p?.card_ref || "";
+              const chequeNo = p?.cheque_no || "";
+              const chequeBank = p?.cheque_bank || "";
 
-                  {p.method === "Cheque" && (p.cheque_no || p.cheque_bank) ? (
-                    <Text style={styles.payMeta}>
-                      Cheque: {p.cheque_no || "—"} {p.cheque_bank ? `• Bank: ${p.cheque_bank}` : ""}
+              return (
+                <View key={p.id || `${idx}`} style={styles.payRow}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.payTitle}>
+                      {idx + 1}. {method} • {collector}
                     </Text>
-                  ) : null}
+                    <Text style={styles.paySub}>{payDate}</Text>
+
+                    {method === "Card" && (last4 || cardRef) ? (
+                      <Text style={styles.payMeta}>
+                        Card: {last4 ? `**** ${last4}` : "—"} {cardRef ? `• Ref: ${cardRef}` : ""}
+                      </Text>
+                    ) : null}
+
+                    {method === "Cheque" && (chequeNo || chequeBank) ? (
+                      <Text style={styles.payMeta}>
+                        Cheque: {chequeNo || "—"} {chequeBank ? `• Bank: ${chequeBank}` : ""}
+                      </Text>
+                    ) : null}
+                  </View>
+
+                  <Text style={styles.payAmount}>Rs.{amount}</Text>
                 </View>
-
-                <Text style={styles.payAmount}>Rs.{Number(p.amount || 0).toFixed(2)}</Text>
-              </View>
-            ))
+              );
+            })
           )}
         </View>
 
@@ -401,9 +466,20 @@ const styles = StyleSheet.create({
   statusText: { fontSize: 10, fontWeight: "bold" },
 
   sectionLabel: { fontSize: 14, fontWeight: "bold", marginBottom: 12 },
-  itemRow: { flexDirection: "row", justifyContent: "space-between", marginBottom: 10 },
-  itemName: { fontWeight: "600", color: "#0f172a" },
-  itemPrice: { fontWeight: "800", color: "#0f172a" },
+
+  itemBlock: {
+    backgroundColor: "#f8fafc",
+    borderRadius: 16,
+    padding: 12,
+    marginBottom: 10,
+    borderWidth: 1,
+    borderColor: "#eef2f7",
+  },
+  itemRow: { flexDirection: "row", justifyContent: "space-between", marginBottom: 6 },
+  itemName: { fontWeight: "800", color: "#0f172a" },
+  itemPrice: { fontWeight: "900", color: "#0f172a" },
+  itemMetaRow: { flexDirection: "row", justifyContent: "space-between", marginTop: 2 },
+  metaText: { color: "#64748b", fontSize: 11, fontWeight: "600" },
 
   divider: { height: 1, backgroundColor: "#f1f5f9", marginVertical: 12 },
 

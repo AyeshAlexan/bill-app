@@ -1,4 +1,3 @@
-// src/screens/AddBillScreen.js
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { useEffect, useMemo, useState } from "react";
 import {

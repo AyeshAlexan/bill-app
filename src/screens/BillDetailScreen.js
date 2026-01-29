@@ -78,6 +78,9 @@ export default function BillDetailScreen({ route, navigation }) {
     [totalAmount, dueAmount],
   );
 
+  // ✅ NEW: helper for money
+  const money = (v) => `Rs.${Number(v || 0).toFixed(2)}`;
+
   const formatCardNumber = (value) => {
     const digits = value.replace(/\D/g, "").slice(0, 16);
     const parts = digits.match(/.{1,4}/g) || [];
@@ -367,14 +370,38 @@ export default function BillDetailScreen({ route, navigation }) {
             </View>
 
             <Text style={styles.sectionLabel}>Items</Text>
-            {(bill.items || []).map((it) => (
-              <View key={it.id} style={styles.itemRow}>
-                <Text style={styles.itemName}>{it.item_name}</Text>
-                <Text style={styles.itemPrice}>
-                  Rs.{Number(it.price).toFixed(2)}
-                </Text>
-              </View>
-            ))}
+
+            {/* ✅ UPDATED ITEMS UI (shows qty, free qty, unit price, discount, line total) */}
+            {(bill.items || []).map((it) => {
+              const qty = Number(it.qty || 0);
+              const freeQty = Number(it.free_qty || 0);
+              const unitPrice = Number(it.unit_price || 0);
+              const discPct = Number(it.discount_percent || 0);
+              const discAmt = Number(it.discount_amount || 0);
+              const lineTotal = Number(it.line_total ?? it.price ?? 0);
+
+              return (
+                <View key={it.id} style={styles.itemCard}>
+                  <View style={styles.itemHeaderRow}>
+                    <Text style={styles.itemName}>{it.item_name}</Text>
+                    <Text style={styles.itemPrice}>{money(lineTotal)}</Text>
+                  </View>
+
+                  <View style={styles.itemMetaRow}>
+                    <Text style={styles.metaText}>Qty: {qty}</Text>
+                    <Text style={styles.metaText}>Free: {freeQty}</Text>
+                    <Text style={styles.metaText}>Unit: {money(unitPrice)}</Text>
+                  </View>
+
+                  {(discPct > 0 || discAmt > 0) && (
+                    <View style={styles.itemMetaRow}>
+                      <Text style={styles.metaText}>Discount: {discPct}%</Text>
+                      <Text style={styles.metaText}>- {money(discAmt)}</Text>
+                    </View>
+                  )}
+                </View>
+              );
+            })}
 
             <View style={styles.divider} />
 
@@ -625,13 +652,34 @@ const styles = StyleSheet.create({
   statusText: { fontSize: 10, fontWeight: "bold" },
 
   sectionLabel: { fontSize: 14, fontWeight: "bold", marginBottom: 15 },
+
+  /* ✅ NEW item card styles (keeps your theme) */
+  itemCard: {
+    backgroundColor: "#f8fafc",
+    borderRadius: 16,
+    padding: 12,
+    marginBottom: 10,
+    borderWidth: 1,
+    borderColor: "#e2e8f0",
+  },
+  itemHeaderRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
   itemRow: {
     flexDirection: "row",
     justifyContent: "space-between",
     marginBottom: 10,
   },
-  itemName: { fontWeight: "500" },
-  itemPrice: { fontWeight: "bold" },
+  itemName: { fontWeight: "700", color: "#0f172a" },
+  itemPrice: { fontWeight: "800", color: "#0f172a" },
+  itemMetaRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginTop: 6,
+  },
+  metaText: { color: "#64748b", fontSize: 12 },
 
   divider: { height: 1, backgroundColor: "#f1f5f9", marginVertical: 15 },
   totalRow: {
