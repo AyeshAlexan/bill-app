@@ -26,3 +26,9 @@ export const fetchShopLocations = async () => {
     throw e;
   }
 };
+
+// ✅ ADD THIS FUNCTION - It was missing!
+export const addShop = async (shopData) => {
+  const res = await Api.post("/shops", shopData);
+  return res.data;
+};

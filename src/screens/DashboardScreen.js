@@ -1,4 +1,5 @@
 import { MaterialCommunityIcons } from "@expo/vector-icons";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useFocusEffect } from "@react-navigation/native";
 import { useCallback, useMemo, useState } from "react";
 import {
@@ -18,6 +19,7 @@ import {
 
 export default function DashboardScreen({ navigation }) {
   const [activeStat, setActiveStat] = useState("shops");
+  const [userName, setUserName] = useState("");
 
   const [stats, setStats] = useState({
     shops: 0,
@@ -37,6 +39,13 @@ export default function DashboardScreen({ navigation }) {
   const loadDashboard = useCallback(async () => {
     try {
       setLoading(true);
+
+      // Fetch user name from storage
+      const userData = await AsyncStorage.getItem("user");
+      if (userData) {
+        const user = JSON.parse(userData);
+        setUserName(user.name || "User");
+      }
 
       const [statsData, recentData] = await Promise.all([
         fetchDashboardStats(),
@@ -188,7 +197,7 @@ export default function DashboardScreen({ navigation }) {
       <View style={styles.header}>
         <View>
           <Text style={styles.headerTitle}>Dashboard</Text>
-          <Text style={styles.headerSub}>Hello, Ayesh!</Text>
+          <Text style={styles.headerSub}>Hello, {userName}!</Text>
         </View>
 
         <TouchableOpacity
