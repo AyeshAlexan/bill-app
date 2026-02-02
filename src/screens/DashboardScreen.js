@@ -54,6 +54,7 @@ export default function DashboardScreen({ navigation }) {
       });
     } catch (err) {
       console.error("Dashboard load error:", err?.response?.data || err.message);
+      console.error("Full error:", err);
     } finally {
       setLoading(false);
     }
