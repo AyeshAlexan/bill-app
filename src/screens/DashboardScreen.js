@@ -11,7 +11,10 @@ import {
   View,
 } from "react-native";
 
-import { fetchDashboardStats, fetchRecentActivity } from "../services/dashboardApi";
+import {
+  fetchDashboardStats,
+  fetchRecentActivity,
+} from "../services/dashboardApi";
 
 export default function DashboardScreen({ navigation }) {
   const [activeStat, setActiveStat] = useState("shops");
@@ -53,7 +56,10 @@ export default function DashboardScreen({ navigation }) {
         payments: recentData?.payments || [],
       });
     } catch (err) {
-      console.error("Dashboard load error:", err?.response?.data || err.message);
+      console.error(
+        "Dashboard load error:",
+        err?.response?.data || err.message,
+      );
       console.error("Full error:", err);
     } finally {
       setLoading(false);
@@ -63,7 +69,7 @@ export default function DashboardScreen({ navigation }) {
   useFocusEffect(
     useCallback(() => {
       loadDashboard();
-    }, [loadDashboard])
+    }, [loadDashboard]),
   );
 
   const recentList = useMemo(() => {
@@ -71,7 +77,8 @@ export default function DashboardScreen({ navigation }) {
     if (activeStat === "shops") return { type: "shops", data: recent.shops };
     if (activeStat === "pending") return { type: "bills", data: recent.bills };
     if (activeStat === "paid") return { type: "bills", data: recent.bills };
-    if (activeStat === "collected") return { type: "payments", data: recent.payments };
+    if (activeStat === "collected")
+      return { type: "payments", data: recent.payments };
     return { type: "shops", data: recent.shops };
   }, [activeStat, recent]);
 
@@ -95,17 +102,15 @@ export default function DashboardScreen({ navigation }) {
     }
 
     if (!recentList.data || recentList.data.length === 0) {
-      return (
-        <Text style={styles.activityItem}>No recent activity found.</Text>
-      );
+      return <Text style={styles.activityItem}>No recent activity found.</Text>;
     }
 
     // ✅ SHOPS recent
     if (recentList.type === "shops") {
       return recentList.data.map((s) => (
         <Text key={`shop-${s.id}`} style={styles.activityItem}>
-          🏪 New Shop: {s.name} {s.location ? `• ${s.location}` : ""}{" "}
-          {"\n"}<Text style={styles.activityTime}>{formatSLTime(s.created_at)}</Text>
+          🏪 New Shop: {s.name} {s.location ? `• ${s.location}` : ""} {"\n"}
+          <Text style={styles.activityTime}>{formatSLTime(s.created_at)}</Text>
         </Text>
       ));
     }
@@ -114,10 +119,17 @@ export default function DashboardScreen({ navigation }) {
     if (recentList.type === "bills") {
       const filtered =
         activeStat === "pending"
-          ? recentList.data.filter((b) => String(b.status) !== "Paid" && Number(b.due_amount || 0) > 0)
+          ? recentList.data.filter(
+              (b) =>
+                String(b.status) !== "Paid" && Number(b.due_amount || 0) > 0,
+            )
           : activeStat === "paid"
-          ? recentList.data.filter((b) => String(b.status) === "Paid" || Number(b.due_amount || 0) === 0)
-          : recentList.data;
+            ? recentList.data.filter(
+                (b) =>
+                  String(b.status) === "Paid" ||
+                  Number(b.due_amount || 0) === 0,
+              )
+            : recentList.data;
 
       const rows = filtered.length ? filtered : recentList.data;
 
@@ -129,11 +141,16 @@ export default function DashboardScreen({ navigation }) {
           style={styles.activityTap}
         >
           <Text style={styles.activityItem}>
-            🧾 {b.bill_number} • {b?.shop?.name || "Shop"}{"\n"}
+            🧾 {b.bill_number} • {b?.shop?.name || "Shop"}
+            {"\n"}
             <Text style={styles.activitySub}>
-              Total: {formatMoney(b.total_amount)} • Due: {formatMoney(b.due_amount)} • {b.status}
-            </Text>{"\n"}
-            <Text style={styles.activityTime}>{formatSLTime(b.created_at)}</Text>
+              Total: {formatMoney(b.total_amount)} • Due:{" "}
+              {formatMoney(b.due_amount)} • {b.status}
+            </Text>
+            {"\n"}
+            <Text style={styles.activityTime}>
+              {formatSLTime(b.created_at)}
+            </Text>
           </Text>
         </TouchableOpacity>
       ));
@@ -143,10 +160,13 @@ export default function DashboardScreen({ navigation }) {
     if (recentList.type === "payments") {
       return recentList.data.map((p) => (
         <Text key={`pay-${p.id}`} style={styles.activityItem}>
-          💰 {formatMoney(p.amount)} • {p.method || "Cash"}{"\n"}
+          💰 {formatMoney(p.amount)} • {p.method || "Cash"}
+          {"\n"}
           <Text style={styles.activitySub}>
-            {p?.bill?.bill_number || "Bill"} • {p?.bill?.shop?.name || "Shop"} • {p?.user?.name || "—"}
-          </Text>{"\n"}
+            {p?.bill?.bill_number || "Bill"} • {p?.bill?.shop?.name || "Shop"} •{" "}
+            {p?.user?.name || "—"}
+          </Text>
+          {"\n"}
           <Text style={styles.activityTime}>
             {formatSLTime(p.paid_at || p.created_at)}
           </Text>

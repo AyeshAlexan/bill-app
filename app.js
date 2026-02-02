@@ -1,22 +1,22 @@
-import { registerRootComponent } from 'expo';
-import React, { useEffect } from 'react';
-import { View, StyleSheet } from 'react-native';
-import { NavigationContainer } from '@react-navigation/native';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import { setAuthToken } from './src/services/Api';
-import AppNavigator from './src/navigation/AppNavigator';
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { NavigationContainer } from "@react-navigation/native";
+import { registerRootComponent } from "expo";
+import { useEffect } from "react";
+import { StyleSheet, View } from "react-native";
 import Toast from "react-native-toast-message";
+import AppNavigator from "./src/navigation/AppNavigator";
+import { setAuthToken } from "./src/services/Api";
 
 function App() {
   useEffect(() => {
     const restoreToken = async () => {
       try {
-        const token = await AsyncStorage.getItem('token');
+        const token = await AsyncStorage.getItem("token");
         if (token) {
           setAuthToken(token);
         }
       } catch (e) {
-        console.error('Failed to restore token:', e);
+        console.error("Failed to restore token:", e);
       }
     };
     restoreToken();
@@ -26,7 +26,7 @@ function App() {
     <View style={styles.container}>
       <NavigationContainer>
         <AppNavigator />
-         <Toast />
+        <Toast />
       </NavigationContainer>
     </View>
   );
@@ -34,7 +34,7 @@ function App() {
 
 const styles = StyleSheet.create({
   container: {
-    flex: 1, 
+    flex: 1,
   },
 });
 
