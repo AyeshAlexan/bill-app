@@ -1,7 +1,7 @@
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useFocusEffect } from "@react-navigation/native";
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useState } from "react";
 import {
   ActivityIndicator,
   Image,
@@ -12,14 +12,13 @@ import {
   View,
 } from "react-native";
 
-import {
-  fetchDashboardStats,
-  fetchRecentActivity,
-} from "../services/dashboardApi";
+import { fetchDashboardStats, fetchRecentActivity } from "../services/dashboardApi";
+import { setAuthToken } from "../services/Api";
 
 export default function DashboardScreen({ navigation }) {
-  const [activeStat, setActiveStat] = useState("shops");
+  const [activeStat, setActiveStat] = useState("pending");
   const [userName, setUserName] = useState("");
+  const [loading, setLoading] = useState(false);
 
   const [stats, setStats] = useState({
     shops: 0,
@@ -30,17 +29,26 @@ export default function DashboardScreen({ navigation }) {
 
   const [recent, setRecent] = useState({
     shops: [],
-    bills: [],
+    pending_bills: [],
+    paid_bills: [],
     payments: [],
   });
 
-  const [loading, setLoading] = useState(false);
+  const ensureToken = useCallback(async () => {
+    const token = await AsyncStorage.getItem("token");
+    if (token) setAuthToken(token);
+    return token;
+  }, []);
 
   const loadDashboard = useCallback(async () => {
     try {
       setLoading(true);
+      const token = await ensureToken();
+      if (!token) {
+        navigation.replace("Login");
+        return;
+      }
 
-      // Fetch user name from storage
       const userData = await AsyncStorage.getItem("user");
       if (userData) {
         const user = JSON.parse(userData);
@@ -61,246 +69,145 @@ export default function DashboardScreen({ navigation }) {
 
       setRecent({
         shops: recentData?.shops || [],
-        bills: recentData?.bills || [],
+        pending_bills: recentData?.pending_bills || [],
+        paid_bills: recentData?.paid_bills || [],
         payments: recentData?.payments || [],
       });
     } catch (err) {
-      console.error(
-        "Dashboard load error:",
-        err?.response?.data || err.message,
-      );
-      console.error("Full error:", err);
+      console.error("Dashboard error:", err.message);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [ensureToken, navigation]);
 
   useFocusEffect(
     useCallback(() => {
       loadDashboard();
-    }, [loadDashboard]),
+    }, [loadDashboard])
   );
 
-  const recentList = useMemo(() => {
-    // We will map your card selection to the best recent list.
-    if (activeStat === "shops") return { type: "shops", data: recent.shops };
-    if (activeStat === "pending") return { type: "bills", data: recent.bills };
-    if (activeStat === "paid") return { type: "bills", data: recent.bills };
-    if (activeStat === "collected")
-      return { type: "payments", data: recent.payments };
-    return { type: "shops", data: recent.shops };
-  }, [activeStat, recent]);
+  const formatMoney = (n) => `Rs.${Number(n || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}`;
 
-  const formatMoney = (n) => `Rs.${Number(n || 0).toFixed(2)}`;
+  const renderBillItem = (b, idx) => {
+    const total = b.after_vat_amount || b.Net_Amount || 0;
+    const paid = b.Paid_Amount || 0;
+    const due = Math.max(total - paid, 0);
 
-  // ✅ Sri Lanka time in Dashboard (fix your timezone issue here too)
-  const formatSLTime = (dt) => {
-    if (!dt) return "—";
-    const d = new Date(String(dt).replace(" ", "T"));
-    if (Number.isNaN(d.getTime())) return dt;
-    return d.toLocaleString("en-LK", { timeZone: "Asia/Colombo" });
+    return (
+      <TouchableOpacity
+        key={`bill-${idx}`}
+        onPress={() => navigation.navigate("BillDetail", { invoiceNo: b.Invoice_no })}
+        style={styles.activityTap}
+      >
+        <View style={styles.activityRow}>
+          <MaterialCommunityIcons name="file-document-outline" size={24} color="#64748b" />
+          <View style={{ marginLeft: 12, flex: 1 }}>
+            <Text style={styles.activityItem}>INV-{b.Invoice_no} • {b.Customer_Name}</Text>
+            <Text style={styles.activitySub}>
+              Total: {formatMoney(total)} • Due: <Text style={{ color: due > 0 ? '#ef4444' : '#22c55e' }}>{formatMoney(due)}</Text>
+            </Text>
+          </View>
+        </View>
+      </TouchableOpacity>
+    );
   };
 
   const renderRecentActivity = () => {
-    if (loading) {
-      return (
-        <View style={{ paddingVertical: 14 }}>
-          <ActivityIndicator color="#2563eb" />
+    if (loading) return <ActivityIndicator color="#2563eb" style={{ padding: 20 }} />;
+
+    let dataToRender = [];
+    let iconName = "help-circle-outline";
+    let iconColor = "#64748b";
+
+    if (activeStat === "shops") {
+      dataToRender = recent.shops.slice(0, 3);
+      return dataToRender.map((s, idx) => (
+        <View key={`shop-${idx}`} style={styles.activityTap}>
+          <View style={styles.activityRow}>
+            <MaterialCommunityIcons name="storefront-outline" size={24} color="#3cbf00" />
+            <View style={{ marginLeft: 12 }}>
+              <Text style={styles.activityItem}>{s.Name || s.name}</Text>
+              <Text style={styles.activitySub}>{s.City_1 || "Location"}</Text>
+            </View>
+          </View>
         </View>
-      );
-    }
-
-    if (!recentList.data || recentList.data.length === 0) {
-      return <Text style={styles.activityItem}>No recent activity found.</Text>;
-    }
-
-    // ✅ SHOPS recent
-    if (recentList.type === "shops") {
-      return recentList.data.map((s) => (
-        <Text key={`shop-${s.id}`} style={styles.activityItem}>
-          🏪 New Shop: {s.name} {s.location ? `• ${s.location}` : ""} {"\n"}
-          <Text style={styles.activityTime}>{formatSLTime(s.created_at)}</Text>
-        </Text>
       ));
     }
 
-    // ✅ BILLS recent (filter by pending/paid depending on activeStat)
-    if (recentList.type === "bills") {
-      const filtered =
-        activeStat === "pending"
-          ? recentList.data.filter(
-              (b) =>
-                String(b.status) !== "Paid" && Number(b.due_amount || 0) > 0,
-            )
-          : activeStat === "paid"
-            ? recentList.data.filter(
-                (b) =>
-                  String(b.status) === "Paid" ||
-                  Number(b.due_amount || 0) === 0,
-              )
-            : recentList.data;
+    if (activeStat === "pending") return recent.pending_bills.slice(0, 3).map((b, idx) => renderBillItem(b, idx));
+    if (activeStat === "paid") return recent.paid_bills.slice(0, 3).map((b, idx) => renderBillItem(b, idx));
 
-      const rows = filtered.length ? filtered : recentList.data;
-
-      return rows.map((b) => (
-        <TouchableOpacity
-          key={`bill-${b.id}`}
-          onPress={() => navigation.navigate("ViewBill", { billId: b.id })}
-          activeOpacity={0.85}
-          style={styles.activityTap}
-        >
-          <Text style={styles.activityItem}>
-            🧾 {b.bill_number} • {b?.shop?.name || "Shop"}
-            {"\n"}
-            <Text style={styles.activitySub}>
-              Total: {formatMoney(b.total_amount)} • Due:{" "}
-              {formatMoney(b.due_amount)} • {b.status}
-            </Text>
-            {"\n"}
-            <Text style={styles.activityTime}>
-              {formatSLTime(b.created_at)}
-            </Text>
-          </Text>
-        </TouchableOpacity>
+    if (activeStat === "collected") {
+      return recent.payments.slice(0, 3).map((p, idx) => (
+        <View key={`pay-${idx}`} style={styles.activityTap}>
+          <View style={styles.activityRow}>
+            <MaterialCommunityIcons name="cash-check" size={24} color="#f97316" />
+            <View style={{ marginLeft: 12 }}>
+              <Text style={styles.activityItem}>{formatMoney(p.Payment_Amount)}</Text>
+              <Text style={styles.activitySub}>{p.Customer_Name}</Text>
+            </View>
+          </View>
+        </View>
       ));
     }
 
-    // ✅ PAYMENTS recent (collected)
-    if (recentList.type === "payments") {
-      return recentList.data.map((p) => (
-        <Text key={`pay-${p.id}`} style={styles.activityItem}>
-          💰 {formatMoney(p.amount)} • {p.method || "Cash"}
-          {"\n"}
-          <Text style={styles.activitySub}>
-            {p?.bill?.bill_number || "Bill"} • {p?.bill?.shop?.name || "Shop"} •{" "}
-            {p?.user?.name || "—"}
-          </Text>
-          {"\n"}
-          <Text style={styles.activityTime}>
-            {formatSLTime(p.paid_at || p.created_at)}
-          </Text>
-        </Text>
-      ));
-    }
-
-    return null;
+    return <Text style={styles.emptyText}>No recent activity found.</Text>;
   };
 
   return (
-    <ScrollView
-      style={styles.container}
-      scrollEnabled={true}
-      showsVerticalScrollIndicator={true}
-      nestedScrollEnabled={true}
-    >
-      {/* HEADER */}
-      <View style={styles.header}>
-        <View>
-          <Text style={styles.headerTitle}>Dashboard</Text>
-          <Text style={styles.headerSub}>Hello, {userName}!</Text>
+    <View style={styles.screenWrapper}>
+      {/* 1. EVERYTHING SCROLLABLE GOES HERE */}
+      <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
+        <View style={styles.header}>
+          <View>
+            <Text style={styles.headerTitle}>Dashboard</Text>
+            <Text style={styles.headerSub}>Hello, {userName}!</Text>
+          </View>
+          <TouchableOpacity style={styles.logoutBtn} onPress={async () => {
+            await AsyncStorage.clear();
+            navigation.replace("Login");
+          }}>
+            <MaterialCommunityIcons name="logout" size={24} color="white" />
+          </TouchableOpacity>
         </View>
 
-        <TouchableOpacity
-          style={styles.logoutBtn}
-          onPress={() => navigation.replace("Login")}
-        >
-          <MaterialCommunityIcons name="logout" size={24} color="white" />
-        </TouchableOpacity>
-      </View>
+        <View style={styles.statGrid}>
+          <StatCard color="#3cbf00" icon="store" label="Shops" value={stats.shops.toString()} active={activeStat === "shops"} onPress={() => setActiveStat("shops")} />
+          <StatCard color="#ef4444" icon="clock-outline" label="Pending" value={stats.pending.toString()} active={activeStat === "pending"} onPress={() => setActiveStat("pending")} />
+          <StatCard color="#f97316" icon="trending-up" label="Collected" value={formatMoney(stats.collected)} active={activeStat === "collected"} onPress={() => setActiveStat("collected")} />
+          <StatCard color="#3b82f6" icon="check-all" label="Paid" value={stats.paid.toString()} active={activeStat === "paid"} onPress={() => setActiveStat("paid")} />
+        </View>
 
-      {/* STAT CARDS */}
-      <View style={styles.statGrid}>
-        <StatCard
-          color="#10b981"
-          icon="store"
-          label="Shops"
-          value={stats.shops.toString()}
-          active={activeStat === "shops"}
-          onPress={() => setActiveStat("shops")}
-        />
+        <Text style={styles.sectionTitle}>Quick Actions</Text>
+        <View style={styles.actionRow}>
+          <ActionBtn imageSource={require("../assets/shop.jpg")} label="Shops" onPress={() => navigation.navigate("ShopList")} />
+          <ActionBtn imageSource={require("../assets/pending.png")} label="Pending" onPress={() => navigation.navigate("PendingBills")} />
+          <ActionBtn imageSource={require("../assets/payment-icon.png")} label="Payments" onPress={() => navigation.navigate("Payment")} />
+        </View>
 
-        <StatCard
-          color="#ef4444"
-          icon="clock-outline"
-          label="Pending Bills"
-          value={stats.pending.toString()}
-          active={activeStat === "pending"}
-          onPress={() => setActiveStat("pending")}
-        />
+        <Text style={styles.sectionTitle}>Recent {activeStat}</Text>
+        <View style={styles.activityBox}>
+          {renderRecentActivity()}
+        </View>
 
-        <StatCard
-          color="#f97316"
-          icon="trending-up"
-          label="Collected"
-          value={`Rs. ${Number(stats.collected || 0).toLocaleString()}`}
-          active={activeStat === "collected"}
-          onPress={() => setActiveStat("collected")}
-        />
+        <View style={{ height: 120 }} /> 
+      </ScrollView>
 
-        <StatCard
-          color="#3b82f6"
-          icon="check-all"
-          label="Paid Bills"
-          value={stats.paid.toString()}
-          active={activeStat === "paid"}
-          onPress={() => setActiveStat("paid")}
-        />
-      </View>
-
-      {/* QUICK ACTIONS */}
-      <Text style={styles.sectionTitle}>Quick Actions</Text>
-      <View style={styles.actionRow}>
-        <ActionBtn
-          isCustomImage
-          imageSource={require("../assets/shop.jpg")}
-          label="Shops"
-          onPress={() => navigation.navigate("ShopList")}
-        />
-
-        <ActionBtn
-          isCustomImage
-          imageSource={require("../assets/pending.png")}
-          label="Pending Bills"
-          onPress={() => navigation.navigate("PendingBills")}
-        />
-
-        <ActionBtn
-          isCustomImage
-          imageSource={require("../assets/payment-icon.png")}
-          label="Payments"
-          onPress={() => navigation.navigate("Payment")}
-        />
-      </View>
-
-      {/* RECENT ACTIVITY */}
-      <Text style={styles.sectionTitle}>Recent Activity</Text>
-      <View style={styles.activityBox}>{renderRecentActivity()}</View>
-
-      {/* FAB */}
-      <TouchableOpacity
-        style={styles.fab}
+      {/* 2. FAB IS ABSOLUTELY FIXED AT THE BOTTOM RIGHT */}
+      <TouchableOpacity 
+        style={styles.fab} 
+        activeOpacity={0.8}
         onPress={() => navigation.navigate("AddBill")}
       >
-        <MaterialCommunityIcons name="plus" size={32} color="white" />
+        <MaterialCommunityIcons name="plus" size={35} color="white" />
       </TouchableOpacity>
-
-      <View style={{ height: 40 }} />
-    </ScrollView>
+    </View>
   );
 }
 
-/* ================= COMPONENTS ================= */
-
 const StatCard = ({ color, icon, label, value, onPress, active }) => (
   <TouchableOpacity
-    style={[
-      styles.statCard,
-      {
-        backgroundColor: color,
-        borderWidth: active ? 3 : 0,
-        borderColor: "#111827",
-      },
-    ]}
+    style={[styles.statCard, { backgroundColor: color, borderWidth: active ? 3 : 0, borderColor: "#1e293b" }]}
     onPress={onPress}
   >
     <MaterialCommunityIcons name={icon} size={26} color="white" />
@@ -309,126 +216,61 @@ const StatCard = ({ color, icon, label, value, onPress, active }) => (
   </TouchableOpacity>
 );
 
-const ActionBtn = ({ label, onPress, isCustomImage, imageSource }) => (
+const ActionBtn = ({ label, onPress, imageSource }) => (
   <TouchableOpacity style={styles.actionBtn} onPress={onPress}>
-    {isCustomImage && <Image source={imageSource} style={styles.customIcon} />}
+    <Image source={imageSource} style={styles.customIcon} />
     <Text style={styles.actionLabel}>{label}</Text>
   </TouchableOpacity>
 );
 
-/* ================= STYLES ================= */
-
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#f8fafc" },
-
-  header: {
-    backgroundColor: "#2563eb",
-    padding: 40,
-    paddingTop: 60,
-    borderBottomLeftRadius: 40,
-    borderBottomRightRadius: 40,
+  screenWrapper: { 
+    flex: 1, 
+    backgroundColor: "#f8fafc" 
   },
-
+  container: { 
+    flex: 1 
+  },
+  header: { 
+    backgroundColor: "#2563eb", 
+    padding: 40, 
+    paddingTop: 60, 
+    borderBottomLeftRadius: 40, 
+    borderBottomRightRadius: 40 
+  },
   headerTitle: { color: "white", fontSize: 26, fontWeight: "bold" },
   headerSub: { color: "#bfdbfe", fontSize: 16 },
-
-  logoutBtn: {
-    position: "absolute",
-    right: 25,
-    top: 65,
-  },
-
-  statGrid: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    padding: 10,
-    justifyContent: "space-between",
-  },
-
-  statCard: {
-    width: "47%",
-    padding: 20,
-    borderRadius: 20,
-    margin: 5,
-    height: 150,
-    justifyContent: "space-between",
-  },
-
-  statValue: { color: "white", fontSize: 22, fontWeight: "bold" },
-  statLabel: { color: "white", opacity: 0.9 },
-
-  sectionTitle: {
-    paddingHorizontal: 20,
-    paddingTop: 20,
-    fontSize: 18,
-    fontWeight: "bold",
-  },
-
-  actionRow: {
-    flexDirection: "row",
-    paddingHorizontal: 15,
-    justifyContent: "space-around",
-    marginTop: 15,
-  },
-
-  actionBtn: {
-    backgroundColor: "white",
-    padding: 20,
-    borderRadius: 20,
-    width: "30%",
-    alignItems: "center",
-    elevation: 2,
-  },
-
-  actionLabel: {
-    fontSize: 10,
-    marginTop: 6,
-    fontWeight: "bold",
-  },
-
-  customIcon: { width: 28, height: 28, resizeMode: "contain" },
-
-  activityBox: {
-    backgroundColor: "white",
-    margin: 20,
-    padding: 15,
-    borderRadius: 15,
-    elevation: 2,
-  },
-
-  activityItem: {
-    fontSize: 14,
-    marginBottom: 10,
-    color: "#374151",
-  },
-
-  activitySub: {
-    color: "#64748b",
-    fontSize: 12,
-  },
-
-  activityTime: {
-    color: "#94a3b8",
-    fontSize: 11,
-  },
-
-  activityTap: {
-    paddingVertical: 6,
-  },
-
-  fab: {
-    position: "absolute",
-    width: 60,
-    height: 60,
-    alignItems: "center",
-    justifyContent: "center",
-    right: 20,
-    bottom: 20,
-    backgroundColor: "#2563eb",
-    borderRadius: 30,
-    elevation: 8,
+  logoutBtn: { position: "absolute", right: 25, top: 65 },
+  statGrid: { flexDirection: "row", flexWrap: "wrap", padding: 10, justifyContent: "space-between" },
+  statCard: { width: "47%", padding: 20, borderRadius: 20, margin: 5, height: 130, justifyContent: "space-between", elevation: 4 },
+  statValue: { color: "white", fontSize: 16, fontWeight: "bold" },
+  statLabel: { color: "white", opacity: 0.9, fontSize: 12 },
+  sectionTitle: { paddingHorizontal: 20, paddingTop: 20, fontSize: 18, fontWeight: "bold", color: '#1e293b' },
+  actionRow: { flexDirection: "row", paddingHorizontal: 15, justifyContent: "space-around", marginTop: 15 },
+  actionBtn: { backgroundColor: "white", padding: 15, borderRadius: 20, width: "30%", alignItems: "center", elevation: 2 },
+  actionLabel: { fontSize: 11, marginTop: 6, fontWeight: "bold", color: '#475569' },
+  customIcon: { width: 32, height: 32, resizeMode: "contain" },
+  activityBox: { backgroundColor: "white", margin: 20, padding: 15, borderRadius: 20, elevation: 3 },
+  activityItem: { fontSize: 14, color: "#1e293b", fontWeight: '700' },
+  activitySub: { color: "#64748b", fontSize: 12, marginTop: 2 },
+  activityTap: { paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: '#f1f5f9' },
+  activityRow: { flexDirection: 'row', alignItems: 'center' },
+  emptyText: { textAlign: 'center', color: '#94a3b8', padding: 20 },
+  fab: { 
+    position: "absolute", 
+    bottom: 110, 
+    right: 25, 
+    width: 70, 
+    height: 70, 
+    backgroundColor: "#2563eb", 
+    borderRadius: 35, 
+    justifyContent: "center", 
+    alignItems: "center", 
+    elevation: 12,
+    zIndex: 999, // IMPORTANT: Keeps it above the ScrollView
     shadowColor: "#000",
-    shadowOpacity: 0.3,
-    shadowRadius: 3,
+    shadowOffset: { width: 0, height: 5 },
+    shadowOpacity: 0.4,
+    shadowRadius: 5,
   },
 });

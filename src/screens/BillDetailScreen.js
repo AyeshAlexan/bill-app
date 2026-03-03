@@ -1,7 +1,5 @@
 import { MaterialCommunityIcons } from "@expo/vector-icons";
-import AsyncStorage from "@react-native-async-storage/async-storage";
-import axios from "axios";
-import { useEffect, useMemo, useState } from "react";
+import React, { useCallback, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -13,789 +11,328 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import { useFocusEffect } from "@react-navigation/native";
 
-const BILL_API = "http://127.0.0.1:8000/api/bills";
-const PAY_API = "http://127.0.0.1:8000/api/payments";
+import { getBillById, addPayment } from "../services/billApi";
+
+const totalOf = (b) =>
+  Number(b?.after_vat_amount ?? b?.Net_Amount ?? b?.Gross_Amount ?? 0);
+
+const paidOf = (b) => Number(b?.Paid_Amount ?? 0);
 
 export default function BillDetailScreen({ route, navigation }) {
-  const { billId } = route.params;
+  const { invoiceNo } = route.params;
 
   const [bill, setBill] = useState(null);
+  const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  const [payAmount, setPayAmount] = useState("");
-  const [payMethod, setPayMethod] = useState("Cash");
-  const [payLoading, setPayLoading] = useState(false);
+  const [method, setMethod] = useState("Cash");
+  const [amount, setAmount] = useState("");
+  const [note, setNote] = useState("");
 
-  // ✅ Card fields (FULL)
-  const [cardHolder, setCardHolder] = useState("");
-  const [cardNumber, setCardNumber] = useState(""); // 1234-5678-9012-3456
-  const [cardExpiry, setCardExpiry] = useState(""); // MM/YY
-  const [cardRef, setCardRef] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [showSuccess, setShowSuccess] = useState(false);
 
-  // ✅ Cheque fields
-  const [chequeNo, setChequeNo] = useState("");
-  const [chequeBank, setChequeBank] = useState("");
-  const [chequeDate, setChequeDate] = useState(""); // YYYY-MM-DD
+  // --- MAPPING ---
+  const subtotal = useMemo(() => 
+    Number(bill?.Gross_Amount ?? bill?.gross_amount ?? bill?.Sub_Total ?? 0), [bill]);
+  
+  const vatAmount = useMemo(() => 
+    Number(bill?.Vat_Amount ?? bill?.vat_amount ?? bill?.Vat ?? 0), [bill]);
+  
+  const discountAmount = useMemo(() => 
+    Number(bill?.Discount_Amount ?? bill?.discount_amount ?? bill?.Discount ?? 0), [bill]);
+  
+  const additionalAmount = useMemo(() => 
+    Number(bill?.Additional_Amount ?? bill?.additional_amount ?? bill?.Other_Charges ?? 0), [bill]);
+  
+  const total = useMemo(() => totalOf(bill), [bill]);
+  const paid = useMemo(() => paidOf(bill), [bill]);
+  const due = useMemo(() => Math.max(total - paid, 0), [total, paid]);
 
-  const [successVisible, setSuccessVisible] = useState(false);
-  const [successText, setSuccessText] = useState("");
-
-  // ✅ Error message state
-  const [errorVisible, setErrorVisible] = useState(false);
-  const [errorText, setErrorText] = useState("");
-
-  useEffect(() => {
-    fetchBill();
-  }, []);
-
-  const fetchBill = async () => {
+  const load = async () => {
     try {
       setLoading(true);
-      const res = await axios.get(`${BILL_API}/${billId}`);
-      setBill(res.data);
+      const data = await getBillById(invoiceNo);
+      const currentBill = data?.bill || null;
+      setBill(currentBill);
+      setItems(data?.items || []);
+
+      const currentDue = totalOf(currentBill) - paidOf(currentBill);
+      setAmount(currentDue > 0 ? String(currentDue.toFixed(2)) : "0.00");
     } catch (e) {
-      console.log("FETCH BILL ERROR:", e?.response?.data || e.message);
-      Alert.alert("Error", "Failed to load bill details");
+      Alert.alert("Error", "Cannot load bill details");
     } finally {
       setLoading(false);
     }
   };
 
-  const statusColor = (s) => {
-    if (s === "Paid") return "#10b981";
-    if (s === "Partial") return "#f59e0b";
-    return "#ef4444";
-  };
+  useFocusEffect(useCallback(() => { load(); }, [invoiceNo]));
 
-  const subtotal = useMemo(() => Number(bill?.subtotal || 0), [bill]);
-  const vatAmount = useMemo(() => Number(bill?.vat_amount || 0), [bill]);
-  const extraTax = useMemo(() => Number(bill?.additional_tax || 0), [bill]);
-  const totalAmount = useMemo(() => Number(bill?.total_amount || 0), [bill]);
-  const dueAmount = useMemo(() => Number(bill?.due_amount || 0), [bill]);
-  const paidSoFar = useMemo(
-    () => Math.max(totalAmount - dueAmount, 0),
-    [totalAmount, dueAmount],
-  );
-
-  // Bill-level discount (support different possible keys from backend)
-  const billDiscountPercent = useMemo(() => {
-    return (
-      Number(bill?.discount_percent ?? bill?.bill_discount_percent ?? 0) || 0
-    );
-  }, [bill]);
-  const billDiscountAmount = useMemo(() => {
-    return (
-      Number(
-        bill?.discount_amount ??
-          bill?.bill_discount_amount ??
-          bill?.bill_discount ??
-          0,
-      ) || 0
-    );
-  }, [bill]);
-
-  // ✅ NEW: helper for money
-  const money = (v) => `Rs.${Number(v || 0).toFixed(2)}`;
-
-  const formatCardNumber = (value) => {
-    const digits = value.replace(/\D/g, "").slice(0, 16);
-    const parts = digits.match(/.{1,4}/g) || [];
-    return parts.join("-");
-  };
-
-  const formatExpiry = (value) => {
-    const digits = value.replace(/\D/g, "").slice(0, 4); // MMYY
-    if (digits.length <= 2) return digits;
-    return `${digits.slice(0, 2)}/${digits.slice(2)}`;
-  };
-
-  const isValidExpiry = (mmYY) => {
-    if (!/^\d{2}\/\d{2}$/.test(mmYY)) return false;
-    const [mm, yy] = mmYY.split("/").map(Number);
-    if (mm < 1 || mm > 12) return false;
-
-    const now = new Date();
-    const curYY = now.getFullYear() % 100;
-    const curMM = now.getMonth() + 1;
-
-    if (yy < curYY) return false;
-    if (yy === curYY && mm < curMM) return false;
-    return true;
-  };
-
-  const resetMethodFields = (method) => {
-    if (method !== "Card") {
-      setCardHolder("");
-      setCardNumber("");
-      setCardExpiry("");
-      setCardRef("");
-    }
-    if (method !== "Cheque") {
-      setChequeNo("");
-      setChequeBank("");
-      setChequeDate("");
-    }
-  };
-
-  const validateMethodFields = () => {
-    if (payMethod === "Card") {
-      // Check card holder name
-      if (!cardHolder || !cardHolder.trim()) {
-        return "❌ Please enter card holder name";
-      }
-
-      // Check card number is not empty
-      if (!cardNumber || !cardNumber.trim()) {
-        return "❌ Please enter card number";
-      }
-
-      // Check card number format
-      if (!/^\d{4}-\d{4}-\d{4}-\d{4}$/.test(cardNumber.trim())) {
-        return "❌ Card number must be 16 digits in format: 1234-5678-9012-3456";
-      }
-
-      // Check expiry is not empty
-      if (!cardExpiry || !cardExpiry.trim()) {
-        return "❌ Please enter expiry date";
-      }
-
-      // Check expiry format and validity
-      if (!isValidExpiry(cardExpiry.trim())) {
-        return "❌ Expiry date must be valid in MM/YY format and not expired";
-      }
-
-      // Check transaction reference
-      if (!cardRef || !cardRef.trim()) {
-        return "❌ Please enter transaction reference";
-      }
-
-      return null;
-    }
-
-    if (payMethod === "Cheque") {
-      // Check cheque number
-      if (!chequeNo || !chequeNo.trim()) {
-        return "❌ Please enter cheque number";
-      }
-
-      // Check bank name
-      if (!chequeBank || !chequeBank.trim()) {
-        return "❌ Please enter bank name";
-      }
-
-      // Check cheque date is not empty
-      if (!chequeDate || !chequeDate.trim()) {
-        return "❌ Please enter cheque date";
-      }
-
-      // Check cheque date format
-      if (!/^\d{4}-\d{2}-\d{2}$/.test(chequeDate.trim())) {
-        return "❌ Cheque date must be in YYYY-MM-DD format (e.g., 2026-01-19)";
-      }
-
-      return null;
-    }
-
-    return null;
-  };
-
-  const onSubmitPayment = async () => {
-    if (!bill) return;
-
-    console.log("🔍 PAYMENT SUBMISSION STARTED");
-    console.log("Payment Amount:", payAmount);
-    console.log("Pay Method:", payMethod);
-    console.log("Due Amount:", dueAmount);
-
-    // Check payment amount
-    if (!payAmount || payAmount.trim() === "") {
-      console.log("❌ Empty payment amount");
-      setErrorText("Please enter a payment amount");
-      setErrorVisible(true);
-      setTimeout(() => setErrorVisible(false), 3000);
-      return;
-    }
-
-    const pay = parseFloat(payAmount);
-    if (Number.isNaN(pay) || pay <= 0) {
-      console.log("❌ Invalid payment amount:", payAmount);
-      setErrorText("Please enter a valid payment amount greater than 0");
-      setErrorVisible(true);
-      setTimeout(() => setErrorVisible(false), 3000);
-      return;
-    }
-
-    if (pay > dueAmount) {
-      console.log("❌ Payment exceeds due amount");
-      setErrorText(
-        `Payment cannot exceed due amount of Rs.${dueAmount.toFixed(2)}`,
-      );
-      setErrorVisible(true);
-      setTimeout(() => setErrorVisible(false), 3000);
-      return;
-    }
-
-    // Validate payment method specific fields BEFORE submitting
-    const methodErr = validateMethodFields();
-    console.log("Method validation result:", methodErr);
-    if (methodErr) {
-      setErrorText(methodErr);
-      setErrorVisible(true);
-      setTimeout(() => setErrorVisible(false), 3500);
-      return;
-    }
-
-    console.log("✅ All validations passed, submitting payment...");
-
+  const submitPayment = async () => {
+    const amt = Number(amount || 0);
+    if (due <= 0.5) { Alert.alert("Notice", "Fully paid."); return; }
+    if (!amt || amt <= 0) { Alert.alert("Input", "Enter a valid amount."); return; }
+    
     try {
-      setPayLoading(true);
-
-      let userId = null;
-      try {
-        const userStr = await AsyncStorage.getItem("user");
-        const userObj = userStr ? JSON.parse(userStr) : null;
-        userId = userObj?.id ?? null;
-      } catch (_) {}
-
-      const beforeDue = dueAmount;
-
-      const payload = {
-        bill_id: bill.id,
-        user_id: userId,
-        amount: pay,
-        method: payMethod,
-      };
-
-      if (payMethod === "Card") {
-        payload.card_holder_name = cardHolder.trim();
-        payload.card_number = cardNumber.trim(); // ✅ correct key
-        payload.card_expiry = cardExpiry.trim(); // ✅ correct key
-        payload.card_ref = cardRef.trim();
-      }
-
-      if (payMethod === "Cheque") {
-        payload.cheque_no = chequeNo.trim();
-        payload.cheque_bank = chequeBank.trim();
-        payload.cheque_date = chequeDate.trim();
-      }
-
-      console.log("Submitting payment with payload:", payload);
-      const res = await axios.post(PAY_API, payload);
-      console.log("Payment response:", res.data);
-
-      await fetchBill();
-
-      const afterDue = Math.max(beforeDue - pay, 0);
-
-      setPayAmount("");
-      resetMethodFields("Cash");
-      setPayMethod("Cash");
-
-      setSuccessText(
-        `✅ Payment Successful!\nYou paid Rs.${pay.toFixed(2)}\nRemaining due Rs.${afterDue.toFixed(2)}`,
-      );
-      setSuccessVisible(true);
-      setTimeout(() => setSuccessVisible(false), 1600);
+      setSubmitting(true);
+      await addPayment({ invoice_no: invoiceNo, amount: amt, method, note });
+      setShowSuccess(true);
+      setNote(""); 
+      await load(); 
     } catch (e) {
-      console.log("PAYMENT ERROR - Response:", e?.response?.data);
-      console.log("PAYMENT ERROR - Message:", e.message);
-      console.log("PAYMENT ERROR - Full Error:", e);
-
-      // ✅ show laravel validation messages if any
-      const laravelErrors = e?.response?.data?.errors;
-      if (laravelErrors) {
-        const firstKey = Object.keys(laravelErrors)[0];
-        const firstMsg = laravelErrors[firstKey]?.[0] || "Validation error";
-        setErrorText(firstMsg);
-        setErrorVisible(true);
-        setTimeout(() => setErrorVisible(false), 3500);
-        return;
-      }
-
-      const msg =
-        e?.response?.data?.message ||
-        (e?.response?.status === 422
-          ? "Validation error - Please check all fields"
-          : "Payment failed - Please try again");
-      setErrorText(msg);
-      setErrorVisible(true);
-      setTimeout(() => setErrorVisible(false), 3500);
+      Alert.alert("Error", "Payment failed");
     } finally {
-      setPayLoading(false);
+      setSubmitting(false);
     }
   };
 
   if (loading) {
     return (
-      <View style={[styles.container, { justifyContent: "center" }]}>
-        <ActivityIndicator size="large" color="#00b894" />
-      </View>
-    );
-  }
-
-  if (!bill) {
-    return (
-      <View
-        style={[styles.container, { justifyContent: "center", padding: 20 }]}
-      >
-        <Text>Bill not found</Text>
+      <View style={[styles.container, { justifyContent: 'center' }]}>
+        <ActivityIndicator size="large" color="#0f172a" />
       </View>
     );
   }
 
   return (
-    <>
-      <ScrollView style={styles.container}>
-        <View style={styles.header}>
-          <TouchableOpacity onPress={() => navigation.goBack()}>
-            <MaterialCommunityIcons name="arrow-left" size={24} color="white" />
-          </TouchableOpacity>
+    <View style={styles.container}>
+      <View style={styles.header}>
+        <TouchableOpacity onPress={() => navigation.goBack()} style={{ marginBottom: 10 }}>
+          <MaterialCommunityIcons name="chevron-left" size={30} color="white" />
+        </TouchableOpacity>
+        <Text style={styles.headerTitle}>Invoice Detail</Text>
+        <Text style={styles.headerSub}>
+            Transaction ID: INV- {invoiceNo}
+        </Text>
+        <Text style={styles.headerSub1}>
+            Salesman: {bill?.Salesmen || bill?.salesmen || "—"}
+        </Text>
+      </View>
 
-          <Text style={styles.headerTitle}>Bill Details</Text>
-          <Text style={styles.headerSub}>{bill?.shop?.name || "—"}</Text>
-        </View>
-
-        <View style={styles.content}>
-          <View style={styles.card}>
-            <View style={styles.billTop}>
-              <View style={styles.iconBox}>
-                <MaterialCommunityIcons
-                  name="file-document"
-                  size={24}
-                  color="#3b82f6"
-                />
-              </View>
-
-              <View style={{ flex: 1, marginLeft: 12 }}>
-                <Text style={styles.billNo}>Bill #{bill.bill_number}</Text>
-                <Text style={styles.date}>{bill.bill_date}</Text>
-              </View>
-
-              <View
-                style={[styles.statusBadge, { backgroundColor: "#f1f5f9" }]}
-              >
-                <Text
-                  style={[
-                    styles.statusText,
-                    { color: statusColor(bill.status) },
-                  ]}
-                >
-                  {bill.status}
-                </Text>
-              </View>
+      <ScrollView contentContainerStyle={styles.content}>
+        <View style={styles.card}>
+          <View style={styles.billTop}>
+            <View style={styles.iconBox}>
+              <MaterialCommunityIcons name="file-document-outline" size={24} color="#334155" />
             </View>
-
-            <Text style={styles.sectionLabel}>Items</Text>
-
-            {/* ✅ UPDATED ITEMS UI (shows qty, free qty, unit price, discount, line total) */}
-            {(bill.items || []).map((it) => {
-              const qty = Number(it.qty || 0);
-              const freeQty = Number(it.free_qty || 0);
-              const unitPrice = Number(it.unit_price || 0);
-              const discPct = Number(it.discount_percent || 0);
-              const discAmt = Number(it.discount_amount || 0);
-              const lineTotal = Number(it.line_total ?? it.price ?? 0);
-
-              return (
-                <View key={it.id} style={styles.itemCard}>
-                  <View style={styles.itemHeaderRow}>
-                    <Text style={styles.itemName}>{it.item_name}</Text>
-                    <Text style={styles.itemPrice}>{money(lineTotal)}</Text>
-                  </View>
-
-                  <View style={styles.itemMetaRow}>
-                    <Text style={styles.metaText}>Qty: {qty}</Text>
-                    <Text style={styles.metaText}>Free: {freeQty}</Text>
-                    <Text style={styles.metaText}>
-                      Unit: {money(unitPrice)}
-                    </Text>
-                  </View>
-
-                  {(discPct > 0 || discAmt > 0) && (
-                    <View style={styles.itemMetaRow}>
-                      <Text style={styles.metaText}>Discount: {discPct}%</Text>
-                      <Text style={styles.metaText}>- {money(discAmt)}</Text>
-                    </View>
-                  )}
-                </View>
-              );
-            })}
-
-            <View style={styles.divider} />
-
-            <View style={styles.totalRow}>
-              <Text style={styles.totalLabel}>Subtotal</Text>
-              <Text style={styles.totalValue}>Rs.{subtotal.toFixed(2)}</Text>
+            <View style={{ flex: 1, marginLeft: 12 }}>
+              <Text style={styles.billNo}>Invoice No: {bill?.Invoice_no || bill?.invoice_no}</Text>
+              <Text style={styles.date}>{bill?.Invoice_date || bill?.date || "—"}</Text>
             </View>
+          </View>
 
-            {billDiscountPercent > 0 || billDiscountAmount > 0 ? (
-              <View style={styles.totalRow}>
-                <Text style={styles.totalLabel}>
-                  Bill Discount
-                  {billDiscountPercent > 0 ? ` (${billDiscountPercent}%)` : ""}
-                </Text>
-                <Text style={styles.totalValue}>
-                  - {money(billDiscountAmount)}
-                </Text>
-              </View>
-            ) : null}
+          <View style={styles.divider} />
 
+          <View style={styles.totalRow}>
+            <Text style={styles.totalLabel}>Subtotal</Text>
+            <Text style={styles.totalValue}>Rs. {subtotal.toFixed(2)}</Text>
+          </View>
+
+          {vatAmount !== 0 && (
             <View style={styles.totalRow}>
               <Text style={styles.totalLabel}>VAT</Text>
-              <Text style={styles.totalValue}>Rs.{vatAmount.toFixed(2)}</Text>
+              <Text style={styles.totalValue}>+ {vatAmount.toFixed(2)}</Text>
             </View>
+          )}
 
+          {discountAmount !== 0 && (
             <View style={styles.totalRow}>
-              <Text style={styles.totalLabel}>Additional Tax</Text>
-              <Text style={styles.totalValue}>Rs.{extraTax.toFixed(2)}</Text>
+              <Text style={styles.totalLabel}>Discount</Text>
+              <Text style={[styles.totalValue, { color: '#be123c' }]}>- {discountAmount.toFixed(2)}</Text>
             </View>
+          )}
 
-            <View style={styles.divider} />
+          <View style={[styles.divider, { marginVertical: 10 }]} />
 
-            <View style={styles.totalRow}>
-              <Text style={styles.totalLabel}>Total Amount</Text>
-              <Text style={styles.totalValue}>Rs.{totalAmount.toFixed(2)}</Text>
-            </View>
-
-            <View style={styles.totalRow}>
-              <Text style={styles.totalLabel}>Due Amount</Text>
-              <Text style={[styles.totalValue, { color: "#ef4444" }]}>
-                Rs.{dueAmount.toFixed(2)}
-              </Text>
-            </View>
-
-            {paidSoFar > 0 && (
-              <View style={styles.totalRow}>
-                <Text style={styles.totalLabel}>Paid Amount</Text>
-                <Text style={[styles.totalValue, { color: "#10b981" }]}>
-                  Rs.{paidSoFar.toFixed(2)}
-                </Text>
-              </View>
-            )}
+          <View style={styles.totalRow}>
+            <Text style={[styles.totalLabel, { color: "#0f172a", fontWeight: '700' }]}>Net Amount</Text>
+            <Text style={[styles.totalValue, { fontSize: 18, color: "#0f172a" }]}>
+                Rs. {total.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+            </Text>
           </View>
 
-          <View style={styles.card}>
-            <Text style={styles.cardTitle}>Collect Payment</Text>
-
-            <Text style={styles.inputLabel}>Payment Amount</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="0.00"
-              keyboardType="numeric"
-              value={payAmount}
-              onChangeText={setPayAmount}
-            />
-
-            <Text style={styles.inputLabel}>Payment Method</Text>
-            <View style={styles.methodRow}>
-              {["Cash", "Card", "Cheque"].map((m) => (
-                <TouchableOpacity
-                  key={m}
-                  style={[
-                    styles.methodBtn,
-                    payMethod === m && styles.methodBtnActive,
-                  ]}
-                  onPress={() => {
-                    setPayMethod(m);
-                    resetMethodFields(m);
-                  }}
-                  activeOpacity={0.85}
-                >
-                  <Text
-                    style={[
-                      styles.methodText,
-                      payMethod === m && styles.methodTextActive,
-                    ]}
-                  >
-                    {m}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-
-            {payMethod === "Card" && (
-              <View style={styles.detailBox}>
-                <Text style={styles.detailTitle}>Card Details</Text>
-
-                <Text style={styles.inputLabel}>Card Holder Name</Text>
-                <TextInput
-                  style={styles.input}
-                  placeholder="Name on card"
-                  value={cardHolder}
-                  onChangeText={setCardHolder}
-                />
-
-                <Text style={styles.inputLabel}>Card Number</Text>
-                <TextInput
-                  style={styles.input}
-                  placeholder="1234-5678-9012-3456"
-                  keyboardType="numeric"
-                  value={cardNumber}
-                  onChangeText={(t) => setCardNumber(formatCardNumber(t))}
-                  maxLength={19}
-                />
-
-                <Text style={styles.inputLabel}>Expiry (MM/YY)</Text>
-                <TextInput
-                  style={styles.input}
-                  placeholder="08/28"
-                  keyboardType="numeric"
-                  value={cardExpiry}
-                  onChangeText={(t) => setCardExpiry(formatExpiry(t))}
-                  maxLength={5}
-                />
-
-                <Text style={styles.inputLabel}>Transaction Reference</Text>
-                <TextInput
-                  style={styles.input}
-                  placeholder="REF-XXXX"
-                  value={cardRef}
-                  onChangeText={setCardRef}
-                />
-              </View>
-            )}
-
-            {payMethod === "Cheque" && (
-              <View style={styles.detailBox}>
-                <Text style={styles.detailTitle}>Cheque Details</Text>
-
-                <Text style={styles.inputLabel}>Cheque Number</Text>
-                <TextInput
-                  style={styles.input}
-                  placeholder="Cheque No"
-                  value={chequeNo}
-                  onChangeText={setChequeNo}
-                />
-
-                <Text style={styles.inputLabel}>Bank Name</Text>
-                <TextInput
-                  style={styles.input}
-                  placeholder="Bank"
-                  value={chequeBank}
-                  onChangeText={setChequeBank}
-                />
-
-                <Text style={styles.inputLabel}>Cheque Date (YYYY-MM-DD)</Text>
-                <TextInput
-                  style={styles.input}
-                  placeholder="2026-01-19"
-                  value={chequeDate}
-                  onChangeText={setChequeDate}
-                />
-              </View>
-            )}
-
-            <TouchableOpacity
-              style={[
-                styles.submitBtn,
-                (payLoading || dueAmount <= 0) && { opacity: 0.7 },
-              ]}
-              onPress={() => {
-                console.log("🔘 SUBMIT BUTTON PRESSED");
-                onSubmitPayment();
-              }}
-              disabled={payLoading || dueAmount <= 0}
-              activeOpacity={0.85}
-            >
-              {payLoading ? (
-                <ActivityIndicator color="white" />
-              ) : (
-                <Text style={styles.submitText}>
-                  {dueAmount <= 0 ? "Bill Already Paid" : "Submit Payment"}
-                </Text>
-              )}
-            </TouchableOpacity>
+          <View style={styles.totalRow}>
+            <Text style={styles.totalLabel}>Received</Text>
+            <Text style={[styles.totalValue, { color: '#059669' }]}>
+                Rs. {paid.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+            </Text>
           </View>
+
+          <View style={styles.totalRow}>
+            <Text style={[styles.totalLabel, { color: '#e11d48', fontWeight: '700' }]}>Outstanding</Text>
+            <Text style={[styles.totalValue, { color: due <= 0.5 ? "#059669" : "#e11d48", fontSize: 20 }]}>
+              Rs. {due.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+            </Text>
+          </View>
+        </View>
+
+        {/* Collect Payment Section */}
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>Record Payment</Text>
+          <View style={styles.methodRow}>
+            {["Cash", "Card", "Cheque", "Bank"].map((m) => (
+              <TouchableOpacity
+                key={m}
+                style={[styles.methodBtn, method === m && styles.methodBtnActive]}
+                onPress={() => setMethod(m)}
+              >
+                <Text style={[styles.methodText, method === m && { color: "white" }]}>{m}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+
+          <TextInput
+            style={styles.input}
+            value={amount}
+            onChangeText={setAmount}
+            keyboardType="decimal-pad"
+            placeholder="0.00"
+            placeholderTextColor="#94a3b8"
+          />
+
+          <TextInput
+            style={styles.input}
+            value={note}
+            onChangeText={setNote}
+            placeholder="Reference Note"
+            placeholderTextColor="#94a3b8"
+          />
+
+          <TouchableOpacity
+            style={[styles.submitBtn, (due <= 0.5 || submitting) && { backgroundColor: "#94a3b8" }]}
+            onPress={submitPayment}
+            disabled={due <= 0.5 || submitting}
+          >
+            {submitting ? <ActivityIndicator color="white" /> : <Text style={styles.submitText}>CONFIRM PAYMENT</Text>}
+          </TouchableOpacity>
+        </View>
+
+        {/* Line Items with Free Issues restore */}
+        <View style={styles.card}>
+          <Text style={styles.sectionLabel}>Inventory Items</Text>
+          {items.map((it, idx) => (
+            <View key={idx} style={styles.itemCard}>
+              <View style={styles.itemHeaderRow}>
+                <Text style={styles.itemName} numberOfLines={1}>{it.Item_description || it.item_name || "Item"}</Text>
+                <Text style={styles.itemPrice}>Rs. {Number(it.Net_value || it.total || 0).toFixed(2)}</Text>
+              </View>
+              <View style={styles.itemMetaRow}>
+                <View style={styles.badge}><Text style={styles.badgeText}>Qty: {it.QTY || it.qty}</Text></View>
+                {/* RESTORED FREE ISSUES BELOW */}
+                <View style={[styles.badge, { backgroundColor: '#f0f9ff' }]}>
+                    <Text style={[styles.badgeText, { color: '#0369a1' }]}>Free: {it.Free_Issues ?? it.free_issues ?? it.Free ?? 0}</Text>
+                </View>
+                <Text style={styles.metaPrice}>@ {Number(it.Unit_price || it.price || 0).toFixed(2)}</Text>
+              </View>
+            </View>
+          ))}
         </View>
       </ScrollView>
 
-      <Modal visible={successVisible} transparent animationType="fade">
+      {/* Success Modal */}
+      <Modal visible={showSuccess} transparent animationType="fade">
         <View style={styles.modalOverlay}>
-          <View style={styles.successCard}>
-            <View style={styles.successIcon}>
-              <MaterialCommunityIcons name="check" size={30} color="white" />
-            </View>
-            <Text style={styles.successTitle}>Payment Done</Text>
-            <Text style={styles.successMsg}>{successText}</Text>
+          <View style={styles.modernCard}>
+            <MaterialCommunityIcons name="check-decagram" size={70} color="#059669" />
+            <Text style={styles.modernTitle}>Payment Processed</Text>
+            <Text style={styles.modernMessage}>The transaction for invoice #{invoiceNo} has been successfully updated.</Text>
+            <TouchableOpacity style={styles.modernDoneBtn} onPress={() => setShowSuccess(false)}>
+              <Text style={styles.modernDoneText}>Continue</Text>
+            </TouchableOpacity>
           </View>
         </View>
       </Modal>
-
-      {/* ✅ ERROR MESSAGE MODAL */}
-      <Modal visible={errorVisible} transparent animationType="fade">
-        <View style={styles.modalOverlay}>
-          <View
-            style={[
-              styles.successCard,
-              {
-                backgroundColor: "#fff5f5",
-                borderLeftWidth: 4,
-                borderLeftColor: "#ef4444",
-              },
-            ]}
-          >
-            <View style={[styles.successIcon, { backgroundColor: "#ef4444" }]}>
-              <MaterialCommunityIcons
-                name="alert-circle"
-                size={30}
-                color="white"
-              />
-            </View>
-            <Text style={[styles.successTitle, { color: "#dc2626" }]}>
-              Validation Error
-            </Text>
-            <Text style={[styles.successMsg, { color: "#7f1d1d" }]}>
-              {errorText}
-            </Text>
-          </View>
-        </View>
-      </Modal>
-    </>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#f8fafc" },
-  header: {
-    backgroundColor: "#00b894",
-    padding: 30,
-    paddingTop: 50,
-    borderBottomLeftRadius: 40,
-    borderBottomRightRadius: 40,
+  container: { flex: 1, backgroundColor: "#f1f5f9" },
+  header: { 
+   backgroundColor: "#30a830", // Professional Slate/Navy
+    paddingHorizontal: 25, 
+    paddingTop: 60, 
+    paddingBottom: 30,
+    borderBottomLeftRadius: 30, 
+    borderBottomRightRadius: 30 
   },
-  headerTitle: { color: "white", fontSize: 24, fontWeight: "bold" },
-  headerSub: { color: "white", opacity: 0.8 },
-  content: { padding: 20 },
-
-  card: {
-    backgroundColor: "white",
-    borderRadius: 25,
-    padding: 20,
-    marginBottom: 20,
+  headerTitle: { color: "white", fontSize: 25.5, fontWeight: "700" },
+  headerSub: { color: "white", fontSize: 13, marginTop: 4 , fontWeight: "700"},
+  headerSub1: { color: "white", fontSize: 12.5, marginTop: 4 , fontWeight: "500"},
+  content: { padding: 15 },
+  card: { 
+    backgroundColor: "white", 
+    borderRadius: 20, 
+    padding: 20, 
+    marginBottom: 15, 
     elevation: 2,
+    shadowColor: "#000",
+    shadowOpacity: 0.05,
+    shadowRadius: 5
   },
-  billTop: { flexDirection: "row", alignItems: "center", marginBottom: 20 },
-  iconBox: { backgroundColor: "#dbeafe", padding: 10, borderRadius: 15 },
-  billNo: { fontSize: 16, fontWeight: "bold" },
-  date: { color: "#94a3b8", fontSize: 12 },
-  statusBadge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8 },
-  statusText: { fontSize: 10, fontWeight: "bold" },
-
-  sectionLabel: { fontSize: 14, fontWeight: "bold", marginBottom: 15 },
-
-  /* ✅ NEW item card styles (keeps your theme) */
-  itemCard: {
-    backgroundColor: "#f8fafc",
-    borderRadius: 16,
-    padding: 12,
-    marginBottom: 10,
-    borderWidth: 1,
-    borderColor: "#e2e8f0",
+  billTop: { flexDirection: "row", alignItems: "center", marginBottom: 12 },
+  iconBox: { backgroundColor: "#f8fafc", padding: 10, borderRadius: 12, borderWidth: 1, borderColor: '#e2e8f0' },
+  billNo: { fontSize: 15, fontWeight: "700", color: "#334155" },
+  date: { color: "#64748b", fontSize: 12, marginTop: 2 },
+  sectionLabel: { fontSize: 14, fontWeight: "700", color: "#475569", marginBottom: 15, textTransform: 'uppercase', letterSpacing: 0.5 },
+  itemCard: { 
+    backgroundColor: "#ffffff", 
+    borderRadius: 12, 
+    paddingVertical: 12, 
+    marginBottom: 8, 
+    borderBottomWidth: 1, 
+    borderBottomColor: "#f1f5f9" 
   },
-  itemHeaderRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
+  itemHeaderRow: { flexDirection: "row", justifyContent: "space-between", alignItems: 'center' },
+  itemName: { fontWeight: "600", color: "#1e293b", fontSize: 14, flex: 1, marginRight: 10 },
+  itemPrice: { fontWeight: "700", color: "#1e293b", fontSize: 14 },
+  itemMetaRow: { flexDirection: "row", alignItems: "center", marginTop: 8 },
+  badge: { backgroundColor: '#f1f5f9', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6, marginRight: 8 },
+  badgeText: { fontSize: 11, fontWeight: '600', color: '#475569' },
+  metaPrice: { color: "#94a3b8", fontSize: 12, marginLeft: 'auto' },
+  divider: { height: 1, backgroundColor: "#f1f5f9", marginVertical: 12 },
+  totalRow: { flexDirection: "row", justifyContent: "space-between", marginBottom: 8 },
+  totalLabel: { color: "#64748b", fontSize: 14, fontWeight: '500' },
+  totalValue: { fontWeight: "700", fontSize: 15, color: "#334155" },
+  cardTitle: { fontSize: 16, fontWeight: "700", color: "#1e293b", marginBottom: 15 },
+  input: { 
+    backgroundColor: "#f8fafc", 
+    padding: 14, 
+    borderRadius: 12, 
+    marginBottom: 10, 
+    borderWidth: 1, 
+    borderColor: '#e2e8f0',
+    color: '#1e293b',
+    fontSize: 15
   },
-  itemRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    marginBottom: 10,
+  methodRow: { flexDirection: "row", justifyContent: "space-between", marginBottom: 15 },
+  methodBtn: { 
+    flex: 1, 
+    paddingVertical: 10, 
+    borderRadius: 10, 
+    borderWidth: 1, 
+    borderColor: "#e2e8f0", 
+    alignItems: "center", 
+    marginHorizontal: 3,
+    backgroundColor: 'white'
   },
-  itemName: { fontWeight: "700", color: "#0f172a" },
-  itemPrice: { fontWeight: "800", color: "#0f172a" },
-  itemMetaRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    marginTop: 6,
+  methodBtnActive: { backgroundColor: "#30a830", borderColor: "#30a830" 
+},
+  methodText: { fontWeight: "600", fontSize: 12, color: "#475569" },
+  submitBtn: { 
+    backgroundColor: "#30a830", 
+    padding: 16, 
+    borderRadius: 12, 
+    alignItems: "center", 
+    marginTop: 5 
   },
-  metaText: { color: "#64748b", fontSize: 12 },
-
-  divider: { height: 1, backgroundColor: "#f1f5f9", marginVertical: 15 },
-  totalRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    marginBottom: 5,
-  },
-  totalLabel: { color: "#64748b" },
-  totalValue: { fontWeight: "bold", fontSize: 16 },
-
-  cardTitle: { fontSize: 18, fontWeight: "bold", marginBottom: 15 },
-  inputLabel: { fontSize: 13, color: "#64748b", marginBottom: 8 },
-  input: {
-    backgroundColor: "#f1f5f9",
-    padding: 15,
-    borderRadius: 15,
-    marginBottom: 15,
-  },
-
-  methodRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    marginBottom: 15,
-  },
-  methodBtn: {
-    flex: 1,
-    paddingVertical: 12,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: "#e2e8f0",
-    backgroundColor: "#ffffff",
-    alignItems: "center",
-    marginHorizontal: 4,
-  },
-  methodBtnActive: { backgroundColor: "#0061ff", borderColor: "#0061ff" },
-  methodText: { color: "#64748b", fontWeight: "600" },
-  methodTextActive: { color: "white", fontWeight: "700" },
-
-  detailBox: {
-    backgroundColor: "#f8fafc",
-    borderRadius: 16,
-    padding: 14,
-    borderWidth: 1,
-    borderColor: "#e2e8f0",
-    marginBottom: 12,
-  },
-  detailTitle: { fontWeight: "800", color: "#0f172a", marginBottom: 10 },
-
-  submitBtn: {
-    backgroundColor: "#0061ff",
-    padding: 18,
-    borderRadius: 15,
-    alignItems: "center",
-  },
-  submitText: { color: "white", fontSize: 18, fontWeight: "bold" },
-
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: "rgba(0,0,0,0.35)",
-    alignItems: "center",
-    justifyContent: "center",
-    padding: 20,
-  },
-  successCard: {
-    backgroundColor: "white",
-    borderRadius: 22,
-    padding: 22,
-    width: "100%",
-    maxWidth: 380,
-    alignItems: "center",
-  },
-  successIcon: {
-    width: 54,
-    height: 54,
-    borderRadius: 27,
-    backgroundColor: "#10b981",
-    alignItems: "center",
-    justifyContent: "center",
-    marginBottom: 10,
-  },
-  successTitle: { fontSize: 18, fontWeight: "bold", color: "#0f172a" },
-  successMsg: {
-    marginTop: 8,
-    textAlign: "center",
-    color: "#475569",
-    lineHeight: 18,
-  },
+  submitText: { color: "white", fontWeight: "700", letterSpacing: 0.5 },
+  modalOverlay: { flex: 1, backgroundColor: "rgba(15, 23, 42, 0.8)", justifyContent: "center", alignItems: "center" },
+  modernCard: { backgroundColor: "white", borderRadius: 24, padding: 35, alignItems: "center", width: '85%' },
+  modernTitle: { fontSize: 20, fontWeight: "700", color: "#1e293b", marginTop: 15 },
+  modernMessage: { color: "#64748b", marginVertical: 15, textAlign: "center", lineHeight: 20 },
+  modernDoneBtn: { backgroundColor: "#1e293b", paddingHorizontal: 40, paddingVertical: 14, borderRadius: 12, marginTop: 10 },
+  modernDoneText: { color: "white", fontWeight: "700" }
 });

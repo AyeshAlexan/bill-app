@@ -1,75 +1,50 @@
 import React, { useState } from "react";
 import {
-  View,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  StyleSheet,
-  ScrollView,
+  View, Text, TextInput, TouchableOpacity, StyleSheet, ScrollView
 } from "react-native";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { addShop } from "../services/shopApi";
 import Toast from "react-native-toast-message";
 
-export default function AddShopScreen({ navigation }) {
+export default function AddShopScreen({ navigation, route }) {
+  const { route: selectedRoute } = route.params || {};
+
+  // Form states matching your DB column names exactly
+  const [code, setCode] = useState("");
   const [name, setName] = useState("");
-  const [location, setLocation] = useState("");
-  const [owner_name, setOwnerName] = useState("");
-  const [contact_no, setContactNo] = useState("");
+  const [address1, setAddress1] = useState("");
+  const [city1, setCity1] = useState("");
+  const [contact1, setContact1] = useState("");
+  const [email, setEmail] = useState("");
   const [saving, setSaving] = useState(false);
 
   const saveShop = async () => {
-    if (!name.trim()) {
-      Toast.show({
-        type: "error",
-        text1: "Validation Error",
-        text2: "Shop name is required",
-        position: "top",
-      });
+    // Validation
+    if (!code.trim() || !name.trim() || !address1.trim() || !city1.trim() || !contact1.trim() || !email.trim()) {
+      Toast.show({ type: "error", text1: "Error", text2: "Please fill all required fields" });
       return;
     }
 
-    if (saving) return;
-
     setSaving(true);
-
     try {
-      const res = await addShop({
-        name: name.trim(),
-        location: location.trim(),
-        owner_name: owner_name.trim(),
-        contact_no: contact_no.trim(),
+      // Keys here must match the $request->FieldName in Laravel
+      await addShop({
+        Code: code.trim(),
+        Name: name.trim(),
+        Address_1: address1.trim(),
+        City_1: city1.trim(),
+        Contact_1: contact1.trim(),
+        Email: email.trim(),
+        route: selectedRoute,
       });
 
-      Toast.show({
-        type: "success",
-        text1: "Shop Added ✅",
-        text2: res?.message || "Shop saved to database",
-        position: "top",
-      });
-
-      // Go back to ShopList
+      Toast.show({ type: "success", text1: "Shop Added ✅" });
       navigation.goBack();
     } catch (e) {
-      console.log("ADD SHOP ERROR STATUS:", e?.response?.status);
-      console.log("ADD SHOP ERROR DATA:", e?.response?.data);
-      console.log("ADD SHOP ERROR MSG:", e?.message);
-
-      let msg = "Failed to add shop";
-
-      if (e?.response?.status === 422) {
-        msg = "Validation failed (check backend rules)";
-      } else if (e?.response?.status === 401) {
-        msg = "Unauthorized request";
-      } else if (e?.response?.data?.message) {
-        msg = e.response.data.message;
-      }
-
-      Toast.show({
-        type: "error",
-        text1: "Error",
-        text2: msg,
-        position: "top",
+      Toast.show({ 
+        type: "error", 
+        text1: "Error", 
+        text2: e?.response?.data?.message || "Check console for SQL error" 
       });
     } finally {
       setSaving(false);
@@ -78,74 +53,41 @@ export default function AddShopScreen({ navigation }) {
 
   return (
     <View style={styles.container}>
-      {/* HEADER */}
       <View style={styles.header}>
-        <TouchableOpacity
-          onPress={() => navigation.goBack()}
-          style={styles.headerIconBtn}
-        >
+        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.headerIconBtn}>
           <MaterialCommunityIcons name="close" size={24} color="white" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Add New Shop</Text>
       </View>
 
       <ScrollView contentContainerStyle={styles.form}>
-        {/* FORM CARD */}
         <View style={styles.card}>
-          <Text style={styles.label}>Shop Name</Text>
-          <TextInput
-            style={styles.input}
-            placeholder="Enter shop name"
-            placeholderTextColor="#94a3b8"
-            value={name}
-            onChangeText={setName}
-          />
+          <Text style={styles.label}>Shop Code *</Text>
+          <TextInput style={styles.input} value={code} onChangeText={setCode} placeholder="CUS001" />
 
-          <Text style={styles.label}>Location</Text>
-          <TextInput
-            style={styles.input}
-            placeholder="Enter location"
-            placeholderTextColor="#94a3b8"
-            value={location}
-            onChangeText={setLocation}
-          />
+          <Text style={styles.label}>Shop Name *</Text>
+          <TextInput style={styles.input} value={name} onChangeText={setName} placeholder="Shop Name" />
 
-          <Text style={styles.label}>Owner Name</Text>
-          <TextInput
-            style={styles.input}
-            placeholder="Enter owner name"
-            placeholderTextColor="#94a3b8"
-            value={owner_name}
-            onChangeText={setOwnerName}
-          />
+          <Text style={styles.label}>Address *</Text>
+          <TextInput style={styles.input} value={address1} onChangeText={setAddress1} placeholder="Address Line 1" />
 
-          <Text style={styles.label}>Contact No</Text>
-          <TextInput
-            style={styles.input}
-            placeholder="07XXXXXXXX"
-            placeholderTextColor="#94a3b8"
-            keyboardType="phone-pad"
-            value={contact_no}
-            onChangeText={setContactNo}
-          />
+          <Text style={styles.label}>City *</Text>
+          <TextInput style={styles.input} value={city1} onChangeText={setCity1} placeholder="City" />
+
+          <Text style={styles.label}>Contact No *</Text>
+          <TextInput style={styles.input} value={contact1} onChangeText={setContact1} placeholder="07XXXXXXXX" keyboardType="phone-pad" />
+
+          <Text style={styles.label}>Email *</Text>
+          <TextInput style={styles.input} value={email} onChangeText={setEmail} placeholder="email@test.com" keyboardType="email-address" />
         </View>
 
-        {/* SAVE BUTTON */}
-        <TouchableOpacity
-          style={[
-            styles.submitBtn,
-            (!name.trim() || saving) && styles.submitBtnDisabled,
-          ]}
-          disabled={!name.trim() || saving}
-          onPress={saveShop}
-          activeOpacity={0.85}
+        <TouchableOpacity 
+          style={[styles.submitBtn, (!name.trim() || saving) && styles.submitBtnDisabled]} 
+          onPress={saveShop} 
+          disabled={saving}
         >
-          <Text style={styles.submitText}>
-            {saving ? "Saving..." : "Save Shop"}
-          </Text>
+          <Text style={styles.submitText}>{saving ? "Saving..." : "Save Shop"}</Text>
         </TouchableOpacity>
-
-        <View style={{ height: 30 }} />
       </ScrollView>
     </View>
   );
@@ -153,65 +95,14 @@ export default function AddShopScreen({ navigation }) {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#f8fafc" },
-
-  header: {
-    backgroundColor: "#00b894",
-    padding: 25,
-    paddingTop: 50,
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  headerIconBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  headerTitle: {
-    color: "white",
-    fontSize: 20,
-    fontWeight: "bold",
-    marginLeft: 12,
-  },
-
+  header: { backgroundColor: "#00b894", padding: 25, paddingTop: 50, flexDirection: "row", alignItems: "center" },
+  headerIconBtn: { width: 36, height: 36, borderRadius: 18, alignItems: "center", justifyContent: "center" },
+  headerTitle: { color: "white", fontSize: 20, fontWeight: "bold", marginLeft: 12 },
   form: { padding: 20 },
-
-  card: {
-    backgroundColor: "white",
-    borderRadius: 16,
-    padding: 16,
-    borderWidth: 1,
-    borderColor: "#e2e8f0",
-    marginBottom: 16,
-  },
-
-  label: {
-    fontSize: 13,
-    fontWeight: "bold",
-    color: "#64748b",
-    marginBottom: 6,
-    marginTop: 10,
-  },
-
-  input: {
-    backgroundColor: "white",
-    borderWidth: 1,
-    borderColor: "#e2e8f0",
-    borderRadius: 12,
-    padding: 14,
-    color: "#0f172a",
-  },
-
-  submitBtn: {
-    backgroundColor: "#10b981",
-    padding: 18,
-    borderRadius: 15,
-    alignItems: "center",
-    marginTop: 10,
-  },
-  submitBtnDisabled: {
-    backgroundColor: "#cbd5e1",
-  },
+  card: { backgroundColor: "white", borderRadius: 16, padding: 16, borderWidth: 1, borderColor: "#e2e8f0", marginBottom: 16 },
+  label: { fontSize: 13, fontWeight: "bold", color: "#64748b", marginBottom: 6, marginTop: 10 },
+  input: { backgroundColor: "white", borderWidth: 1, borderColor: "#e2e8f0", borderRadius: 12, padding: 14, color: "#0f172a" },
+  submitBtn: { backgroundColor: "#10b981", padding: 18, borderRadius: 15, alignItems: "center", marginTop: 10 },
+  submitBtnDisabled: { backgroundColor: "#cbd5e1" },
   submitText: { color: "white", fontWeight: "bold", fontSize: 16 },
 });

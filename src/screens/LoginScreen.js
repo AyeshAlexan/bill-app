@@ -8,7 +8,6 @@ import {
   StyleSheet,
   SafeAreaView,
   ActivityIndicator,
-  Alert,
 } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { login } from "../services/authApi";
@@ -18,8 +17,6 @@ export default function LoginScreen({ navigation }) {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
-
-  // ✅ show error message on screen
   const [errorText, setErrorText] = useState("");
 
   const onSignIn = async () => {
@@ -39,24 +36,16 @@ export default function LoginScreen({ navigation }) {
       await AsyncStorage.setItem("user", JSON.stringify(data.user));
       setAuthToken(data.token);
 
-      Alert.alert("Success", "Login successful ✅");
       navigation.replace("Dashboard");
     } catch (e) {
-      console.log("LOGIN ERROR:", e?.response?.data || e.message);
-
       const status = e?.response?.status;
       const backendMsg = e?.response?.data?.message;
 
-      // ✅ best user friendly message
       let msg = "Login failed. Please try again.";
-
-      if (status === 401) {
-        msg = backendMsg || "Invalid username or password";
-      } else if (status === 422) {
-        msg = "Please fill all fields correctly";
-      } else if (e.message?.includes("Network Error")) {
+      if (status === 401) msg = backendMsg || "Invalid username or password";
+      else if (status === 422) msg = "Please fill all fields correctly";
+      else if (e.message?.includes("Network Error"))
         msg = "Cannot connect to server. Check backend is running.";
-      }
 
       setErrorText(msg);
     } finally {
@@ -76,7 +65,6 @@ export default function LoginScreen({ navigation }) {
         <Text style={styles.welcomeText}>Welcome Back</Text>
         <Text style={styles.signInSub}>Sign in to continue bill collection</Text>
 
-        {/* ✅ Error message on screen */}
         {!!errorText && (
           <View style={styles.errorBox}>
             <Text style={styles.errorText}>{errorText}</Text>
@@ -124,31 +112,58 @@ export default function LoginScreen({ navigation }) {
   );
 }
 
-/* ✅ STYLES NOT REMOVED */
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#F8FAFC", justifyContent: "center", padding: 10 },
-  card: { backgroundColor: "white", borderRadius: 30, padding: 30, alignItems: "center", elevation: 5, shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 10 },
-  logo: { width: 250, height: 100, marginBottom: 10 },
-  appName: { fontSize: 28, fontWeight: "bold", color: "#004aad" },
-  appSub: { color: "#94a3b8", fontSize: 12, marginBottom: 20 },
-  welcomeText: { fontSize: 22, fontWeight: "bold", color: "#1e293b" },
-  signInSub: { color: "#64748b", marginBottom: 30 },
-  inputGroup: { width: "100%", marginBottom: 15 },
-  label: { color: "#475569", fontWeight: "600", marginBottom: 5, marginLeft: 5 },
-  input: { backgroundColor: "#f1f5f9", padding: 15, borderRadius: 15, width: "100%" },
-  button: { backgroundColor: "#10b981", padding: 18, borderRadius: 15, width: "100%", alignItems: "center", marginTop: 20 },
-  buttonText: { color: "white", fontWeight: "bold", fontSize: 18 },
-  footerText: { color: "#94a3b8", fontSize: 10, marginTop: 30, textTransform: "uppercase" },
-
-  // ✅ Added small error styles (does not remove your original)
-  errorBox: {
-    width: "100%",
-    backgroundColor: "#fee2e2",
-    borderRadius: 12,
-    padding: 12,
-    marginBottom: 15,
-    borderWidth: 1,
-    borderColor: "#fecaca",
+  container: {
+    flex: 1,
+    backgroundColor: "#F8FAFC",
+    justifyContent: "center",
+    padding: 10,
   },
-  errorText: { color: "#b91c1c", fontWeight: "600", textAlign: "center" },
+  card: {
+    backgroundColor: "white",
+    borderRadius: 30,
+    padding: 30,
+    alignItems: "center",
+    elevation: 5,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 10,
+  },
+  logo: { width: 250, height: 100, marginBottom: 10 },
+  welcomeText: { fontSize: 22, fontWeight: "bold", color: "#1e293b" },
+  signInSub: { color: "#64748b", marginBottom: 20 },
+  errorBox: {
+    backgroundColor: "#FEF2F2",
+    borderColor: "#FCA5A5",
+    borderWidth: 1,
+    padding: 10,
+    width: "100%",
+    borderRadius: 12,
+    marginBottom: 12,
+  },
+  errorText: { color: "#B91C1C", fontWeight: "600" },
+  inputGroup: { width: "100%", marginBottom: 15 },
+  label: {
+    color: "#475569",
+    fontWeight: "600",
+    marginBottom: 5,
+    marginLeft: 5,
+  },
+  input: { backgroundColor: "#f1f5f9", padding: 15, borderRadius: 15 },
+  button: {
+    backgroundColor: "#58c058",
+    padding: 18,
+    borderRadius: 15,
+    width: "100%",
+    alignItems: "center",
+    marginTop: 10,
+  },
+  buttonText: { color: "white", fontWeight: "bold", fontSize: 18 },
+  footerText: {
+    color: "#94a3b8",
+    fontSize: 10,
+    marginTop: 25,
+    textTransform: "uppercase",
+  },
 });

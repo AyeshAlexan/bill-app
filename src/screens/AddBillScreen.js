@@ -1,5 +1,6 @@
-// src/screens/AddBillScreen.js
 import { MaterialCommunityIcons } from "@expo/vector-icons";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import DateTimePicker from "@react-native-community/datetimepicker";
 import { useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
@@ -14,698 +15,434 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import Toast from "react-native-toast-message";
 
 import { addBill } from "../services/billApi";
 import { fetchItems } from "../services/itemApi";
-import { fetchShopLocations, fetchShops } from "../services/shopApi";
+import { fetchRoutes, fetchShopsByRoute } from "../services/shopApi";
+import { fetchSalesmen } from "../services/salesmanApi"; 
+
+const toNum = (v) => {
+  const n = Number(String(v ?? "").replace(/,/g, ""));
+  return Number.isFinite(n) ? n : 0;
+};
 
 export default function AddBillScreen({ navigation }) {
-  const [shops, setShops] = useState([]);
-  const [loadingShops, setLoadingShops] = useState(true);
-
-  // ✅ Routes (locations)
+  // Routes & Shops
   const [routes, setRoutes] = useState([]);
-  const [loadingRoutes, setLoadingRoutes] = useState(true);
   const [selectedRoute, setSelectedRoute] = useState(null);
-  const [showRouteModal, setShowRouteModal] = useState(false);
+  const [routeModal, setRouteModal] = useState(false);
   const [routeSearch, setRouteSearch] = useState("");
 
+  const [shops, setShops] = useState([]);
   const [selectedShop, setSelectedShop] = useState(null);
-  const [showShopModal, setShowShopModal] = useState(false);
-  const [searchQuery, setSearchQuery] = useState("");
+  const [shopModal, setShopModal] = useState(false);
+  const [shopSearch, setShopSearch] = useState("");
 
-  // ✅ Items master
+  // Salesman State
+  const [salesmen, setSalesmen] = useState([]);
+  const [selectedSalesman, setSelectedSalesman] = useState(null);
+  const [salesmanModal, setSalesmanModal] = useState(false);
+  const [salesmanSearch, setSalesmanSearch] = useState("");
+
+  // Items Master
   const [itemsMaster, setItemsMaster] = useState([]);
-  const [loadingItems, setLoadingItems] = useState(true);
-  const [showItemModal, setShowItemModal] = useState(false);
+  const [itemModal, setItemModal] = useState(false);
   const [itemSearch, setItemSearch] = useState("");
   const [activeRowId, setActiveRowId] = useState(null);
 
-  /**
-   * ✅ itemsList format
-   * item_id, item_name, unit_price, stock_qty, qty, free_qty, discount_percent
-   */
-  const [itemsList, setItemsList] = useState([
+  // Bill Status
+  const [successModal, setSuccessModal] = useState(false);
+  const [savedInvoiceNo, setSavedInvoiceNo] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+
+  // Bill rows
+  const [rows, setRows] = useState([
     {
       id: Date.now(),
-      item_id: null,
-      item_name: "",
-      unit_price: 0,
-      stock_qty: 0,
+      item_code: "",
+      item_desc: "",
+      unit_price: "0",
       qty: "1",
-      free_qty: "0",
+      free_issues: "0",
       discount_percent: "0",
     },
   ]);
 
-  // ✅ NEW: Bill-level discount (optional)
+  // Invoice and Date
+  const [invoiceNo, setInvoiceNo] = useState("INV-499");
+  const [billDate, setBillDate] = useState(new Date());
+  const [showDatePicker, setShowDatePicker] = useState(false);
+
+  // Bill Options
   const [isBillDiscountEnabled, setIsBillDiscountEnabled] = useState(false);
   const [billDiscountPercent, setBillDiscountPercent] = useState("0");
-
-  // ✅ VAT toggle
   const [isVatEnabled, setIsVatEnabled] = useState(true);
+  const [vatPercent, setVatPercent] = useState("18");
+  const [isAdditionalEnabled, setIsAdditionalEnabled] = useState(false);
+  const [additionalAmount, setAdditionalAmount] = useState("0");
 
-  const [isTaxEnabled, setIsTaxEnabled] = useState(false);
-  const [additionalTax, setAdditionalTax] = useState("0");
-
-  const [status, setStatus] = useState("Pending");
-  const [saving, setSaving] = useState(false);
-  const [showPaymentPrompt, setShowPaymentPrompt] = useState(false);
-  const [pendingBillId, setPendingBillId] = useState(null);
-
+  // Initial Data Fetch
   useEffect(() => {
-    loadAll();
+    (async () => {
+      try {
+        setLoading(true);
+        const [rts, itms, sales, storedInv] = await Promise.all([
+          fetchRoutes(),
+          fetchItems(),
+          fetchSalesmen(),
+          AsyncStorage.getItem("invoiceCounter")
+        ]);
+
+        setRoutes(rts || []);
+        setItemsMaster(itms || []);
+        setSalesmen(sales || []);
+
+        const count = storedInv ? parseInt(storedInv) : 499;
+        setInvoiceNo(`INV-${count}`);
+      } catch (e) {
+        Alert.alert("Error", "Cannot load master data");
+        console.error(e);
+      } finally {
+        setLoading(false);
+      }
+    })();
   }, []);
 
-  const loadAll = async () => {
-    try {
-      setLoadingShops(true);
-      setLoadingRoutes(true);
-      setLoadingItems(true);
+  // Fetch Shops when Route changes
+  useEffect(() => {
+    (async () => {
+      if (!selectedRoute?.code) return;
+      try {
+        const sh = await fetchShopsByRoute(selectedRoute.code);
+        setShops(sh || []);
+        setSelectedShop(null);
+      } catch (e) {
+        console.log("shopsByRoute error:", e.message);
+      }
+    })();
+  }, [selectedRoute?.code]);
 
-      const [shopData, locations, itemsData] = await Promise.all([
-        fetchShops(),
-        fetchShopLocations(),
-        fetchItems(),
-      ]);
-
-      setShops(shopData || []);
-
-      const cleanedRoutes = (locations || [])
-        .map((x) => (x || "").trim())
-        .filter((x) => x.length > 0);
-      setRoutes(cleanedRoutes);
-
-      setItemsMaster(itemsData || []);
-    } catch (e) {
-      console.log("❌ LOAD ALL ERROR:", e?.response?.data || e?.message);
-
-      Toast.show({
-        type: "error",
-        text1: "Error",
-        text2: e?.message || "Failed to load routes/shops/items",
-        position: "top",
-      });
-    } finally {
-      setLoadingShops(false);
-      setLoadingRoutes(false);
-      setLoadingItems(false);
-    }
-  };
-
+  // Memoized Filters
   const filteredRoutes = useMemo(() => {
-    const q = routeSearch.toLowerCase();
-    return routes.filter((r) => r.toLowerCase().includes(q));
+    const q = routeSearch.trim().toLowerCase();
+    if (!q) return routes;
+    return routes.filter(r => 
+      String(r.code || "").toLowerCase().includes(q) || 
+      String(r.description || "").toLowerCase().includes(q)
+    );
   }, [routes, routeSearch]);
 
   const filteredShops = useMemo(() => {
-    const q = searchQuery.toLowerCase();
-    return shops.filter((shop) => {
-      const nameOk = (shop?.name || "").toLowerCase().includes(q);
-      const routeOk =
-        !selectedRoute ||
-        (shop?.location || "").trim().toLowerCase() ===
-          selectedRoute.trim().toLowerCase();
-      return nameOk && routeOk;
-    });
-  }, [shops, searchQuery, selectedRoute]);
+    const q = shopSearch.trim().toLowerCase();
+    if (!q) return shops;
+    return shops.filter(s => 
+      String(s.code || "").toLowerCase().includes(q) || 
+      String(s.name || "").toLowerCase().includes(q)
+    );
+  }, [shops, shopSearch]);
+
+  const filteredSalesmen = useMemo(() => {
+    const q = salesmanSearch.trim().toLowerCase();
+    if (!q) return salesmen;
+    return salesmen.filter(s => 
+      String(s.name || "").toLowerCase().includes(q) || 
+      String(s.code || "").toLowerCase().includes(q)
+    );
+  }, [salesmen, salesmanSearch]);
 
   const filteredItems = useMemo(() => {
-    const q = itemSearch.toLowerCase();
-    return itemsMaster.filter((it) =>
-      (it?.name || "").toLowerCase().includes(q),
-    );
+    const q = itemSearch.trim().toLowerCase();
+    if (!q) return itemsMaster.slice(0, 100);
+    return itemsMaster.filter(it => 
+      String(it.Item_code || "").toLowerCase().includes(q) || 
+      String(it.Item_description || "").toLowerCase().includes(q)
+    ).slice(0, 100);
   }, [itemsMaster, itemSearch]);
 
-  const addNewItem = () =>
-    setItemsList((prev) => [
-      ...prev,
-      {
-        id: Date.now(),
-        item_id: null,
-        item_name: "",
-        unit_price: 0,
-        stock_qty: 0,
-        qty: "1",
-        free_qty: "0",
-        discount_percent: "0",
-      },
-    ]);
-
-  const deleteItem = (id) => {
-    if (itemsList.length > 1) {
-      setItemsList(itemsList.filter((item) => item.id !== id));
-    } else {
-      Alert.alert("Notice", "A bill must have at least one item.");
-    }
-  };
-
-  const updateRow = (id, patch) => {
-    setItemsList((prev) =>
-      prev.map((row) => (row.id === id ? { ...row, ...patch } : row)),
-    );
-  };
-
-  const toNum = (v) => {
-    const n = Number(String(v ?? "").replace(/[^0-9.]/g, ""));
-    return Number.isFinite(n) ? n : 0;
-  };
-
-  const clampPercent = (v) => Math.min(Math.max(toNum(v), 0), 100);
-
-  const lineTotal = (row) => {
-    const qty = Math.max(parseInt(row.qty || "0", 10) || 0, 0);
-    const unit = toNum(row.unit_price);
-    const gross = qty * unit;
-    const disc = clampPercent(row.discount_percent);
-    const discountAmount = gross * (disc / 100);
-    return Math.max(gross - discountAmount, 0);
-  };
-
-  // ✅ subtotal is sum of line totals AFTER item discounts
+  // Calculations
   const subtotal = useMemo(() => {
-    return itemsList.reduce((sum, row) => sum + lineTotal(row), 0);
-  }, [itemsList]);
+    return rows.reduce((sum, r) => {
+      const qty = toNum(r.qty);
+      const unit = toNum(r.unit_price);
+      const discP = toNum(r.discount_percent);
+      const lineGross = qty * unit;
+      const discAmt = (lineGross * discP) / 100;
+      return sum + Math.max(lineGross - discAmt, 0);
+    }, 0);
+  }, [rows]);
 
-  // ✅ NEW bill discount amount (applied after item discounts)
-  const billDiscPercent = isBillDiscountEnabled ? clampPercent(billDiscountPercent) : 0;
-  const billDiscAmount = useMemo(() => subtotal * (billDiscPercent / 100), [subtotal, billDiscPercent]);
-  const discountedSubtotal = useMemo(() => Math.max(subtotal - billDiscAmount, 0), [subtotal, billDiscAmount]);
+  const billDiscountAmount = useMemo(() => {
+    if (!isBillDiscountEnabled) return 0;
+    return (subtotal * toNum(billDiscountPercent)) / 100;
+  }, [subtotal, isBillDiscountEnabled, billDiscountPercent]);
 
-  // ✅ VAT calculated on discounted subtotal (same as backend)
-  const vat = isVatEnabled ? discountedSubtotal * 0.18 : 0;
+  const afterBillDisc = useMemo(() => Math.max(subtotal - billDiscountAmount, 0), [subtotal, billDiscountAmount]);
+  const additional = useMemo(() => (isAdditionalEnabled ? toNum(additionalAmount) : 0), [isAdditionalEnabled, additionalAmount]);
+  const baseForVat = useMemo(() => afterBillDisc + additional, [afterBillDisc, additional]);
+  const vatAmt = useMemo(() => (isVatEnabled ? (baseForVat * toNum(vatPercent)) / 100 : 0), [baseForVat, isVatEnabled, vatPercent]);
+  const grandTotal = useMemo(() => baseForVat + vatAmt, [baseForVat, vatAmt]);
 
-  const extraTax = isTaxEnabled ? toNum(additionalTax) : 0;
-
-  const total = (discountedSubtotal + vat + extraTax).toFixed(2);
-
-  const validateBeforeSave = () => {
-    if (!selectedRoute) return "Please select a route/location first";
-    if (!selectedShop) return "Please select a shop";
-
-    for (const row of itemsList) {
-      if (!row.item_id) return "Please select an item for each row";
-
-      const qty = parseInt(row.qty || "0", 10) || 0;
-      const free = parseInt(row.free_qty || "0", 10) || 0;
-
-      if (qty <= 0) return "Qty must be at least 1";
-
-      // ✅ stock check on frontend (backend will also check)
-      const totalOut = qty + free;
-      if (totalOut > (row.stock_qty || 0)) {
-        return `Not enough stock for ${row.item_name}. Available: ${row.stock_qty}`;
-      }
-
-      const disc = toNum(row.discount_percent);
-      if (disc < 0 || disc > 100) return "Item discount must be between 0 and 100";
-    }
-
-    if (isBillDiscountEnabled) {
-      const d = toNum(billDiscountPercent);
-      if (d < 0 || d > 100) return "Bill discount must be between 0 and 100";
-    }
-
-    return null;
+  // Row Management
+  const addRow = () => {
+    setRows(prev => [...prev, {
+      id: Date.now() + Math.random(),
+      item_code: "",
+      item_desc: "",
+      unit_price: "0",
+      qty: "1",
+      free_issues: "0",
+      discount_percent: "0",
+    }]);
   };
 
-  const saveBill = async () => {
-    const err = validateBeforeSave();
-    if (err) {
-      Toast.show({
-        type: "error",
-        text1: "Validation",
-        text2: err,
-        position: "top",
-      });
-      return;
-    }
+  const removeRow = (id) => {
+    if (rows.length === 1) return;
+    setRows(prev => prev.filter(x => x.id !== id));
+  };
 
-    if (saving) return;
-    setSaving(true);
+  const updateRow = (id, key, value) => {
+    setRows(prev => prev.map(r => (r.id === id ? { ...r, [key]: value } : r)));
+  };
+
+  const chooseItem = (item) => {
+    if (activeRowId === null) return;
+    updateRow(activeRowId, "item_code", item.Item_code || "");
+    updateRow(activeRowId, "item_desc", item.Item_description || "");
+    updateRow(activeRowId, "unit_price", String(item.saleprice ?? 0));
+    setItemModal(false);
+    setItemSearch("");
+    setActiveRowId(null);
+  };
+
+  const onSave = async () => {
+    if (!selectedRoute?.code) return Alert.alert("Validation", "Select route");
+    if (!selectedShop?.code) return Alert.alert("Validation", "Select shop");
+    if (!selectedSalesman?.code) return Alert.alert("Validation", "Select Salesman");
+
+    const cleanedItems = rows.map(r => {
+      const qty = toNum(r.qty);
+      const unit = toNum(r.unit_price);
+      const discP = toNum(r.discount_percent);
+      const lineGross = qty * unit;
+      const discAmt = (lineGross * discP) / 100;
+      return {
+        item_code: r.item_code,
+        item_desc: r.item_desc,
+        qty,
+        free_issues: String(r.free_issues || "0"),
+        unit_price: unit,
+        discount: discAmt,
+      };
+    }).filter(x => x.item_code && x.qty > 0);
+
+    if (cleanedItems.length === 0) return Alert.alert("Validation", "Add at least 1 item");
+
+    const payload = {
+      invoice_no: invoiceNo,
+      date: billDate.toISOString().split("T")[0],
+      route: selectedRoute.code,
+      shop_code: selectedShop.code,
+      shop_name: selectedShop.name,
+      shop_phone: selectedShop.phone || null,
+      salesman: selectedSalesman.name,
+      bill_discount: billDiscountAmount,
+      vat_enabled: isVatEnabled,
+      vat_percent: toNum(vatPercent),
+      additional_amount: additional,
+      items: cleanedItems,
+      total_amount: grandTotal
+    };
 
     try {
-      const billDate = new Date().toISOString().split("T")[0];
-
-      const payload = {
-        shop_id: selectedShop.id,
-        bill_date: billDate,
-        vat_enabled: isVatEnabled,
-        additional_tax: isTaxEnabled ? toNum(additionalTax) : 0,
-
-        // ✅ NEW: bill-level discount (optional)
-        bill_discount_percent: isBillDiscountEnabled ? clampPercent(billDiscountPercent) : 0,
-
-        status,
-        items: itemsList.map((row) => ({
-          item_id: row.item_id,
-          qty: parseInt(row.qty || "0", 10) || 0,
-          free_qty: parseInt(row.free_qty || "0", 10) || 0,
-          discount_percent: clampPercent(row.discount_percent),
-        })),
-      };
-
+      setSaving(true);
       const res = await addBill(payload);
-
-      Toast.show({
-        type: "success",
-        text1: "Bill Created ✅",
-        text2: res?.message || "Saved to database",
-        position: "top",
-      });
-
-      const newBillId = res?.bill?.id;
-      setPendingBillId(newBillId);
-      setShowPaymentPrompt(true);
+      setSavedInvoiceNo(res.invoice_no);
+      setSuccessModal(true);
+      
+      const currentCount = parseInt(invoiceNo.split("-")[1]) || 499;
+      await AsyncStorage.setItem("invoiceCounter", (currentCount + 1).toString());
     } catch (e) {
-      console.log("ADD BILL ERROR:", e?.response?.data || e.message);
-
-      let msg = "Bill creation failed";
-      if (e?.response?.data?.message) msg = e.response.data.message;
-      if (e?.response?.status === 422 && !msg) msg = "Validation failed";
-
-      Toast.show({
-        type: "error",
-        text1: "Error",
-        text2: msg,
-        position: "top",
-      });
+      Alert.alert("Error", "Failed to save bill");
+      console.error(e);
     } finally {
       setSaving(false);
     }
   };
 
+  if (loading) {
+    return (
+      <View style={styles.center}>
+        <ActivityIndicator size="large" color="#2563eb" />
+      </View>
+    );
+  }
+
   return (
-    <View style={{ flex: 1, backgroundColor: "#f8fafc" }}>
+    <View style={styles.container}>
+      {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()}>
-          <MaterialCommunityIcons name="close" size={24} color="white" />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Add New Bill</Text>
+        <View style={{ flexDirection: "row", alignItems: "center" }}>
+          <TouchableOpacity onPress={() => navigation.goBack()}>
+            <MaterialCommunityIcons name="arrow-left" size={26} color="white" />
+          </TouchableOpacity>
+          <View style={{ marginLeft: 15 }}>
+            <Text style={styles.headerTitle}>Add Bill</Text>
+            <Text style={styles.headerSub}>Create a new invoice</Text>
+          </View>
+        </View>
       </View>
 
-      <ScrollView style={styles.form} contentContainerStyle={{ paddingBottom: 40 }}>
-        {/* ROUTE */}
-        <Text style={styles.label}>Route (Location)</Text>
-        <TouchableOpacity style={styles.dropdown} onPress={() => setShowRouteModal(true)}>
-          <Text style={selectedRoute ? styles.selectedText : styles.placeholderText}>
-            {selectedRoute ? selectedRoute : "Select Route"}
-          </Text>
-          <MaterialCommunityIcons name="map-marker" size={20} color="#64748b" />
-        </TouchableOpacity>
+      <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 140 }}>
+        {/* Invoice and Date Section */}
+        <View style={styles.topRow}>
+          <View style={styles.invoiceBox}>
+            <Text style={styles.topLabel}>Invoice No</Text>
+            <Text style={styles.invoiceValue}>{invoiceNo}</Text>
+          </View>
 
-        {/* SHOP */}
-        <Text style={styles.label}>Shop Name</Text>
-        <TouchableOpacity style={styles.dropdown} onPress={() => setShowShopModal(true)}>
-          <Text style={selectedShop ? styles.selectedText : styles.placeholderText}>
-            {selectedShop ? selectedShop.name : "Select Shop"}
-          </Text>
-          <MaterialCommunityIcons name="store" size={20} color="#64748b" />
-        </TouchableOpacity>
-
-        {/* STATUS */}
-        <Text style={styles.label}>Bill Status</Text>
-        <View style={styles.statusRow}>
-          {["Pending", "Paid", "Partial"].map((s) => (
-            <TouchableOpacity
-              key={s}
-              style={[styles.statusChip, status === s && styles.statusChipActive]}
-              onPress={() => setStatus(s)}
-              activeOpacity={0.85}
-            >
-              <Text style={[styles.statusText, status === s && styles.statusTextActive]}>{s}</Text>
-            </TouchableOpacity>
-          ))}
-        </View>
-
-        {/* ITEMS */}
-        <View style={styles.sectionHeader}>
-          <Text style={styles.label}>Items</Text>
-          <TouchableOpacity onPress={addNewItem} style={styles.addBtn}>
-            <MaterialCommunityIcons name="plus-circle" size={20} color="#10b981" />
-            <Text style={styles.addBtnText}>Add Item</Text>
+          <TouchableOpacity style={styles.dateBox} onPress={() => setShowDatePicker(true)}>
+            <Text style={styles.topLabel}>Date</Text>
+            <Text style={styles.dateValue}>{billDate.toISOString().split("T")[0]}</Text>
           </TouchableOpacity>
         </View>
 
-        {itemsList.map((row) => (
-          <View key={row.id} style={styles.itemCard}>
-            <View style={styles.itemTopRow}>
-              <TouchableOpacity
-                style={[styles.input, { flex: 1 }]}
-                onPress={() => {
-                  setActiveRowId(row.id);
-                  setItemSearch("");
-                  setShowItemModal(true);
-                }}
-                activeOpacity={0.85}
-              >
-                <Text style={row.item_id ? styles.selectedText : styles.placeholderText}>
-                  {row.item_id ? row.item_name : "Select Item"}
-                </Text>
+        {showDatePicker && (
+          <DateTimePicker
+            value={billDate}
+            mode="date"
+            display="default"
+            onChange={(event, selectedDate) => {
+              setShowDatePicker(false);
+              if (selectedDate) setBillDate(selectedDate);
+            }}
+          />
+        )}
+
+        {/* Route Select */}
+        <TouchableOpacity style={styles.selectBtn} onPress={() => setRouteModal(true)}>
+          <Text style={styles.selectLabel}>Route</Text>
+          <Text style={styles.selectValue}>
+            {selectedRoute?.code ? `${selectedRoute.code} - ${selectedRoute.description}` : "Select route"}
+          </Text>
+        </TouchableOpacity>
+
+        {/* Shop Select */}
+        <TouchableOpacity 
+          style={[styles.selectBtn, !selectedRoute?.code && { opacity: 0.6 }]} 
+          onPress={() => selectedRoute?.code && setShopModal(true)}
+          disabled={!selectedRoute?.code}
+        >
+          <Text style={styles.selectLabel}>Shop</Text>
+          <Text style={styles.selectValue}>
+            {selectedShop?.name ? `${selectedShop.name} (${selectedShop.code})` : "Select shop"}
+          </Text>
+        </TouchableOpacity>
+
+        {/* Salesman Select */}
+        <TouchableOpacity style={styles.selectBtn} onPress={() => setSalesmanModal(true)}>
+          <Text style={styles.selectLabel}>Salesman</Text>
+          <Text style={styles.selectValue}>
+            {selectedSalesman?.name ? `${selectedSalesman.name} (${selectedSalesman.code})` : "Select Salesman"}
+          </Text>
+        </TouchableOpacity>
+
+        <Text style={styles.sectionTitle}>Items</Text>
+
+        {rows.map((r) => (
+          <View key={r.id} style={styles.rowCard}>
+            <TouchableOpacity 
+              style={styles.itemPick} 
+              onPress={() => { setActiveRowId(r.id); setItemModal(true); }}
+            >
+              <Text style={styles.itemPickText}>{r.item_desc ? r.item_desc : "Select Item"}</Text>
+              <MaterialCommunityIcons name="chevron-down" size={20} color="#64748b" />
+            </TouchableOpacity>
+
+            <View style={styles.rowGrid}>
+              <InputField label="Qty" value={r.qty} onChange={(v) => updateRow(r.id, "qty", v)} />
+              <InputField label="Free" value={r.free_issues} onChange={(v) => updateRow(r.id, "free_issues", v)} />
+              <InputField label="Unit" value={r.unit_price} onChange={(v) => updateRow(r.id, "unit_price", v)} />
+              <InputField label="Disc %" value={r.discount_percent} onChange={(v) => updateRow(r.id, "discount_percent", v)} />
+            </View>
+
+            <View style={styles.rowActionRow}>
+              <TouchableOpacity style={styles.smallBtn} onPress={addRow}>
+                <Text style={styles.smallBtnText}>+ Add Row</Text>
               </TouchableOpacity>
-
-              <TouchableOpacity onPress={() => deleteItem(row.id)} style={styles.deleteBtn}>
-                <MaterialCommunityIcons name="trash-can-outline" size={22} color="#ef4444" />
+              <TouchableOpacity style={[styles.smallBtn, { backgroundColor: "#fee2e2" }]} onPress={() => removeRow(r.id)}>
+                <Text style={[styles.smallBtnText, { color: "#ef4444" }]}>Remove</Text>
               </TouchableOpacity>
-            </View>
-
-            {/* STOCK + UNIT PRICE */}
-            <View style={styles.metaRow}>
-              <Text style={styles.metaText}>
-                Stock: <Text style={{ fontWeight: "800" }}>{row.stock_qty ?? 0}</Text>
-              </Text>
-              <Text style={styles.metaText}>
-                Unit Price:{" "}
-                <Text style={{ fontWeight: "800" }}>Rs.{toNum(row.unit_price).toFixed(2)}</Text>
-              </Text>
-            </View>
-
-            {/* INPUTS: QTY / FREE / DISCOUNT */}
-            <View style={styles.gridRow}>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.inputLabel}>Qty</Text>
-                <TextInput
-                  style={styles.input}
-                  keyboardType="numeric"
-                  value={String(row.qty)}
-                  onChangeText={(t) => updateRow(row.id, { qty: t.replace(/[^0-9]/g, "") })}
-                  placeholder="1"
-                />
-              </View>
-
-              <View style={{ flex: 1 }}>
-                <Text style={styles.inputLabel}>Free Qty</Text>
-                <TextInput
-                  style={styles.input}
-                  keyboardType="numeric"
-                  value={String(row.free_qty)}
-                  onChangeText={(t) => updateRow(row.id, { free_qty: t.replace(/[^0-9]/g, "") })}
-                  placeholder="0"
-                />
-              </View>
-
-              <View style={{ flex: 1 }}>
-                <Text style={styles.inputLabel}>Discount %</Text>
-                <TextInput
-                  style={styles.input}
-                  keyboardType="numeric"
-                  value={String(row.discount_percent)}
-                  onChangeText={(t) =>
-                    updateRow(row.id, { discount_percent: t.replace(/[^0-9.]/g, "") })
-                  }
-                  placeholder="0"
-                />
-              </View>
-            </View>
-
-            <View style={styles.lineTotalRow}>
-              <Text style={styles.calcLabel}>Line Total</Text>
-              <Text style={styles.calcValue}>Rs. {lineTotal(row).toFixed(2)}</Text>
             </View>
           </View>
         ))}
 
-        {/* SUMMARY */}
-        <View style={styles.summaryBox}>
-          <View style={styles.calcRow}>
-            <Text style={styles.calcLabel}>Subtotal</Text>
-            <Text style={styles.calcValue}>Rs. {subtotal.toFixed(2)}</Text>
-          </View>
+        {/* Tax & Discount Options */}
+        <View style={styles.optionCard}>
+          <OptionSwitch label="Bill Discount" value={isBillDiscountEnabled} onValueChange={setIsBillDiscountEnabled} />
+          {isBillDiscountEnabled && <TextInput style={styles.optionInput} value={billDiscountPercent} onChangeText={setBillDiscountPercent} keyboardType="numeric" placeholder="Discount %" />}
+          
+          <OptionSwitch label="VAT" value={isVatEnabled} onValueChange={setIsVatEnabled} />
+          {isVatEnabled && <TextInput style={styles.optionInput} value={vatPercent} onChangeText={setVatPercent} keyboardType="numeric" placeholder="VAT %" />}
 
-          {/* ✅ NEW: Bill-level Discount (optional) */}
-          <View style={styles.taxToggleRow}>
-            <Text style={styles.label}>Bill Discount?</Text>
-            <Switch
-              value={isBillDiscountEnabled}
-              onValueChange={(v) => {
-                setIsBillDiscountEnabled(v);
-                if (!v) setBillDiscountPercent("0");
-              }}
-              trackColor={{ true: "#2563eb" }}
-            />
-          </View>
-
-          {isBillDiscountEnabled && (
-            <View style={{ marginTop: 10 }}>
-              <Text style={styles.inputLabel}>Bill Discount %</Text>
-              <TextInput
-                style={styles.input}
-                placeholder="0"
-                keyboardType="numeric"
-                value={billDiscountPercent}
-                onChangeText={(t) => setBillDiscountPercent(t.replace(/[^0-9.]/g, ""))}
-              />
-              <View style={styles.calcRow}>
-                <Text style={styles.calcLabel}>Bill Discount Amount</Text>
-                <Text style={styles.calcValue}>- Rs. {billDiscAmount.toFixed(2)}</Text>
-              </View>
-              <View style={styles.calcRow}>
-                <Text style={styles.calcLabel}>Subtotal After Discount</Text>
-                <Text style={styles.calcValue}>Rs. {discountedSubtotal.toFixed(2)}</Text>
-              </View>
-            </View>
-          )}
-
-          <View style={styles.taxToggleRow}>
-            <Text style={styles.label}>Apply VAT (18%)?</Text>
-            <Switch value={isVatEnabled} onValueChange={setIsVatEnabled} trackColor={{ true: "#2563eb" }} />
-          </View>
-
-          <View style={styles.calcRow}>
-            <Text style={styles.calcLabel}>VAT (18%)</Text>
-            <Text style={styles.calcValue}>Rs. {vat.toFixed(2)}</Text>
-          </View>
-
-          <View style={styles.taxToggleRow}>
-            <Text style={styles.label}>Extra Tax?</Text>
-            <Switch value={isTaxEnabled} onValueChange={setIsTaxEnabled} trackColor={{ true: "#2563eb" }} />
-          </View>
-
-          {isTaxEnabled && (
-            <TextInput
-              style={styles.input}
-              placeholder="Tax Amount"
-              keyboardType="numeric"
-              value={additionalTax}
-              onChangeText={setAdditionalTax}
-            />
-          )}
+          <OptionSwitch label="Additional" value={isAdditionalEnabled} onValueChange={setIsAdditionalEnabled} />
+          {isAdditionalEnabled && <TextInput style={styles.optionInput} value={additionalAmount} onChangeText={setAdditionalAmount} keyboardType="numeric" placeholder="Amount" />}
         </View>
 
+        {/* Totals Summary */}
         <View style={styles.totalCard}>
-          <Text style={styles.totalLabel}>Grand Total</Text>
-          <Text style={styles.totalValue}>Rs. {total}</Text>
+          <Row label="Subtotal" value={subtotal} />
+          <Row label="Bill Discount" value={billDiscountAmount} negative />
+          <Row label="Additional" value={additional} />
+          <Row label="VAT" value={vatAmt} />
+          <View style={styles.grandTotalContainer}>
+            <Text style={styles.grandTotalLabel}>Grand Total</Text>
+            <Text style={styles.grandTotalValue}>Rs. {grandTotal.toFixed(2)}</Text>
+          </View>
         </View>
 
-        <TouchableOpacity
-          style={[
-            styles.submitBtn,
-            (!selectedShop || saving) && { backgroundColor: "#cbd5e1" },
-          ]}
-          disabled={!selectedShop || saving}
-          onPress={saveBill}
-          activeOpacity={0.85}
-        >
-          {saving ? (
-            <View style={{ flexDirection: "row", alignItems: "center" }}>
-              <ActivityIndicator size="small" color="white" />
-              <Text style={[styles.submitText, { marginLeft: 10 }]}>Saving...</Text>
-            </View>
-          ) : (
-            <Text style={styles.submitText}>Save & Create Bill</Text>
-          )}
+        <TouchableOpacity style={[styles.saveBtn, saving && { opacity: 0.7 }]} onPress={onSave} disabled={saving}>
+          {saving ? <ActivityIndicator color="white" /> : <Text style={styles.saveText}>Save Bill</Text>}
         </TouchableOpacity>
-
-        <View style={{ height: 40 }} />
       </ScrollView>
 
-      {/* ROUTE MODAL */}
-      <Modal visible={showRouteModal} animationType="fade" transparent>
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <TextInput
-              style={styles.searchBar}
-              placeholder="Search routes..."
-              value={routeSearch}
-              onChangeText={setRouteSearch}
-            />
-
-            {loadingRoutes ? (
-              <View style={{ paddingVertical: 20 }}>
-                <ActivityIndicator size="large" color="#2563eb" />
-              </View>
-            ) : (
-              <FlatList
-                data={filteredRoutes}
-                keyExtractor={(item, idx) => `${item}-${idx}`}
-                renderItem={({ item }) => (
-                  <TouchableOpacity
-                    style={styles.shopItem}
-                    onPress={() => {
-                      setSelectedRoute(item);
-                      setSelectedShop(null);
-                      setSearchQuery("");
-                      setShowRouteModal(false);
-                    }}
-                  >
-                    <Text>{item}</Text>
-                  </TouchableOpacity>
-                )}
-              />
-            )}
-
-            <TouchableOpacity
-              style={{ padding: 15, alignItems: "center" }}
-              onPress={() => setShowRouteModal(false)}
-            >
-              <Text style={{ color: "#ef4444" }}>Close</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </Modal>
-
-      {/* SHOP MODAL */}
-      <Modal visible={showShopModal} animationType="fade" transparent>
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <TextInput
-              style={styles.searchBar}
-              placeholder={selectedRoute ? `Search shops in ${selectedRoute}...` : "Search shops..."}
-              value={searchQuery}
-              onChangeText={setSearchQuery}
-            />
-
-            {loadingShops ? (
-              <View style={{ paddingVertical: 20 }}>
-                <ActivityIndicator size="large" color="#2563eb" />
-              </View>
-            ) : (
-              <FlatList
-                data={filteredShops}
-                keyExtractor={(item) => item.id.toString()}
-                ListEmptyComponent={
-                  <View style={{ padding: 18 }}>
-                    <Text style={{ color: "#64748b" }}>
-                      No shops found {selectedRoute ? `in ${selectedRoute}` : ""}.
-                    </Text>
-                  </View>
-                }
-                renderItem={({ item }) => (
-                  <TouchableOpacity
-                    style={styles.shopItem}
-                    onPress={() => {
-                      setSelectedShop(item);
-                      setShowShopModal(false);
-                    }}
-                  >
-                    <Text style={{ fontWeight: "700" }}>{item.name}</Text>
-                    <Text style={{ color: "#94a3b8", marginTop: 2 }}>{item.location ?? "—"}</Text>
-                  </TouchableOpacity>
-                )}
-              />
-            )}
-
-            <TouchableOpacity
-              style={{ padding: 15, alignItems: "center" }}
-              onPress={() => setShowShopModal(false)}
-            >
-              <Text style={{ color: "#ef4444" }}>Close</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </Modal>
-
-      {/* ITEM MODAL */}
-      <Modal visible={showItemModal} animationType="fade" transparent>
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <TextInput
-              style={styles.searchBar}
-              placeholder="Search items..."
-              value={itemSearch}
-              onChangeText={setItemSearch}
-            />
-
-            {loadingItems ? (
-              <View style={{ paddingVertical: 20 }}>
-                <ActivityIndicator size="large" color="#2563eb" />
-              </View>
-            ) : (
-              <FlatList
-                data={filteredItems}
-                keyExtractor={(item) => item.id.toString()}
-                ListEmptyComponent={
-                  <View style={{ padding: 18 }}>
-                    <Text style={{ color: "#64748b" }}>No items found.</Text>
-                  </View>
-                }
-                renderItem={({ item }) => (
-                  <TouchableOpacity
-                    style={styles.shopItem}
-                    onPress={() => {
-                      updateRow(activeRowId, {
-                        item_id: item.id,
-                        item_name: item.name,
-                        unit_price: item.unit_price,
-                        stock_qty: item.stock_qty,
-                        qty: "1",
-                        free_qty: "0",
-                        discount_percent: "0",
-                      });
-                      setShowItemModal(false);
-                    }}
-                  >
-                    <Text style={{ fontWeight: "800" }}>{item.name}</Text>
-                    <Text style={{ color: "#94a3b8", marginTop: 2 }}>
-                      Stock: {item.stock_qty} • Unit: Rs.{Number(item.unit_price).toFixed(2)}
-                    </Text>
-                  </TouchableOpacity>
-                )}
-              />
-            )}
-
-            <TouchableOpacity
-              style={{ padding: 15, alignItems: "center" }}
-              onPress={() => setShowItemModal(false)}
-            >
-              <Text style={{ color: "#ef4444" }}>Close</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </Modal>
-
-      {/* PAYMENT CONFIRMATION MODAL */}
-      <Modal visible={showPaymentPrompt} transparent animationType="fade">
-        <View style={styles.modalOverlay}>
-          <View style={styles.confirmCard}>
-            <View style={styles.confirmIcon}>
-              <MaterialCommunityIcons name="file-document-check" size={36} color="white" />
-            </View>
-            <Text style={styles.confirmTitle}>Bill Saved Successfully!</Text>
-            <Text style={styles.confirmMsg}>Do you want to pay the bill now?</Text>
-
-            <View style={styles.buttonRow}>
-              <TouchableOpacity
-                style={[styles.confirmBtn, { backgroundColor: "#94a3b8" }]}
-                onPress={() => {
-                  setShowPaymentPrompt(false);
-                  navigation.navigate("Dashboard");
-                }}
-              >
-                <Text style={styles.confirmBtnText}>No, Later</Text>
+      {/* Modals */}
+      <SelectionModal visible={routeModal} title="Select Route" search={routeSearch} onSearch={setRouteSearch} onClose={() => setRouteModal(false)} data={filteredRoutes} onSelect={setSelectedRoute} />
+      <SelectionModal visible={shopModal} title="Select Shop" search={shopSearch} onSearch={setShopSearch} onClose={() => setShopModal(false)} data={filteredShops} onSelect={setSelectedShop} />
+      <SelectionModal visible={salesmanModal} title="Select Salesman" search={salesmanSearch} onSearch={setSalesmanSearch} onClose={() => setSalesmanModal(false)} data={filteredSalesmen} onSelect={setSelectedSalesman} />
+      
+      {/* Item Modal */}
+      <Modal visible={itemModal} transparent animationType="fade">
+        <ModalBox title="Select Item" searchValue={itemSearch} onSearch={setItemSearch} onClose={() => setItemModal(false)}>
+          <FlatList
+            data={filteredItems}
+            keyExtractor={(item, idx) => String(item.Item_code ?? idx)}
+            renderItem={({ item }) => (
+              <TouchableOpacity style={styles.modalItem} onPress={() => chooseItem(item)}>
+                <Text style={styles.modalItemTitle}>{item.Item_description}</Text>
+                <Text style={styles.modalItemSub}>{item.Item_code} • Rs.{Number(item.saleprice || 0).toFixed(2)}</Text>
               </TouchableOpacity>
+            )}
+          />
+        </ModalBox>
+      </Modal>
 
-              <TouchableOpacity
-                style={[styles.confirmBtn, { backgroundColor: "#10b981" }]}
-                onPress={() => {
-                  setShowPaymentPrompt(false);
-                  if (pendingBillId) {
-                    navigation.replace("BillDetails", { billId: pendingBillId });
-                  }
-                }}
-              >
-                <Text style={styles.confirmBtnText}>Yes, Pay Now</Text>
+      {/* Success Modal */}
+      <Modal visible={successModal} transparent animationType="fade">
+        <View style={styles.modalOverlay}>
+          <View style={styles.modernCard}>
+            <View style={styles.iconCircle}>
+              <MaterialCommunityIcons name="file-document-check-outline" size={50} color="#2563eb" />
+            </View>
+            <Text style={styles.modernTitle}>Bill Created Successfully</Text>
+            <Text style={styles.invoiceText}>Invoice No: #{savedInvoiceNo}</Text>
+            <Text style={styles.modernMessage}>Do you want to proceed with payment?</Text>
+            <View style={styles.modernBtnRow}>
+              <TouchableOpacity style={styles.modernNoBtn} onPress={() => { setSuccessModal(false); navigation.replace("Dashboard"); }}>
+                <Text style={styles.modernNoText}>Later</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.modernYesBtn} onPress={() => { setSuccessModal(false); navigation.replace("BillDetail", { invoiceNo: savedInvoiceNo }); }}>
+                <Text style={styles.modernYesText}>Pay Now</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -715,212 +452,146 @@ export default function AddBillScreen({ navigation }) {
   );
 }
 
+// Internal UI Components
+function InputField({ label, value, onChange }) {
+  return (
+    <View style={styles.field}>
+      <Text style={styles.fieldLabel}>{label}</Text>
+      <TextInput style={styles.fieldInput} value={value} onChangeText={onChange} keyboardType="numeric" />
+    </View>
+  );
+}
+
+function OptionSwitch({ label, value, onValueChange }) {
+  return (
+    <View style={styles.optionRow}>
+      <Text style={styles.optionLabel}>{label}</Text>
+      <Switch value={value} onValueChange={onValueChange} trackColor={{ true: "#2563eb" }} />
+    </View>
+  );
+}
+
+function SelectionModal({ visible, title, search, onSearch, onClose, data, onSelect }) {
+  return (
+    <Modal visible={visible} transparent animationType="fade">
+      <ModalBox title={title} searchValue={search} onSearch={onSearch} onClose={onClose}>
+        {data && data.length > 0 ? (
+          <FlatList
+            data={data}
+            keyExtractor={(item, idx) => String(item.id || idx)}
+            renderItem={({ item }) => (
+              <TouchableOpacity 
+                style={styles.modalItem} 
+                onPress={() => { onSelect(item); onClose(); }}
+              >
+                {/* Logic to handle different data types (Route vs Shop vs Salesman) */}
+                <Text style={styles.modalItemTitle}>
+                  {item.name || item.description || "No Title"}
+                </Text>
+                <Text style={styles.modalItemSub}>
+                  {item.code ? `Code: ${item.code}` : ""}
+                </Text>
+              </TouchableOpacity>
+            )}
+          />
+        ) : (
+          <View style={{ padding: 20, alignItems: 'center' }}>
+            <Text style={{ color: '#64748b' }}>No data found</Text>
+          </View>
+        )}
+      </ModalBox>
+    </Modal>
+  );
+}
+
+function Row({ label, value, negative }) {
+  return (
+    <View style={styles.summaryRow}>
+      <Text style={styles.summaryLabel}>{label}</Text>
+      <Text style={[styles.summaryValue, negative && { color: "#ef4444" }]}>
+        Rs. {Number(value || 0).toFixed(2)}
+      </Text>
+    </View>
+  );
+}
+
+function ModalBox({ title, searchValue, onSearch, onClose, children }) {
+  return (
+    <View style={styles.modalOverlay}>
+      <View style={styles.modalCard}>
+        <Text style={styles.modalTitle}>{title}</Text>
+        <TextInput style={styles.modalInput} placeholder="Search..." value={searchValue} onChangeText={onSearch} />
+        <View style={{ maxHeight: 400 }}>{children}</View>
+        <TouchableOpacity style={styles.modalClose} onPress={onClose}>
+          <Text style={styles.modalCloseText}>Close</Text>
+        </TouchableOpacity>
+      </View>
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
+  container: { flex: 1, backgroundColor: "#f8fafc" },
+  center: { flex: 1, justifyContent: "center", alignItems: "center" },
   header: {
     backgroundColor: "#2563eb",
     padding: 25,
     paddingTop: 50,
-    flexDirection: "row",
-    alignItems: "center",
+    borderBottomLeftRadius: 30,
+    borderBottomRightRadius: 30,
   },
-  headerTitle: {
-    color: "white",
-    fontSize: 20,
-    fontWeight: "bold",
-    marginLeft: 15,
-  },
-  form: { padding: 20 },
-
-  label: {
-    fontSize: 13,
-    fontWeight: "bold",
-    color: "#64748b",
-    marginBottom: 5,
-  },
-
-  dropdown: {
-    backgroundColor: "white",
-    borderWidth: 1,
-    borderColor: "#e2e8f0",
-    borderRadius: 12,
-    padding: 15,
-    marginBottom: 20,
-    flexDirection: "row",
-    justifyContent: "space-between",
-  },
-
-  selectedText: { color: "#1e293b", fontWeight: "500" },
-  placeholderText: { color: "#94a3b8" },
-
-  sectionHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    marginBottom: 10,
-    marginTop: 8,
-  },
-  addBtn: { flexDirection: "row", alignItems: "center" },
-  addBtnText: { color: "#10b981", fontWeight: "bold", marginLeft: 5 },
-
-  itemCard: {
-    backgroundColor: "white",
-    borderRadius: 16,
-    padding: 12,
-    borderWidth: 1,
-    borderColor: "#e2e8f0",
-    marginBottom: 10,
-  },
-
-  itemTopRow: { flexDirection: "row", alignItems: "center", gap: 10 },
-  metaRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    marginTop: 10,
-    marginBottom: 6,
-  },
-  metaText: { color: "#64748b", fontSize: 12 },
-
-  gridRow: { flexDirection: "row", gap: 10, marginTop: 6 },
-
-  inputLabel: { fontSize: 12, color: "#64748b", marginBottom: 6 },
-
-  input: {
-    backgroundColor: "#f8fafc",
-    borderWidth: 1,
-    borderColor: "#e2e8f0",
-    borderRadius: 10,
-    padding: 10,
-  },
-
-  deleteBtn: {
-    width: 46,
-    height: 46,
-    borderRadius: 12,
-    backgroundColor: "#fff5f5",
-    justifyContent: "center",
-    alignItems: "center",
-  },
-
-  lineTotalRow: {
-    marginTop: 10,
-    paddingTop: 10,
-    borderTopWidth: 1,
-    borderTopColor: "#f1f5f9",
-    flexDirection: "row",
-    justifyContent: "space-between",
-  },
-
-  summaryBox: {
-    backgroundColor: "#f1f5f9",
-    padding: 15,
-    borderRadius: 15,
-    marginTop: 10,
-  },
-  calcRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    marginBottom: 5,
-  },
-  calcLabel: { color: "#64748b" },
-  calcValue: { fontWeight: "bold" },
-
-  taxToggleRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginTop: 10,
-  },
-
-  totalCard: {
-    backgroundColor: "#2563eb",
-    padding: 20,
-    borderRadius: 20,
-    alignItems: "center",
-    marginVertical: 20,
-  },
-  totalLabel: { color: "white", opacity: 0.8 },
-  totalValue: { color: "white", fontSize: 28, fontWeight: "bold" },
-
-  submitBtn: {
-    backgroundColor: "#10b981",
-    padding: 18,
-    borderRadius: 15,
-    alignItems: "center",
-  },
-  submitText: { color: "white", fontWeight: "bold", fontSize: 16 },
-
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: "rgba(0,0,0,0.4)",
-    justifyContent: "center",
-    padding: 20,
-  },
-  modalContent: {
-    backgroundColor: "white",
-    borderRadius: 20,
-    padding: 20,
-    maxHeight: "70%",
-  },
-  searchBar: {
-    backgroundColor: "#f1f5f9",
-    borderRadius: 10,
-    padding: 12,
-    marginBottom: 15,
-  },
-  shopItem: { padding: 15, borderBottomWidth: 1, borderBottomColor: "#f1f5f9" },
-
-  statusRow: {
-    flexDirection: "row",
-    justifyContent: "center",
-    marginBottom: 10,
-  },
-  statusChip: {
-    borderWidth: 1,
-    borderColor: "#e2e8f0",
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 20,
-    marginHorizontal: 6,
-    backgroundColor: "white",
-  },
-  statusChipActive: { backgroundColor: "#2563eb", borderColor: "#2563eb" },
-  statusText: { color: "#64748b", fontWeight: "500" },
-  statusTextActive: { color: "white", fontWeight: "700" },
-
-  confirmCard: {
-    backgroundColor: "white",
-    borderRadius: 22,
-    padding: 25,
-    width: "100%",
-    maxWidth: 380,
-    alignItems: "center",
-  },
-  confirmIcon: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    backgroundColor: "#2563eb",
-    alignItems: "center",
-    justifyContent: "center",
-    marginBottom: 15,
-  },
-  confirmTitle: {
-    fontSize: 18,
-    fontWeight: "bold",
-    color: "#0f172a",
-    marginBottom: 8,
-  },
-  confirmMsg: {
-    textAlign: "center",
-    color: "#475569",
-    marginBottom: 20,
-    lineHeight: 18,
-  },
-  buttonRow: { flexDirection: "row", gap: 12, width: "100%" },
-  confirmBtn: {
-    flex: 1,
-    paddingVertical: 12,
-    borderRadius: 12,
-    alignItems: "center",
-  },
-  confirmBtnText: { color: "white", fontWeight: "bold", fontSize: 14 },
+  headerTitle: { color: "white", fontSize: 22, fontWeight: "bold" },
+  headerSub: { color: "white", opacity: 0.8, fontSize: 13 },
+  topRow: { flexDirection: "row", gap: 12, marginBottom: 20 },
+  invoiceBox: { flex: 1, backgroundColor: "white", borderRadius: 12, padding: 14, borderWidth: 1, borderColor: "#e2e8f0" },
+  dateBox: { flex: 1, backgroundColor: "white", borderRadius: 12, padding: 14, borderWidth: 1, borderColor: "#e2e8f0" },
+  topLabel: { color: "#64748b", fontSize: 11, fontWeight: "700", textTransform: "uppercase", marginBottom: 4 },
+  invoiceValue: { color: "#1e293b", fontSize: 16, fontWeight: "800" },
+  dateValue: { color: "#1e293b", fontSize: 15, fontWeight: "700" },
+  selectBtn: { backgroundColor: "white", borderRadius: 15, padding: 16, marginBottom: 12, borderWidth: 1, borderColor: "#e2e8f0" },
+  selectLabel: { color: "#64748b", fontSize: 11, fontWeight: "700", textTransform: "uppercase" },
+  selectValue: { marginTop: 4, fontWeight: "700", color: "#1e293b", fontSize: 15 },
+  sectionTitle: { fontSize: 15, fontWeight: "800", color: "#1e293b", marginTop: 10, marginBottom: 10 },
+  rowCard: { backgroundColor: "white", borderRadius: 18, padding: 16, marginBottom: 15, borderWidth: 1, borderColor: "#e2e8f0" },
+  itemPick: { flexDirection: "row", justifyContent: "space-between", backgroundColor: "#f1f5f9", padding: 14, borderRadius: 12, alignItems: "center" },
+  itemPickText: { fontWeight: "700", color: "#1e293b", flex: 1 },
+  rowGrid: { flexDirection: "row", flexWrap: "wrap", gap: 10, marginTop: 15 },
+  field: { width: "47%" },
+  fieldLabel: { color: "#64748b", fontSize: 11, fontWeight: "700", marginBottom: 5 },
+  fieldInput: { backgroundColor: "#f8fafc", padding: 12, borderRadius: 10, borderWidth: 1, borderColor: "#e2e8f0", color: "#1e293b" },
+  rowActionRow: { flexDirection: "row", justifyContent: "space-between", marginTop: 15 },
+  smallBtn: { backgroundColor: "#f1f5f9", paddingVertical: 10, paddingHorizontal: 15, borderRadius: 10 },
+  smallBtnText: { fontWeight: "700", color: "#2563eb", fontSize: 13 },
+  optionCard: { backgroundColor: "white", borderRadius: 15, padding: 16, marginTop: 5, borderWidth: 1, borderColor: "#e2e8f0" },
+  optionRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 5 },
+  optionLabel: { fontWeight: "700", color: "#1e293b" },
+  optionInput: { backgroundColor: "#f8fafc", padding: 10, borderRadius: 10, borderWidth: 1, borderColor: "#e2e8f0", marginTop: 5, marginBottom: 10 },
+  totalCard: { backgroundColor: "#f1f5f9", borderRadius: 20, padding: 20, marginTop: 15 },
+  summaryRow: { flexDirection: "row", justifyContent: "space-between", marginBottom: 8 },
+  summaryLabel: { color: "#64748b", fontWeight: "600" },
+  summaryValue: { fontWeight: "700", color: "#1e293b" },
+  grandTotalContainer: { flexDirection: "row", justifyContent: "space-between", marginTop: 12, borderTopWidth: 1, borderTopColor: "#e2e8f0", paddingTop: 12 },
+  grandTotalLabel: { fontSize: 16, fontWeight: "800", color: "#1e293b" },
+  grandTotalValue: { fontSize: 20, fontWeight: "800", color: "#2563eb" },
+  saveBtn: { backgroundColor: "#2563eb", padding: 18, borderRadius: 15, alignItems: "center", marginTop: 20 },
+  saveText: { color: "white", fontWeight: "800", fontSize: 16 },
+  modalOverlay: { flex: 1, backgroundColor: "rgba(15,23,42,0.5)", justifyContent: "center", alignItems: "center", padding: 20 },
+  modernCard: { backgroundColor: "white", borderRadius: 30, padding: 25, width: "85%", alignItems: "center" },
+  iconCircle: { width: 90, height: 90, borderRadius: 50, backgroundColor: "#eff6ff", justifyContent: "center", alignItems: "center", marginBottom: 15 },
+  modernTitle: { fontSize: 20, fontWeight: "800", color: "#1e293b", textAlign: "center" },
+  invoiceText: { fontSize: 13, color: "#2563eb", marginTop: 5, fontWeight: "600" },
+  modernMessage: { fontSize: 14, color: "#64748b", marginTop: 10, textAlign: "center" },
+  modernBtnRow: { flexDirection: "row", marginTop: 25, width: "100%", justifyContent: "space-between" },
+  modernNoBtn: { width: "48%", paddingVertical: 14, borderRadius: 14, backgroundColor: "#f1f5f9", alignItems: "center" },
+  modernYesBtn: { width: "48%", paddingVertical: 14, borderRadius: 14, backgroundColor: "#2563eb", alignItems: "center" },
+  modernNoText: { color: "#ef4444", fontWeight: "700" },
+  modernYesText: { color: "white", fontWeight: "700" },
+  modalCard: { backgroundColor: "white", borderRadius: 25, padding: 20, width: "90%", maxHeight: "80%" },
+  modalTitle: { fontSize: 18, fontWeight: "800", marginBottom: 15, color: "#1e293b" },
+  modalInput: { backgroundColor: "#f1f5f9", borderRadius: 12, padding: 14, marginBottom: 15, borderWidth: 1, borderColor: "#e2e8f0" },
+  modalItem: { paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: "#f1f5f9" },
+  modalItemTitle: { fontWeight: "700", color: "#1e293b", fontSize: 15 },
+  modalItemSub: { color: "#64748b", fontSize: 13 },
+  modalClose: { marginTop: 15, alignItems: "center", padding: 15, backgroundColor: "#f1f5f9", borderRadius: 12 },
+  modalCloseText: { fontWeight: "700", color: "#ef4444" },
 });

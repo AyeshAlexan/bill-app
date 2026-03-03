@@ -1,198 +1,212 @@
+import React, { useCallback, useState, useMemo } from "react";
+import {
+  View,
+  Text,
+  FlatList,
+  TouchableOpacity,
+  StyleSheet,
+  ActivityIndicator,
+  Modal,
+} from "react-native";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { useFocusEffect } from "@react-navigation/native";
-import { useCallback, useState } from "react";
-import {
-  ActivityIndicator,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
-} from "react-native";
-import { getBills } from "../services/billApi";
+
+import { getPendingBills } from "../services/billApi";
+import { fetchRoutes } from "../services/shopApi"; 
+
+const totalOf = (b) => Number(b?.after_vat_amount ?? b?.Net_Amount ?? b?.Gross_Amount ?? 0);
+const paidOf = (b) => Number(b?.Paid_Amount ?? 0);
 
 export default function PendingBillsScreen({ navigation }) {
-  const [pendingBills, setPendingBills] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
+  const [bills, setBills] = useState([]);
+  const [routes, setRoutes] = useState([]);
+  const [selectedRoute, setSelectedRoute] = useState(null);
+  const [routeModal, setRouteModal] = useState(false);
 
-  const fetchPendingBills = useCallback(async () => {
+  const loadData = async () => {
     try {
       setLoading(true);
-      const data = await getBills();
-      // Filter bills with status "Pending" or "Partial"
-      const filtered = data.filter(
-        (bill) =>
-          bill.status === "Pending" ||
-          bill.status === "Partial" ||
-          bill.due_amount > 0,
-      );
-      setPendingBills(filtered);
-    } catch (err) {
-      setError(err.message);
-      console.error("Error fetching pending bills:", err);
+      const [billData, routeData] = await Promise.all([
+        getPendingBills(),
+        fetchRoutes()
+      ]);
+      setBills(Array.isArray(billData) ? billData : []);
+      setRoutes(routeData || []);
+    } catch (e) {
+      console.log("Error loading pending bills:", e);
     } finally {
       setLoading(false);
     }
-  }, []);
+  };
 
-  // Refresh when screen is focused
-  useFocusEffect(
-    useCallback(() => {
-      fetchPendingBills();
-    }, [fetchPendingBills]),
-  );
+  useFocusEffect(useCallback(() => { loadData(); }, []));
+
+  const filteredBills = useMemo(() => {
+    if (!selectedRoute) return bills;
+    return bills.filter(item => 
+      (item.Route === selectedRoute || item.City_1 === selectedRoute)
+    );
+  }, [bills, selectedRoute]);
+
+  const renderItem = ({ item }) => {
+    const total = totalOf(item);
+    const paid = paidOf(item);
+    const due = Math.max(total - paid, 0);
+    const status = paid > 0 ? "Partial" : "Pending";
+
+    return (
+      <TouchableOpacity
+        style={styles.card}
+        activeOpacity={0.8}
+        onPress={() => navigation.navigate("BillDetail", { invoiceNo: item.Invoice_no })}
+      >
+        <View style={styles.cardTop}>
+          <View style={styles.iconCircle}>
+            <MaterialCommunityIcons name="clock-outline" size={24} color="#ef4444" />
+          </View>
+          <View style={{ flex: 1, marginLeft: 12 }}>
+            <Text style={styles.billNo}>INV-{item.Invoice_no || item.id}</Text>
+            <Text style={styles.date}>
+              {item.Invoice_Date || item.date || item.created_at || "Recent"}
+            </Text>
+          </View>
+          <View style={[styles.statusBadge, { backgroundColor: status === "Partial" ? "#fef3c7" : "#fee2e2" }]}>
+            <Text style={[styles.statusText, { color: status === "Partial" ? "#d97706" : "#ef4444" }]}>
+              {status}
+            </Text>
+          </View>
+        </View>
+
+        <View style={styles.shopRow}>
+          <MaterialCommunityIcons name="storefront-outline" size={16} color="#94a3b8" />
+          <Text style={styles.shopText} numberOfLines={1}>
+            {item.Customer_Name || "Unnamed Shop"} • {item.Route || item.City_1 || "General"}
+          </Text>
+        </View>
+
+        <View style={styles.divider} />
+
+        <View style={styles.amountRow}>
+          <View>
+            <Text style={styles.amtLabel}>Bill Total</Text>
+            <Text style={styles.amtValue}>Rs. {total.toFixed(2)}</Text>
+          </View>
+          <View style={{ alignItems: "flex-end" }}>
+            <Text style={styles.amtLabel}>Balance Due</Text>
+            <Text style={[styles.amtValue, { color: "#ef4444" }]}>
+              Rs. {due.toFixed(2)}
+            </Text>
+          </View>
+        </View>
+      </TouchableOpacity>
+    );
+  };
 
   return (
     <View style={styles.container}>
-      {/* Orange-Red Header - Matches Image 7 */}
       <View style={styles.header}>
-        <TouchableOpacity
-          onPress={() => navigation.goBack()}
-          style={styles.backBtn}
-        >
-          <MaterialCommunityIcons name="arrow-left" size={24} color="white" />
+        {/* UPDATED ARROW ONLY */}
+        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
+          <MaterialCommunityIcons name="chevron-left" size={32} color="white" />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Pending Bills</Text>
-        <Text style={styles.headerSub}>Bills awaiting collection</Text>
+        
+        <View style={styles.headerRow}>
+            <View>
+                <Text style={styles.headerTitle}>Pending Bills</Text>
+                <Text style={styles.headerSub}>Bills awaiting collection</Text>
+            </View>
+            <TouchableOpacity style={styles.filterDropdown} onPress={() => setRouteModal(true)}>
+                <Text style={styles.filterText} numberOfLines={1}>
+                    {selectedRoute || "All Cities"}
+                </Text>
+                <MaterialCommunityIcons name="chevron-down" size={20} color="white" />
+            </TouchableOpacity>
+        </View>
 
         <View style={styles.statsBox}>
           <Text style={styles.statsLabel}>Total Pending</Text>
-          <Text style={styles.statsValue}>{pendingBills.length}</Text>
+          <Text style={styles.statsValue}>{filteredBills.length}</Text>
         </View>
       </View>
 
       {loading ? (
-        <View
-          style={{ flex: 1, justifyContent: "center", alignItems: "center" }}
-        >
-          <ActivityIndicator size="large" color="#ff3d00" />
-        </View>
-      ) : error ? (
-        <View
-          style={{ flex: 1, justifyContent: "center", alignItems: "center" }}
-        >
-          <Text style={{ color: "#ef4444", fontSize: 16 }}>Error: {error}</Text>
-        </View>
-      ) : pendingBills.length === 0 ? (
-        <View
-          style={{ flex: 1, justifyContent: "center", alignItems: "center" }}
-        >
-          <Text style={{ color: "#94a3b8", fontSize: 16 }}>
-            No pending bills
-          </Text>
+        <View style={styles.center}>
+            <ActivityIndicator size="large" color="#ff3d00" />
         </View>
       ) : (
-        <ScrollView
-          style={{ flex: 1 }}
-          scrollEnabled={true}
-          showsVerticalScrollIndicator={true}
+        <FlatList
+          data={filteredBills}
+          renderItem={renderItem}
+          keyExtractor={(item, idx) => String(item.Invoice_no ?? idx)}
           contentContainerStyle={{ padding: 20, paddingBottom: 100 }}
-        >
-          {pendingBills.map((item) => (
-            <TouchableOpacity
-              key={item.id.toString()}
-              style={styles.card}
-              activeOpacity={0.7}
-              onPress={() =>
-                navigation.navigate("BillDetails", { billId: item.id })
-              }
-            >
-              <View style={styles.cardTop}>
-                <View style={styles.iconCircle}>
-                  <MaterialCommunityIcons
-                    name="alert-circle-outline"
-                    size={24}
-                    color="#ef4444"
-                  />
-                </View>
-                <View style={{ flex: 1, marginLeft: 12 }}>
-                  <Text style={styles.billNo}>
-                    Bill #{item.bill_number || item.billNo}
-                  </Text>
-                  <Text style={styles.date}>
-                    {item.bill_date || "2026-01-05"}
-                  </Text>
-                </View>
-                {/* Status Badge colors change based on status */}
-                <View
-                  style={[
-                    styles.statusBadge,
-                    {
-                      backgroundColor:
-                        item.status === "Partial" ? "#fef3c7" : "#fee2e2",
-                    },
-                  ]}
-                >
-                  <Text
-                    style={[
-                      styles.statusText,
-                      {
-                        color:
-                          item.status === "Partial" ? "#d97706" : "#ef4444",
-                      },
-                    ]}
-                  >
-                    {item.status || "Pending"}
-                  </Text>
-                </View>
-              </View>
-
-              <View style={styles.shopRow}>
-                <MaterialCommunityIcons
-                  name="storefront-outline"
-                  size={16}
-                  color="#94a3b8"
-                />
-                <Text style={styles.shopText}>
-                  {item.shop?.name || item.shop_name || "N/A"} •{" "}
-                  {item.shop?.location || item.location || "N/A"}
-                </Text>
-              </View>
-
-              <View style={styles.divider} />
-
-              <View style={styles.amountRow}>
-                <View>
-                  <Text style={styles.amtLabel}>Total Amount</Text>
-                  <Text style={styles.amtValue}>
-                    Rs.{item.total_amount || item.total || 0}
-                  </Text>
-                </View>
-                <View style={{ alignItems: "flex-end" }}>
-                  <Text style={styles.amtLabel}>Due Amount</Text>
-                  <Text style={[styles.amtValue, { color: "#ef4444" }]}>
-                    Rs.{item.due_amount || item.due || 0}
-                  </Text>
-                </View>
-              </View>
-            </TouchableOpacity>
-          ))}
-        </ScrollView>
+        />
       )}
+
+      <Modal visible={routeModal} transparent animationType="fade">
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalCard}>
+            <Text style={styles.modalTitle}>Select Route/City</Text>
+            <FlatList
+              data={[{ code: null }, ...routes]}
+              keyExtractor={(item, index) => item.code || 'all'}
+              renderItem={({ item }) => (
+                <TouchableOpacity 
+                  style={styles.modalItem}
+                  onPress={() => {
+                    setSelectedRoute(item.code);
+                    setRouteModal(false);
+                  }}
+                >
+                  <Text style={[styles.modalItemText, selectedRoute === item.code && styles.selectedText]}>
+                    {item.code || "All Cities"}
+                  </Text>
+                  {selectedRoute === item.code && <MaterialCommunityIcons name="check" size={20} color="#ff3d00" />}
+                </TouchableOpacity>
+              )}
+            />
+            <TouchableOpacity style={styles.modalClose} onPress={() => setRouteModal(false)}>
+               <Text style={styles.closeBtnText}>Close</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#f8fafc" },
+  center: { flex: 1, justifyContent: "center", alignItems: "center" },
   header: {
-    backgroundColor: "#ff3d00", // Vibrant orange-red from Image 7
+    backgroundColor: "#ff3d00",
     padding: 25,
     paddingTop: 50,
     borderBottomLeftRadius: 40,
     borderBottomRightRadius: 40,
   },
-  backBtn: { marginBottom: 10 },
+  headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   headerTitle: { color: "white", fontSize: 24, fontWeight: "bold" },
-  headerSub: { color: "white", opacity: 0.9, marginBottom: 20 },
-  statsBox: {
-    backgroundColor: "rgba(255,255,255,0.2)",
-    padding: 15,
-    borderRadius: 20,
+  headerSub: { color: "white", opacity: 0.9, fontSize: 13 },
+  backBtn: { width: 40, height: 40, justifyContent: 'center', marginBottom: 5 },
+  filterDropdown: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 12,
+    maxWidth: 150,
   },
-  statsLabel: { color: "white", fontSize: 12 },
-  statsValue: { color: "white", fontSize: 28, fontWeight: "bold" },
+  filterText: { color: 'white', fontWeight: 'bold', marginRight: 4, fontSize: 12 },
+  statsBox: {
+    backgroundColor: "rgba(255,255,255,0.25)",
+    padding: 18,
+    borderRadius: 20,
+    marginTop: 20,
+  },
+  statsLabel: { color: "white", fontSize: 13 },
+  statsValue: { color: "white", fontSize: 32, fontWeight: "bold" },
   card: {
     backgroundColor: "white",
     borderRadius: 25,
@@ -202,18 +216,25 @@ const styles = StyleSheet.create({
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
-    shadowRadius: 5,
   },
   cardTop: { flexDirection: "row", alignItems: "center" },
   iconCircle: { backgroundColor: "#fee2e2", padding: 10, borderRadius: 15 },
-  billNo: { fontSize: 16, fontWeight: "bold" },
-  date: { color: "#94a3b8", fontSize: 12 },
+  billNo: { fontSize: 16, fontWeight: "bold", color: "#1e293b" },
+  date: { color: "#94a3b8", fontSize: 12, marginTop: 2 },
   statusBadge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8 },
-  statusText: { fontSize: 10, fontWeight: "bold" },
-  shopRow: { flexDirection: "row", alignItems: "center", marginTop: 12 },
+  statusText: { fontSize: 10, fontWeight: "bold", textTransform: 'uppercase' },
+  shopRow: { flexDirection: "row", alignItems: "center", marginTop: 15 },
   shopText: { color: "#64748b", fontSize: 13, marginLeft: 8 },
   divider: { height: 1, backgroundColor: "#f1f5f9", marginVertical: 15 },
   amountRow: { flexDirection: "row", justifyContent: "space-between" },
-  amtLabel: { color: "#94a3b8", fontSize: 11, textTransform: "uppercase" },
-  amtValue: { fontSize: 16, fontWeight: "bold", marginTop: 2 },
+  amtLabel: { color: "#94a3b8", fontSize: 11, textTransform: 'uppercase', fontWeight: 'bold' },
+  amtValue: { fontSize: 16, fontWeight: "bold", marginTop: 4 },
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', padding: 30 },
+  modalCard: { backgroundColor: 'white', borderRadius: 25, padding: 25, maxHeight: '80%' },
+  modalTitle: { fontSize: 18, fontWeight: 'bold', marginBottom: 20, textAlign: 'center' },
+  modalItem: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 15, borderBottomWidth: 1, borderBottomColor: '#f1f5f9' },
+  modalItemText: { fontSize: 15, color: '#475569' },
+  selectedText: { color: '#ff3d00', fontWeight: 'bold' },
+  modalClose: { marginTop: 20, backgroundColor: '#f1f5f9', padding: 12, borderRadius: 15, alignItems: 'center' },
+  closeBtnText: { fontWeight: 'bold', color: '#64748b' }
 });

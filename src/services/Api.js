@@ -16,9 +16,12 @@ export const setAuthToken = (token) => {
   }
 };
 
-const validateCard = (cardNumber) => {
-  const regex = /^(\d{4}-){3}\d{4}$/;
-  return regex.test(cardNumber);
-};
+Api.interceptors.response.use(
+  res => res,
+  err => {
+    console.log("API ERROR:", err?.response?.data || err.message);
+    return Promise.reject(err);
+  }
+);
 
 export default Api;
