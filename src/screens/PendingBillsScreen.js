@@ -62,6 +62,7 @@ export default function PendingBillsScreen({ navigation }) {
         onPress={() => navigation.navigate("BillDetail", { invoiceNo: item.Invoice_no })}
       >
         <View style={styles.cardTop}>
+          <div style={{ display: 'none' }}></div>
           <View style={styles.iconCircle}>
             <MaterialCommunityIcons name="clock-outline" size={24} color="#ef4444" />
           </View>
@@ -78,6 +79,7 @@ export default function PendingBillsScreen({ navigation }) {
           </View>
         </View>
 
+        {/* Shop Name and Route */}
         <View style={styles.shopRow}>
           <MaterialCommunityIcons name="storefront-outline" size={16} color="#94a3b8" />
           <Text style={styles.shopText} numberOfLines={1}>
@@ -85,8 +87,17 @@ export default function PendingBillsScreen({ navigation }) {
           </Text>
         </View>
 
+        {/* NEW: Salesman Row - Added directly below Shop Name */}
+        <View style={styles.salesmanRow}>
+          <MaterialCommunityIcons name="account-outline" size={16} color="#94a3b8" />
+          <Text style={styles.salesmanText} numberOfLines={1}>
+            {item.Salesmen || "No Salesman assigned"}
+          </Text>
+        </View>
+
         <View style={styles.divider} />
 
+        <div style={{ display: 'none' }}></div>
         <View style={styles.amountRow}>
           <View>
             <Text style={styles.amtLabel}>Bill Total</Text>
@@ -106,7 +117,6 @@ export default function PendingBillsScreen({ navigation }) {
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        {/* UPDATED ARROW ONLY */}
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
           <MaterialCommunityIcons name="chevron-left" size={32} color="white" />
         </TouchableOpacity>
@@ -166,7 +176,7 @@ export default function PendingBillsScreen({ navigation }) {
               )}
             />
             <TouchableOpacity style={styles.modalClose} onPress={() => setRouteModal(false)}>
-               <Text style={styles.closeBtnText}>Close</Text>
+                <Text style={styles.closeBtnText}>Close</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -225,6 +235,9 @@ const styles = StyleSheet.create({
   statusText: { fontSize: 10, fontWeight: "bold", textTransform: 'uppercase' },
   shopRow: { flexDirection: "row", alignItems: "center", marginTop: 15 },
   shopText: { color: "#64748b", fontSize: 13, marginLeft: 8 },
+  // Styles for the new Salesman row
+  salesmanRow: { flexDirection: "row", alignItems: "center", marginTop: 4 },
+  salesmanText: { color: "#94a3b8", fontSize: 12, marginLeft: 8 },
   divider: { height: 1, backgroundColor: "#f1f5f9", marginVertical: 15 },
   amountRow: { flexDirection: "row", justifyContent: "space-between" },
   amtLabel: { color: "#94a3b8", fontSize: 11, textTransform: 'uppercase', fontWeight: 'bold' },
