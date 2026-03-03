@@ -92,7 +92,6 @@ export default function PaymentScreen({ navigation }) {
     <View style={styles.container}>
       <View style={styles.header}>
         <View style={styles.headerTopRow}>
-          {/* UPDATED ARROW ONLY */}
           <TouchableOpacity onPress={() => navigation.goBack()} style={{ padding: 5 }}>
             <MaterialCommunityIcons name="chevron-left" size={32} color="white" />
           </TouchableOpacity>
@@ -215,6 +214,9 @@ const styles = StyleSheet.create({
   cashText: { color: "#0fa171", fontSize: 10, fontWeight: "bold" },
   shopInfo: { flexDirection: "row", alignItems: "center", marginTop: 15 },
   shopNameText: { color: "#64748b", fontSize: 13, marginLeft: 8 },
+  // Styles for the new Salesman row
+  salesmanRow: { flexDirection: "row", alignItems: "center", marginTop: 4 },
+  salesmanText: { color: "#94a3b8", fontSize: 12, marginLeft: 8 },
   divider: { height: 1, backgroundColor: "#f1f5f9", marginVertical: 15 },
   finalRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
   finalLabel: { color: "#94a3b8" },
