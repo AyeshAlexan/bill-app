@@ -1,21 +1,14 @@
-import Api from "./Api";
-import { setAuthToken } from "./Api";
+import Api from "../services/Api";
+import { setAuthToken } from "../services/Api";
 
 export const login = async (username, password) => {
+  // Just perform the call and return the data
   const res = await Api.post("/login", { username, password });
-  return res.data;
   
-const data = await login(username, password);
-setAuthToken(data.token); // 🔥 IMPORTANT
-
+  // We set the token here so the very next API call is authorized
+  if (res.data.token) {
+    setAuthToken(res.data.token);
+  }
+  
+  return res.data;
 };
-
-
-
-
-
-
-// export const addBill = async (payload) => {
- //const res = await Api.post("/bills", payload);
-  //return res.data;
-//}; 

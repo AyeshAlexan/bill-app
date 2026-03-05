@@ -12,10 +12,9 @@ import {
   View,
 } from "react-native";
 import { useFocusEffect } from "@react-navigation/native";
-
 import { getBillById, addPayment } from "../services/billApi";
 
-// Helper to determine the total bill value based on various possible API field names
+// Helper to determine the total bill value
 const totalOf = (b) =>
   Number(b?.total_amount ?? b?.after_vat_amount ?? b?.Net_Amount ?? b?.Gross_Amount ?? 0);
 
@@ -35,29 +34,46 @@ export default function BillDetailScreen({ route, navigation }) {
   const [submitting, setSubmitting] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
 
-  // --- MAPPING LOGIC ---
-  // Ensuring we catch all variations of field names from the backend
+  // ---------------- SUMMARY CALCULATIONS ----------------
+
   const subtotal = useMemo(() => 
-    Number(bill?.subtotal ?? bill?.Gross_Amount ?? bill?.gross_amount ?? bill?.Sub_Total ?? 0), [bill]);
-  
+    Number(bill?.subtotal ?? bill?.Gross_Amount ?? bill?.gross_amount ?? bill?.Sub_Total ?? 0), 
+  [bill]);
+
   const vatAmount = useMemo(() => 
-    Number(bill?.vat_amount ?? bill?.Vat_Amount ?? bill?.Vat ?? 0), [bill]);
-  
-  const discountAmount = useMemo(() => 
-    Number(bill?.bill_discount ?? bill?.Discount_Amount ?? bill?.discount_amount ?? 0), [bill]);
-  
+    Number(bill?.vat_amount ?? bill?.Vat_Amount ?? bill?.Vat ?? 0), 
+  [bill]);
+
   const additionalAmount = useMemo(() => 
-    Number(bill?.additional_amount ?? bill?.Additional_Amount ?? bill?.Other_Charges ?? 0), [bill]);
-  
+    Number(bill?.additional_amount ?? bill?.Additional_Amount ?? bill?.Other_Charges ?? 0), 
+  [bill]);
+
   const total = useMemo(() => totalOf(bill), [bill]);
   const paid = useMemo(() => paidOf(bill), [bill]);
   const due = useMemo(() => Math.max(total - paid, 0), [total, paid]);
+
+  // ---------------- ITEM DISCOUNT TOTAL (New Logic) ----------------
+
+  const itemDiscountTotal = useMemo(() => {
+    return items.reduce((sum, it) => {
+      return sum + Number(it.Discount ?? it.discount ?? it.disc_amount ?? it.Discount_Amount ?? 0);
+    }, 0);
+  }, [items]);
+
+  // ---------------- BILL DISCOUNT FIX (New Logic) ----------------
+
+  const discountAmount = useMemo(() => {
+    const combined = Number(bill?.bill_discount ?? bill?.Discount_Amount ?? bill?.discount_amount ?? bill?.Discount ?? 0);
+    // If backend stores combined, subtract item level to avoid double counting
+    return Math.max(combined - itemDiscountTotal, 0);
+  }, [bill, itemDiscountTotal]);
+
+  // ---------------- LOAD DATA ----------------
 
   const load = async () => {
     try {
       setLoading(true);
       const data = await getBillById(invoiceNo);
-      // Backend usually returns { bill: {...}, items: [...] }
       const currentBill = data?.bill || data || null;
       setBill(currentBill);
       setItems(data?.items || []);
@@ -66,7 +82,6 @@ export default function BillDetailScreen({ route, navigation }) {
       setAmount(currentDue > 0 ? String(currentDue.toFixed(2)) : "0.00");
     } catch (e) {
       Alert.alert("Error", "Cannot load bill details");
-      console.error(e);
     } finally {
       setLoading(false);
     }
@@ -78,18 +93,18 @@ export default function BillDetailScreen({ route, navigation }) {
     const amt = Number(amount || 0);
     if (due <= 0.5) { Alert.alert("Notice", "This bill is already fully paid."); return; }
     if (!amt || amt <= 0) { Alert.alert("Input", "Please enter a valid amount."); return; }
-    
+
     try {
       setSubmitting(true);
-      await addPayment({ 
-        invoice_no: invoiceNo, 
-        amount: amt, 
-        method, 
-        note 
+      await addPayment({
+        invoice_no: invoiceNo,
+        amount: amt,
+        method,
+        note,
       });
       setShowSuccess(true);
-      setNote(""); 
-      await load(); // Refresh data to show updated 'Paid' and 'Due'
+      setNote("");
+      await load();
     } catch (e) {
       Alert.alert("Error", "Payment processing failed");
     } finally {
@@ -99,7 +114,7 @@ export default function BillDetailScreen({ route, navigation }) {
 
   if (loading) {
     return (
-      <View style={[styles.container, { justifyContent: 'center' }]}>
+      <View style={[styles.container, { justifyContent: "center" }]}>
         <ActivityIndicator size="large" color="#30a830" />
       </View>
     );
@@ -112,16 +127,14 @@ export default function BillDetailScreen({ route, navigation }) {
           <MaterialCommunityIcons name="chevron-left" size={30} color="white" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Invoice Detail</Text>
-        <Text style={styles.headerSub}>
-            Transaction ID: {invoiceNo}
-        </Text>
+        <Text style={styles.headerSub}>Transaction ID: {invoiceNo}</Text>
         <Text style={styles.headerSub1}>
-            Salesman: {bill?.Salesmen || bill?.salesman || "—"}
+          Salesman: {bill?.Salesmen || bill?.salesman || "—"}
         </Text>
       </View>
 
       <ScrollView contentContainerStyle={styles.content}>
-        {/* Bill Summary Card */}
+        {/* SUMMARY CARD */}
         <View style={styles.card}>
           <View style={styles.billTop}>
             <View style={styles.iconBox}>
@@ -132,9 +145,9 @@ export default function BillDetailScreen({ route, navigation }) {
               <Text style={styles.date}>{bill?.Invoice_date || bill?.date || "—"}</Text>
             </View>
             <View style={[styles.badge, { backgroundColor: due <= 0.5 ? '#dcfce7' : '#fee2e2' }]}>
-                <Text style={[styles.badgeText, { color: due <= 0.5 ? '#166534' : '#991b1b' }]}>
-                    {due <= 0.5 ? 'PAID' : 'PENDING'}
-                </Text>
+              <Text style={[styles.badgeText, { color: due <= 0.5 ? '#166534' : '#991b1b' }]}>
+                {due <= 0.5 ? 'PAID' : 'PENDING'}
+              </Text>
             </View>
           </View>
 
@@ -145,10 +158,17 @@ export default function BillDetailScreen({ route, navigation }) {
             <Text style={styles.totalValue}>Rs. {subtotal.toFixed(2)}</Text>
           </View>
 
-          {discountAmount !== 0 && (
+          {itemDiscountTotal > 0 && (
+            <View style={styles.totalRow}>
+              <Text style={styles.totalLabel}>Item Discount</Text>
+              <Text style={[styles.totalValue, { color: "#be123c" }]}>- {itemDiscountTotal.toFixed(2)}</Text>
+            </View>
+          )}
+
+          {discountAmount > 0 && (
             <View style={styles.totalRow}>
               <Text style={styles.totalLabel}>Bill Discount</Text>
-              <Text style={[styles.totalValue, { color: '#be123c' }]}>- {discountAmount.toFixed(2)}</Text>
+              <Text style={[styles.totalValue, { color: "#be123c" }]}>- {discountAmount.toFixed(2)}</Text>
             </View>
           )}
 
@@ -171,14 +191,14 @@ export default function BillDetailScreen({ route, navigation }) {
           <View style={styles.totalRow}>
             <Text style={[styles.totalLabel, { color: "#0f172a", fontWeight: '700' }]}>Net Amount</Text>
             <Text style={[styles.totalValue, { fontSize: 18, color: "#0f172a" }]}>
-                Rs. {total.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+              Rs. {total.toLocaleString(undefined, { minimumFractionDigits: 2 })}
             </Text>
           </View>
 
           <View style={styles.totalRow}>
             <Text style={styles.totalLabel}>Paid Amount</Text>
             <Text style={[styles.totalValue, { color: '#059669' }]}>
-                Rs. {paid.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+              Rs. {paid.toLocaleString(undefined, { minimumFractionDigits: 2 })}
             </Text>
           </View>
 
@@ -190,7 +210,7 @@ export default function BillDetailScreen({ route, navigation }) {
           </View>
         </View>
 
-        {/* Payment Form Section */}
+        {/* PAYMENT FORM (Restored UI) */}
         {due > 0.5 && (
           <View style={styles.card}>
             <Text style={styles.cardTitle}>Record Payment</Text>
@@ -233,40 +253,38 @@ export default function BillDetailScreen({ route, navigation }) {
           </View>
         )}
 
-        {/* Item List Section */}
+        {/* INVENTORY ITEMS (Updated logic) */}
         <View style={styles.card}>
           <Text style={styles.sectionLabel}>Inventory Items</Text>
-          {items.length > 0 ? items.map((it, idx) => (
-            <View key={idx} style={styles.itemCard}>
-              <View style={styles.itemHeaderRow}>
-                <Text style={styles.itemName} numberOfLines={1}>{it.Item_description || it.item_desc || "Item"}</Text>
-                <Text style={styles.itemPrice}>Rs. {Number(it.Net_value || it.total || it.Net_Value || 0).toFixed(2)}</Text>
-              </View>
-              <View style={styles.itemMetaRow}>
-                <View style={styles.badge}><Text style={styles.badgeText}>Qty: {it.QTY || it.qty}</Text></View>
-                
-                {/* Free Issues Badge */}
-                {(it.Free_Issues > 0 || it.free_issues > 0) && (
-                  <View style={[styles.badge, { backgroundColor: '#f0f9ff' }]}>
+          {items.length > 0 ? items.map((it, idx) => {
+            const itemDisc = Number(it.Discount ?? it.discount ?? it.disc_amount ?? it.Discount_Amount ?? 0);
+            return (
+              <View key={idx} style={styles.itemCard}>
+                <View style={styles.itemHeaderRow}>
+                  <Text style={styles.itemName} numberOfLines={1}>{it.Item_description || it.item_desc || "Item"}</Text>
+                  <Text style={styles.itemPrice}>Rs. {Number(it.Net_value || it.total || 0).toFixed(2)}</Text>
+                </View>
+                <View style={styles.itemMetaRow}>
+                  <View style={styles.badge}><Text style={styles.badgeText}>Qty: {it.QTY || it.qty}</Text></View>
+                  {(it.Free_Issues > 0 || it.free_issues > 0) && (
+                    <View style={[styles.badge, { backgroundColor: '#f0f9ff' }]}>
                       <Text style={[styles.badgeText, { color: '#0369a1' }]}>Free: {it.Free_Issues ?? it.free_issues ?? 0}</Text>
-                  </View>
-                )}
-                
-                {/* Item level Discount Badge */}
-                {(it.Discount > 0 || it.discount > 0) && (
-                   <View style={[styles.badge, { backgroundColor: '#fff1f2' }]}>
-                    <Text style={[styles.badgeText, { color: '#be123c' }]}>Disc: {Number(it.Discount || it.discount).toFixed(2)}</Text>
-                   </View>
-                )}
-
-                <Text style={styles.metaPrice}>@ {Number(it.Unit_price || it.unit_price || 0).toFixed(2)}</Text>
+                    </View>
+                  )}
+                  {itemDisc > 0 && (
+                    <View style={[styles.badge, { backgroundColor: '#fff1f2' }]}>
+                      <Text style={[styles.badgeText, { color: '#be123c' }]}>Disc: {itemDisc.toFixed(2)}</Text>
+                    </View>
+                  )}
+                  <Text style={styles.metaPrice}>@ {Number(it.Unit_price || it.unit_price || 0).toFixed(2)}</Text>
+                </View>
               </View>
-            </View>
-          )) : <Text style={{textAlign: 'center', color: '#64748b'}}>No items found</Text>}
+            );
+          }) : <Text style={{textAlign: 'center', color: '#64748b'}}>No items found</Text>}
         </View>
       </ScrollView>
 
-      {/* Success Modal */}
+      {/* SUCCESS MODAL (Restored Full Version) */}
       <Modal visible={showSuccess} transparent animationType="fade">
         <View style={styles.modalOverlay}>
           <View style={styles.modernCard}>

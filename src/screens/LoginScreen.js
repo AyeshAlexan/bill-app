@@ -106,7 +106,15 @@ export default function LoginScreen({ navigation }) {
           )}
         </TouchableOpacity>
 
-        <Text style={styles.footerText}>Secure bill collection system</Text>
+        {/* Updated Footer with Company Logo */}
+        <View style={styles.footerContainer}>
+          <Text style={styles.designedByText}>DESIGNED BY</Text>
+          <Image
+            source={require("../assets/Company- logo.png")}
+            style={styles.footerLogo}
+            resizeMode="contain"
+          />
+        </View>
       </View>
     </SafeAreaView>
   );
@@ -160,10 +168,19 @@ const styles = StyleSheet.create({
     marginTop: 10,
   },
   buttonText: { color: "white", fontWeight: "bold", fontSize: 18 },
-  footerText: {
+  footerContainer: {
+    marginTop: 30,
+    alignItems: "center",
+  },
+  designedByText: {
     color: "#94a3b8",
-    fontSize: 10,
-    marginTop: 25,
-    textTransform: "uppercase",
+    fontSize: 9,
+    fontWeight: "700",
+    letterSpacing: 1,
+    marginBottom: 5,
+  },
+  footerLogo: {
+    width: 120, // Adjust size as needed
+    height: 40,
   },
 });
