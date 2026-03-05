@@ -1,19 +1,83 @@
-import React, { useCallback, useMemo, useState } from "react";
+import React, { useCallback, useMemo, useState, useEffect, useRef } from "react";
 import {
   View,
   Text,
   FlatList,
   StyleSheet,
   TouchableOpacity,
-  ActivityIndicator,
   Modal,
   TextInput,
+  Animated,
+  Easing,
 } from "react-native";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { useFocusEffect } from "@react-navigation/native";
 
 import { fetchRoutes, fetchShopsByRoute } from "../services/shopApi";
 import { getBills } from "../services/billApi";
+
+// --- MODERN SHOP LOADING ANIMATION ---
+const ShopLoader = () => {
+  const scaleAnim = useRef(new Animated.Value(1)).current;
+  const bounceAnim = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    // Pulse effect for the shop
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(scaleAnim, {
+          toValue: 1.1,
+          duration: 800,
+          useNativeDriver: true,
+        }),
+        Animated.timing(scaleAnim, {
+          toValue: 1,
+          duration: 800,
+          useNativeDriver: true,
+        }),
+      ])
+    ).start();
+
+    // Bounce effect for the location pin
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(bounceAnim, {
+          toValue: -15,
+          duration: 600,
+          easing: Easing.out(Easing.quad),
+          useNativeDriver: true,
+        }),
+        Animated.timing(bounceAnim, {
+          toValue: 0,
+          duration: 600,
+          easing: Easing.in(Easing.quad),
+          useNativeDriver: true,
+        }),
+      ])
+    ).start();
+  }, []);
+
+  return (
+    <View style={loaderStyles.container}>
+      <View style={loaderStyles.animationBox}>
+        {/* Bouncing Pin */}
+        <Animated.View style={{ transform: [{ translateY: bounceAnim }] }}>
+          <MaterialCommunityIcons name="map-marker" size={30} color="#30a830" />
+        </Animated.View>
+        
+        {/* Pulsing Shop */}
+        <Animated.View style={[loaderStyles.shopIcon, { transform: [{ scale: scaleAnim }] }]}>
+          <MaterialCommunityIcons name="storefront" size={50} color="#30a830" />
+        </Animated.View>
+        
+        {/* Shadow floor */}
+        <View style={loaderStyles.shadow} />
+      </View>
+      <Text style={loaderStyles.loaderText}>Searching for Shops...</Text>
+      <Text style={loaderStyles.loaderSubText}>Fetching routes and city data</Text>
+    </View>
+  );
+};
 
 const billTotal = (b) =>
   Number(b?.after_vat_amount ?? b?.Net_Amount ?? b?.Gross_Amount ?? 0);
@@ -52,7 +116,8 @@ export default function ShopListScreen({ navigation }) {
     } catch (e) {
       console.log("Load Error:", e);
     } finally {
-      setLoading(false);
+      // Small timeout to make the animation feel smooth
+      setTimeout(() => setLoading(false), 1200);
     }
   };
 
@@ -109,9 +174,7 @@ export default function ShopListScreen({ navigation }) {
       </View>
 
       {loading ? (
-        <View style={{ flex: 1, justifyContent: 'center' }}>
-          <ActivityIndicator size="large" color="#30a830" />
-        </View>
+        <ShopLoader />
       ) : (
         <FlatList
           data={shopsWithSummary}
@@ -146,7 +209,7 @@ export default function ShopListScreen({ navigation }) {
               <View style={styles.summaryRow}>
                 <View style={styles.summaryChip}>
                   <Text style={styles.summaryLabel}>Pending</Text>
-                  <Text style={[styles.summaryValue, { fontWeight: 800, color: item.pendingCount > 0 ? '#dc2626' : '#30a830' }]}>
+                  <Text style={[styles.summaryValue, { fontWeight: '800', color: item.pendingCount > 0 ? '#dc2626' : '#30a830' }]}>
                     {item.pendingCount || 0} Bills
                   </Text>
                 </View>
@@ -214,6 +277,42 @@ export default function ShopListScreen({ navigation }) {
     </View>
   );
 }
+
+// --- ANIMATION STYLES ---
+const loaderStyles = StyleSheet.create({
+  container: { 
+    flex: 1, 
+    justifyContent: 'center', 
+    alignItems: 'center', 
+    backgroundColor: '#f1f5f9' 
+  },
+  animationBox: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    height: 120,
+  },
+  shopIcon: {
+    marginTop: 5,
+  },
+  shadow: {
+    width: 40,
+    height: 4,
+    backgroundColor: 'rgba(0,0,0,0.05)',
+    borderRadius: 10,
+    marginTop: 4,
+  },
+  loaderText: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: '#1e293b',
+    marginTop: 20,
+  },
+  loaderSubText: {
+    fontSize: 13,
+    color: '#64748b',
+    marginTop: 5,
+  }
+});
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#f1f5f9" },

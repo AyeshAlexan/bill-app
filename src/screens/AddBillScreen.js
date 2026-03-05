@@ -1,7 +1,7 @@
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import DateTimePicker from "@react-native-community/datetimepicker";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useRef } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -14,12 +14,53 @@ import {
   TextInput,
   TouchableOpacity,
   View,
+  Animated,
+  Easing,
 } from "react-native";
 
 import { addBill } from "../services/billApi";
 import { fetchItems } from "../services/itemApi";
 import { fetchRoutes, fetchShopsByRoute } from "../services/shopApi";
-import { fetchSalesmen } from "../services/salesmanApi"; 
+import { fetchSalesmen } from "../services/salesmanApi";
+
+// --- BILL LOADING ANIMATION COMPONENT ---
+const BillLoader = ({ message = "Preparing Invoice..." }) => {
+  const moveAnim = useRef(new Animated.Value(0)).current;
+  const opacityAnim = useRef(new Animated.Value(1)).current;
+
+  useEffect(() => {
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(moveAnim, {
+          toValue: 20,
+          duration: 1000,
+          easing: Easing.inOut(Easing.quad),
+          useNativeDriver: true,
+        }),
+        Animated.timing(moveAnim, {
+          toValue: 0,
+          duration: 1000,
+          easing: Easing.inOut(Easing.quad),
+          useNativeDriver: true,
+        }),
+      ])
+    ).start();
+  }, []);
+
+  return (
+    <View style={styles.center}>
+      <View style={loaderStyles.container}>
+        <Animated.View style={{ transform: [{ translateY: moveAnim }] }}>
+          <MaterialCommunityIcons name="file-document-edit-outline" size={60} color="#2563eb" />
+        </Animated.View>
+        <View style={loaderStyles.baseLine} />
+      </View>
+      <Text style={loaderStyles.title}>{message}</Text>
+      <Text style={loaderStyles.subTitle}>Updating inventory and invoice records</Text>
+      <ActivityIndicator size="small" color="#2563eb" style={{ marginTop: 20 }} />
+    </View>
+  );
+};
 
 const toNum = (v) => {
   const n = Number(String(v ?? "").replace(/,/g, ""));
@@ -56,7 +97,6 @@ export default function AddBillScreen({ navigation }) {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
-  // --- ADDED FOR WEB COMPATIBILITY ---
   const [resetModalVisible, setResetModalVisible] = useState(false);
   const [tempInvoiceNum, setTempInvoiceNum] = useState("");
 
@@ -73,7 +113,6 @@ export default function AddBillScreen({ navigation }) {
     },
   ]);
 
-  // Invoice and Date
   const [invoiceNo, setInvoiceNo] = useState("INV-506");
   const [billDate, setBillDate] = useState(new Date());
   const [showDatePicker, setShowDatePicker] = useState(false);
@@ -86,7 +125,6 @@ export default function AddBillScreen({ navigation }) {
   const [isAdditionalEnabled, setIsAdditionalEnabled] = useState(false);
   const [additionalAmount, setAdditionalAmount] = useState("0");
 
-  // Initial Data Fetch
   useEffect(() => {
     (async () => {
       try {
@@ -107,12 +145,11 @@ export default function AddBillScreen({ navigation }) {
       } catch (e) {
         console.error("Load Error:", e);
       } finally {
-        setLoading(false);
+        setTimeout(() => setLoading(false), 1000);
       }
     })();
   }, []);
 
-  // Reset Logic for Web/Phone
   const handleManualReset = async () => {
     const num = parseInt(tempInvoiceNum);
     if (!isNaN(num)) {
@@ -121,11 +158,10 @@ export default function AddBillScreen({ navigation }) {
       setResetModalVisible(false);
       setTempInvoiceNum("");
     } else {
-      alert("Please enter a valid number");
+      Alert.alert("Error", "Please enter a valid number");
     }
   };
 
-  // Fetch Shops when Route changes
   useEffect(() => {
     (async () => {
       if (!selectedRoute?.code) return;
@@ -139,7 +175,6 @@ export default function AddBillScreen({ navigation }) {
     })();
   }, [selectedRoute?.code]);
 
-  // Memoized Filters
   const filteredRoutes = useMemo(() => {
     const q = routeSearch.trim().toLowerCase();
     if (!q) return routes;
@@ -176,7 +211,6 @@ export default function AddBillScreen({ navigation }) {
     ).slice(0, 100);
   }, [itemsMaster, itemSearch]);
 
-  // Calculations
   const subtotal = useMemo(() => {
     return rows.reduce((sum, r) => {
       const qty = toNum(r.qty);
@@ -199,7 +233,6 @@ export default function AddBillScreen({ navigation }) {
   const vatAmt = useMemo(() => (isVatEnabled ? (baseForVat * toNum(vatPercent)) / 100 : 0), [baseForVat, isVatEnabled, vatPercent]);
   const grandTotal = useMemo(() => baseForVat + vatAmt, [baseForVat, vatAmt]);
 
-  // Row Management
   const addRow = () => {
     setRows(prev => [...prev, {
       id: Date.now() + Math.random(),
@@ -288,12 +321,8 @@ export default function AddBillScreen({ navigation }) {
     }
   };
 
-  if (loading) {
-    return (
-      <View style={styles.center}>
-        <ActivityIndicator size="large" color="#2563eb" />
-      </View>
-    );
+  if (loading || saving) {
+    return <BillLoader message={saving ? "Saving Bill..." : "Loading Data..."} />;
   }
 
   return (
@@ -314,11 +343,7 @@ export default function AddBillScreen({ navigation }) {
       <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 140 }}>
         {/* Invoice and Date Section */}
         <View style={styles.topRow}>
-          {/* TAP HERE TO RESET ON WEB/PHONE */}
-          <TouchableOpacity 
-            style={styles.invoiceBox} 
-            onPress={() => setResetModalVisible(true)}
-          >
+          <TouchableOpacity style={styles.invoiceBox} onPress={() => setResetModalVisible(true)}>
             <Text style={styles.topLabel}>Invoice No (Edit)</Text>
             <Text style={styles.invoiceValue}>{invoiceNo}</Text>
           </TouchableOpacity>
@@ -341,7 +366,6 @@ export default function AddBillScreen({ navigation }) {
           />
         )}
 
-        {/* Route Select */}
         <TouchableOpacity style={styles.selectBtn} onPress={() => setRouteModal(true)}>
           <Text style={styles.selectLabel}>Route</Text>
           <Text style={styles.selectValue}>
@@ -349,7 +373,6 @@ export default function AddBillScreen({ navigation }) {
           </Text>
         </TouchableOpacity>
 
-        {/* Shop Select */}
         <TouchableOpacity 
           style={[styles.selectBtn, !selectedRoute?.code && { opacity: 0.6 }]} 
           onPress={() => selectedRoute?.code && setShopModal(true)}
@@ -361,7 +384,6 @@ export default function AddBillScreen({ navigation }) {
           </Text>
         </TouchableOpacity>
 
-        {/* Salesman Select */}
         <TouchableOpacity style={styles.selectBtn} onPress={() => setSalesmanModal(true)}>
           <Text style={styles.selectLabel}>Salesman</Text>
           <Text style={styles.selectValue}>
@@ -399,7 +421,6 @@ export default function AddBillScreen({ navigation }) {
           </View>
         ))}
 
-        {/* Tax & Discount Options */}
         <View style={styles.optionCard}>
           <OptionSwitch label="Bill Discount" value={isBillDiscountEnabled} onValueChange={setIsBillDiscountEnabled} />
           {isBillDiscountEnabled && <TextInput style={styles.optionInput} value={billDiscountPercent} onChangeText={setBillDiscountPercent} keyboardType="numeric" placeholder="Discount %" />}
@@ -411,24 +432,23 @@ export default function AddBillScreen({ navigation }) {
           {isAdditionalEnabled && <TextInput style={styles.optionInput} value={additionalAmount} onChangeText={setAdditionalAmount} keyboardType="numeric" placeholder="Amount" />}
         </View>
 
-        {/* Totals Summary */}
         <View style={styles.totalCard}>
           <Row label="Subtotal" value={subtotal} />
           <Row label="Bill Discount" value={billDiscountAmount} negative />
           <Row label="Additional" value={additional} />
           <Row label="VAT" value={vatAmt} />
-          <div style={styles.grandTotalContainer}>
+          <View style={styles.grandTotalContainer}>
             <Text style={styles.grandTotalLabel}>Grand Total</Text>
             <Text style={styles.grandTotalValue}>  Rs. {grandTotal.toFixed(2)}</Text>
-          </div>
+          </View>
         </View>
 
-        <TouchableOpacity style={[styles.saveBtn, saving && { opacity: 0.7 }]} onPress={onSave} disabled={saving}>
-          {saving ? <ActivityIndicator color="white" /> : <Text style={styles.saveText}>Save Bill</Text>}
+        <TouchableOpacity style={styles.saveBtn} onPress={onSave}>
+           <Text style={styles.saveText}>Save Bill</Text>
         </TouchableOpacity>
       </ScrollView>
 
-      {/* MODAL: RESET INVOICE NUMBER (Works on Web) */}
+      {/* MODAL: RESET INVOICE NUMBER */}
       <Modal visible={resetModalVisible} transparent animationType="fade">
         <View style={styles.modalOverlay}>
           <View style={styles.modalCard}>
@@ -579,9 +599,17 @@ function ModalBox({ title, searchValue, onSearch, onClose, children }) {
   );
 }
 
+// --- STYLES ---
+const loaderStyles = StyleSheet.create({
+  container: { height: 100, alignItems: 'center', justifyContent: 'center' },
+  baseLine: { width: 50, height: 4, backgroundColor: '#e2e8f0', borderRadius: 2, marginTop: 5 },
+  title: { fontSize: 18, fontWeight: '800', color: '#1e293b', marginTop: 15 },
+  subTitle: { fontSize: 13, color: '#64748b', marginTop: 4 }
+});
+
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#f8fafc" },
-  center: { flex: 1, justifyContent: "center", alignItems: "center" },
+  center: { flex: 1, justifyContent: "center", alignItems: "center", padding: 40 },
   header: {
     backgroundColor: "#2563eb",
     padding: 25,
