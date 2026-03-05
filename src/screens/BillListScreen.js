@@ -197,7 +197,7 @@ export default function BillListScreen({ route, navigation }) {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#f8fafc" },
   header: {
-    backgroundColor: "#1D63DC", // Your Green
+    backgroundColor: "#1D63DC", 
     padding: 25,
     paddingTop: 50,
     borderBottomLeftRadius: 40,

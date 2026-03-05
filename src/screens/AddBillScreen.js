@@ -56,6 +56,10 @@ export default function AddBillScreen({ navigation }) {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
+  // --- ADDED FOR WEB COMPATIBILITY ---
+  const [resetModalVisible, setResetModalVisible] = useState(false);
+  const [tempInvoiceNum, setTempInvoiceNum] = useState("");
+
   // Bill rows
   const [rows, setRows] = useState([
     {
@@ -70,7 +74,7 @@ export default function AddBillScreen({ navigation }) {
   ]);
 
   // Invoice and Date
-  const [invoiceNo, setInvoiceNo] = useState("INV-499");
+  const [invoiceNo, setInvoiceNo] = useState("INV-506");
   const [billDate, setBillDate] = useState(new Date());
   const [showDatePicker, setShowDatePicker] = useState(false);
 
@@ -98,16 +102,28 @@ export default function AddBillScreen({ navigation }) {
         setItemsMaster(itms || []);
         setSalesmen(sales || []);
 
-        const count = storedInv ? parseInt(storedInv) : 499;
+        const count = storedInv ? parseInt(storedInv) : 506;
         setInvoiceNo(`INV-${count}`);
       } catch (e) {
-        Alert.alert("Error", "Cannot load master data");
-        console.error(e);
+        console.error("Load Error:", e);
       } finally {
         setLoading(false);
       }
     })();
   }, []);
+
+  // Reset Logic for Web/Phone
+  const handleManualReset = async () => {
+    const num = parseInt(tempInvoiceNum);
+    if (!isNaN(num)) {
+      await AsyncStorage.setItem("invoiceCounter", num.toString());
+      setInvoiceNo(`INV-${num}`);
+      setResetModalVisible(false);
+      setTempInvoiceNum("");
+    } else {
+      alert("Please enter a valid number");
+    }
+  };
 
   // Fetch Shops when Route changes
   useEffect(() => {
@@ -222,7 +238,7 @@ export default function AddBillScreen({ navigation }) {
 
     const cleanedItems = rows.map(r => {
       const qty = toNum(r.qty);
-      const free = toNum(r.free_issues); // Updated to Number
+      const free = toNum(r.free_issues); 
       const unit = toNum(r.unit_price);
       const discP = toNum(r.discount_percent);
       const lineGross = qty * unit;
@@ -232,11 +248,11 @@ export default function AddBillScreen({ navigation }) {
         item_code: r.item_code,
         item_desc: r.item_desc,
         qty: qty,
-        free_issues: free, // Send as Number for the backend
+        free_issues: free,
         unit_price: unit,
-        discount: discAmt, // The calculated Rs. discount amount
+        discount: discAmt,
       };
-    }).filter(x => x.item_code && (x.qty > 0 || x.free_issues > 0)); // Corrected filter
+    }).filter(x => x.item_code && (x.qty > 0 || x.free_issues > 0));
 
     if (cleanedItems.length === 0) return Alert.alert("Validation", "Add at least 1 item");
 
@@ -262,7 +278,7 @@ export default function AddBillScreen({ navigation }) {
       setSavedInvoiceNo(res.invoice_no);
       setSuccessModal(true);
       
-      const currentCount = parseInt(invoiceNo.split("-")[1]) || 499;
+      const currentCount = parseInt(invoiceNo.split("-")[1]) || 506;
       await AsyncStorage.setItem("invoiceCounter", (currentCount + 1).toString());
     } catch (e) {
       Alert.alert("Error", "Failed to save bill");
@@ -272,7 +288,6 @@ export default function AddBillScreen({ navigation }) {
     }
   };
 
-  // ... (UI Code remains the same as your previous version)
   if (loading) {
     return (
       <View style={styles.center}>
@@ -299,10 +314,14 @@ export default function AddBillScreen({ navigation }) {
       <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 140 }}>
         {/* Invoice and Date Section */}
         <View style={styles.topRow}>
-          <View style={styles.invoiceBox}>
-            <Text style={styles.topLabel}>Invoice No</Text>
+          {/* TAP HERE TO RESET ON WEB/PHONE */}
+          <TouchableOpacity 
+            style={styles.invoiceBox} 
+            onPress={() => setResetModalVisible(true)}
+          >
+            <Text style={styles.topLabel}>Invoice No (Edit)</Text>
             <Text style={styles.invoiceValue}>{invoiceNo}</Text>
-          </View>
+          </TouchableOpacity>
 
           <TouchableOpacity style={styles.dateBox} onPress={() => setShowDatePicker(true)}>
             <Text style={styles.topLabel}>Date</Text>
@@ -398,10 +417,10 @@ export default function AddBillScreen({ navigation }) {
           <Row label="Bill Discount" value={billDiscountAmount} negative />
           <Row label="Additional" value={additional} />
           <Row label="VAT" value={vatAmt} />
-          <View style={styles.grandTotalContainer}>
+          <div style={styles.grandTotalContainer}>
             <Text style={styles.grandTotalLabel}>Grand Total</Text>
-            <Text style={styles.grandTotalValue}>Rs. {grandTotal.toFixed(2)}</Text>
-          </View>
+            <Text style={styles.grandTotalValue}>  Rs. {grandTotal.toFixed(2)}</Text>
+          </div>
         </View>
 
         <TouchableOpacity style={[styles.saveBtn, saving && { opacity: 0.7 }]} onPress={onSave} disabled={saving}>
@@ -409,7 +428,37 @@ export default function AddBillScreen({ navigation }) {
         </TouchableOpacity>
       </ScrollView>
 
-      {/* Selection Modal components and other Modals are same as your previous code */}
+      {/* MODAL: RESET INVOICE NUMBER (Works on Web) */}
+      <Modal visible={resetModalVisible} transparent animationType="fade">
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalCard}>
+            <Text style={styles.modalTitle}>Set Next Invoice Number</Text>
+            <TextInput 
+              style={styles.modalInput} 
+              placeholder="e.g. 506" 
+              keyboardType="numeric" 
+              value={tempInvoiceNum}
+              onChangeText={setTempInvoiceNum}
+            />
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+               <TouchableOpacity 
+                style={[styles.smallBtn, { width: '45%', alignItems: 'center' }]} 
+                onPress={() => setResetModalVisible(false)}
+               >
+                <Text>Cancel</Text>
+               </TouchableOpacity>
+               <TouchableOpacity 
+                style={[styles.saveBtn, { marginTop: 0, width: '45%', padding: 10 }]} 
+                onPress={handleManualReset}
+               >
+                <Text style={{ color: 'white', fontWeight: 'bold' }}>Update</Text>
+               </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Selection Modals */}
       <SelectionModal visible={routeModal} title="Select Route" search={routeSearch} onSearch={setRouteSearch} onClose={() => setRouteModal(false)} data={filteredRoutes} onSelect={setSelectedRoute} />
       <SelectionModal visible={shopModal} title="Select Shop" search={shopSearch} onSearch={setShopSearch} onClose={() => setShopModal(false)} data={filteredShops} onSelect={setSelectedShop} />
       <SelectionModal visible={salesmanModal} title="Select Salesman" search={salesmanSearch} onSearch={setSalesmanSearch} onClose={() => setSalesmanModal(false)} data={filteredSalesmen} onSelect={setSelectedSalesman} />
@@ -453,7 +502,7 @@ export default function AddBillScreen({ navigation }) {
   );
 }
 
-// ... helper components (InputField, OptionSwitch, SelectionModal, Row, ModalBox) and Styles remain same
+// Helper Components
 function InputField({ label, value, onChange }) {
   return (
     <View style={styles.field}>
@@ -586,7 +635,7 @@ const styles = StyleSheet.create({
   modernYesBtn: { width: "48%", paddingVertical: 14, borderRadius: 14, backgroundColor: "#2563eb", alignItems: "center" },
   modernNoText: { color: "#ef4444", fontWeight: "700" },
   modernYesText: { color: "white", fontWeight: "700" },
-  modalCard: { backgroundColor: "white", borderRadius: 25, padding: 20, width: "90%", maxHeight: "80%" },
+  modalCard: { backgroundColor: "white", borderRadius: 25, padding: 20, width: "90%", maxHeight: "80%", maxWidth: 400 },
   modalTitle: { fontSize: 18, fontWeight: "800", marginBottom: 15, color: "#1e293b" },
   modalInput: { backgroundColor: "#f1f5f9", borderRadius: 12, padding: 14, marginBottom: 15, borderWidth: 1, borderColor: "#e2e8f0" },
   modalItem: { paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: "#f1f5f9" },
