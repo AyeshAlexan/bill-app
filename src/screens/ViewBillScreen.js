@@ -12,6 +12,12 @@ import {
   View,
 } from "react-native";
 
+import * as Print from "expo-print";
+import { Asset } from "expo-asset";
+
+// ✅ Local asset import
+import logo from "../assets/bill-logo.png"; 
+
 import { getBillById } from "../services/billApi";
 import { setAuthToken } from "../services/Api";
 
@@ -21,244 +27,263 @@ export default function ViewBillScreen({ route, navigation }) {
   const [bill, setBill] = useState(null);
   const [items, setItems] = useState([]);
   const [payments, setPayments] = useState([]);
-
+  const [company, setCompany] = useState(null);
+  const [salesmanName, setSalesmanName] = useState("");
+  const [customerExtra, setCustomerExtra] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [printing, setPrinting] = useState(false);
+  const [processing, setProcessing] = useState(false);
 
   useEffect(() => {
     fetchBill();
   }, [billId]);
 
-  const ensureToken = async () => {
-    const token = await AsyncStorage.getItem("token");
-    if (token) setAuthToken(token);
-    return token;
-  };
-
   const fetchBill = async () => {
     try {
       setLoading(true);
-      const token = await ensureToken();
-      if (!token) {
-        Alert.alert("Session expired", "Please login again.");
-        navigation.replace("Login");
-        return;
-      }
-
+      const token = await AsyncStorage.getItem("token");
+      if (token) setAuthToken(token);
+      
       const data = await getBillById(billId);
       const currentBill = data?.bill || data;
       setBill(currentBill);
       setItems(data?.items || currentBill?.items || []);
       setPayments(data?.payments || currentBill?.payments || []);
+      setCompany(data?.company || null);
+      setSalesmanName(data?.salesman_name || "");
+      setCustomerExtra(data?.customer_extra || null);
     } catch (e) {
-      console.log("VIEW BILL ERROR:", e?.response?.data || e.message);
       Alert.alert("Error", "Failed to load bill");
     } finally {
       setLoading(false);
     }
   };
 
-  // ✅ FIXED Calculation Mappings
   const subtotal = useMemo(() => Number(bill?.Gross_Amount ?? 0), [bill]);
   const vatAmount = useMemo(() => Number(bill?.vat_amount ?? bill?.Vat_Amount ?? 0), [bill]);
-  
-  // Total should be the after_vat_amount from your PHP controller
-  const total = useMemo(() => 
-    Number(bill?.after_vat_amount ?? bill?.Net_Amount ?? 0), 
-  [bill]);
-
-  // Paid should be the sum of all payments from the database
+  const total = useMemo(() => Number(bill?.after_vat_amount ?? bill?.Net_Amount ?? 0), [bill]);
   const paid = useMemo(() => {
-    const paymentSum = payments.reduce((sum, p) => sum + Number(p.Payment_Amount || 0), 0);
-    return paymentSum > 0 ? paymentSum : Number(bill?.Paid_Amount ?? 0);
+    const pSum = payments.reduce((sum, p) => sum + Number(p.Payment_Amount || 0), 0);
+    return pSum > 0 ? pSum : Number(bill?.Paid_Amount ?? 0);
   }, [bill, payments]);
-
   const due = useMemo(() => Math.max(total - paid, 0), [total, paid]);
-
   const shopName = useMemo(() => bill?.Customer_Name || "NIMAL SALOON", [bill]);
-  const shopLocation = useMemo(() => {
-    return (
-      bill?.City_1 ||
-      bill?.location ||
-      payments?.[0]?.City_1 ||
-      bill?.customer?.City_1 ||
-      ""
-    );
-  }, [bill, payments]);
-
-  const statusColor = (d) => {
-    if (d <= 0) return "#10b981"; // Paid
-    if (d < total) return "#f59e0b"; // Partial
-    return "#ef4444"; // Due
-  };
-
+  const invoiceNo = bill?.Invoice_no || bill?.Sales_no || "N/A";
+  
   const escapeHtml = (s) => String(s ?? "").replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;");
 
-  // ✅ FIXED HTML Print Builder (Uses the new calculation constants)
-  const buildPrintableHtml = () => {
-    const billNo = bill?.Invoice_no || bill?.Sales_no || "—";
-    const billDate = bill?.Invoice_date || bill?.Payment_date || "—";
-
-    const itemsHtml = items.map((it) => {
-      const lineTotal = Number(it.Net_value || it.total || 0);
-      const unitPrice = Number(it.Unit_price || 0);
-      const qty = it.QTY || it.qty || 0;
-
-      return `
-        <tr>
-          <td>
-            <div style="font-weight:700;">${escapeHtml(it.Item_description || it.item_name)}</div>
-            <div style="color:#64748b;font-size:11px;margin-top:4px;">
-              Qty: ${qty} • Unit: Rs.${unitPrice.toFixed(2)}
-            </div>
-          </td>
-          <td style="text-align:right; vertical-align:middle;">Rs.${lineTotal.toFixed(2)}</td>
-        </tr>
-      `;
-    }).join("");
+  // --- MODERN THERMAL RECEIPT TEMPLATE ---
+  const buildThermalHtml = (logoUri) => {
+    const itemsHtml = items.map((it) => `
+      <div style="margin-bottom: 8px;">
+        <div style="font-weight: bold; text-transform: uppercase; font-size: 12px;">${escapeHtml(it.Item_description || it.item_name)}</div>
+        <div style="display: flex; justify-content: space-between; font-family: monospace; font-size: 11px;">
+          <span>${it.QTY} x ${Number(it.Unit_price).toFixed(2)}</span>
+          <span>${Number(it.Net_value).toFixed(2)}</span>
+        </div>
+        ${it.Discount > 0 ? `<div style="font-size: 10px; color: #555;">Disc: -${Number(it.Discount).toFixed(2)}</div>` : ''}
+      </div>`).join("");
 
     return `
-<!doctype html>
-<html>
-<head>
-  <meta charset="utf-8" />
-  <title>Bill ${escapeHtml(billNo)}</title>
-  <style>
-    body { font-family: Arial, sans-serif; padding: 24px; color: #0f172a; }
-    .header-row { border-bottom: 2px solid #30a830; padding-bottom: 15px; margin-bottom: 20px; }
-    .shop-name { font-size: 24px; font-weight: bold; color: #30a830; margin: 0; }
-    .muted { color:#64748b; font-size: 13px; margin-top: 4px; }
-    .card { border:1px solid #eef2f7; border-radius:12px; padding:16px; margin:12px 0; background: #fff; }
-    table { width:100%; border-collapse: collapse; margin-top:10px; }
-    td { border-bottom:1px solid #f1f5f9; padding:12px 6px; font-size:13px; text-align: left; }
-    .totals { margin-top:15px; border-top: 1px solid #f1f5f9; padding-top: 10px; }
-    .totals-row { display:flex; justify-content:space-between; padding:4px 0; font-size:13px; }
-    .grand-total { font-weight:700; font-size:16px; margin-top: 8px; border-top: 1px double #eef2f7; padding-top: 8px; color: #30a830; }
-  </style>
-</head>
-<body>
-  <div class="header-row">
-    <div class="shop-name">${escapeHtml(shopName)}</div>
-    <div class="muted">${escapeHtml(shopLocation)}</div>
-    <div style="margin-top: 10px;">
-        <div class="muted"><b>Invoice:</b> ${escapeHtml(billNo)}</div>
-        <div class="muted"><b>Date:</b> ${escapeHtml(billDate)}</div>
-    </div>
-  </div>
-  <div class="card">
-    <div style="font-weight:700; border-bottom: 1px solid #f1f5f9; padding-bottom: 8px;">Items</div>
-    <table>
-      <tbody>${itemsHtml || '<tr><td>No items</td></tr>'}</tbody>
-    </table>
-    <div class="totals">
-      <div class="totals-row"><span>Subtotal</span><span>Rs.${subtotal.toFixed(2)}</span></div>
-      <div class="totals-row"><span>VAT</span><span>Rs.${vatAmount.toFixed(2)}</span></div>
-      <div class="totals-row grand-total"><span>Total</span><span>Rs.${total.toFixed(2)}</span></div>
-      <div class="totals-row" style="color:#10b981;"><span>Paid</span><span>Rs.${paid.toFixed(2)}</span></div>
-      <div class="totals-row" style="color:#ef4444;"><span>Due</span><span>Rs.${due.toFixed(2)}</span></div>
-    </div>
-  </div>
-  <script>window.onload = () => { window.print(); }</script>
-</body>
-</html>`;
+    <html>
+      <head>
+        <style>
+          body { font-family: sans-serif; width: 280px; margin: 0 auto; padding: 5px; color: #000; }
+          .center { text-align: center; }
+          .logo { width: 70px; height: 70px; object-fit: contain; margin-bottom: 5px; }
+          .comp-name { font-size: 16px; font-weight: bold; margin-bottom: 2px; }
+          .details { font-size: 10px; color: #333; line-height: 1.4; }
+          .divider { border-top: 1px dashed #000; margin: 8px 0; }
+          .total-row { display: flex; justify-content: space-between; padding: 2px 0; font-size: 11px; }
+          .grand-total { font-size: 14px; font-weight: bold; border-top: 1px solid #000; margin-top: 5px; padding-top: 5px; }
+          .footer { margin-top: 15px; font-size: 10px; font-style: italic; }
+        </style>
+      </head>
+      <body>
+        <div class="center">
+          ${logoUri ? `<img src="${logoUri}" class="logo" />` : ''}
+          <div class="comp-name">${escapeHtml(company?.name || "BUDDIKA DISTRIBUTORS")}</div>
+          <div class="details">
+            ${escapeHtml(company?.address || "KURUNEGALA")}<br/>
+            Tel: ${escapeHtml(company?.co_number || "077XXXXXXX")}
+          </div>
+          <div style="font-weight: bold; border: 1px solid #000; display: inline-block; padding: 2px 8px; margin: 5px 0; font-size: 12px;">CASH RECEIPT</div>
+        </div>
+
+        <div class="details" style="margin-top: 5px;">
+          <div style="display: flex; justify-content: space-between;">
+            <span>Date: ${bill?.Invoice_date}</span>
+            <span>Inv: ${invoiceNo}</span>
+          </div>
+          <div>Customer: ${escapeHtml(shopName)}</div>
+        </div>
+
+        <div class="divider"></div>
+        <div>${itemsHtml}</div>
+        <div class="divider"></div>
+
+        <div class="total-row"><span>Sub Total</span><span>${subtotal.toFixed(2)}</span></div>
+        <div class="total-row"><span>VAT (${bill?.vat_presentage || 0}%)</span><span>${vatAmount.toFixed(2)}</span></div>
+        <div class="total-row grand-total"><span>NET TOTAL</span><span>Rs.${total.toFixed(2)}</span></div>
+        <div class="total-row"><span>Paid</span><span>${paid.toFixed(2)}</span></div>
+        <div class="total-row" style="font-weight: bold;"><span>Due</span><span>${due.toFixed(2)}</span></div>
+
+        <div class="center footer">
+          <p>Thank you for your business!</p>
+          <p>Served by: ${escapeHtml(salesmanName || "Counter")}</p>
+        </div>
+      </body>
+    </html>`;
   };
 
-  const onPrint = async () => {
-    if (!bill) return;
+  const buildFormalHtml = (logoUri) => {
+    const billNo = bill?.Invoice_no || bill?.Sales_no || "—";
+    const billDate = bill?.Invoice_date || "—";
+    const itemsHtml = items.map((it) => `
+      <tr>
+        <td style="border:1px solid #000;padding:5px;text-align:center;">${escapeHtml(it.Item_code)}</td>
+        <td style="border:1px solid #000;padding:5px;">${escapeHtml(it.Item_description || it.item_name)}</td>
+        <td style="border:1px solid #000;padding:5px;text-align:right;">${Number(it.Unit_price || 0).toFixed(2)}</td>
+        <td style="border:1px solid #000;padding:5px;text-align:center;">${it.Free_Issues || "0"}</td>
+        <td style="border:1px solid #000;padding:5px;text-align:center;">${it.QTY || 0}</td>
+        <td style="border:1px solid #000;padding:5px;text-align:right;">${Number(it.Discount || 0).toFixed(2)}</td>
+        <td style="border:1px solid #000;padding:5px;text-align:right;">${Number(it.Net_value || 0).toFixed(2)}</td>
+      </tr>`).join("");
+
+    return `<!doctype html><html><head><style>
+      body { font-family:sans-serif; margin:0; padding:30px; font-size:11px; color:#000; }
+      .header-row { display:flex; justify-content:space-between; }
+      .comp-name { font-size:18px; font-weight:bold; }
+      .logo { width:100px; height:auto; }
+      .tax-invoice-bar { background:#f0f0f0; border:1px solid #000; text-align:center; font-size:16px; font-weight:bold; padding:8px; margin:20px 0; }
+      .items-table { width:100%; border-collapse:collapse; }
+      .items-table th { border:1px solid #000; background:#000; color:#fff; padding:8px; }
+      .totals-area { margin-top:20px; width:280px; float:right; }
+      .footer-sig { margin-top:80px; display:flex; justify-content:space-between; }
+      .sig-box { border-top:1px dotted #000; width:30%; text-align:center; padding-top:8px; }
+    </style></head><body>
+      <div class="header-row">
+        <div><div class="comp-name">${escapeHtml(company?.name || "BUDDIKA DISTRIBUTORS")}</div>
+        <div>Address: ${escapeHtml(company?.address)}</div><div>Phone: ${escapeHtml(company?.co_number)}</div></div>
+        <img src="${logoUri}" class="logo" />
+      </div>
+      <hr style="border:0.5px solid #000; margin:15px 0;"/>
+      <div style="display:flex; justify-content:space-between; margin-bottom:20px;">
+        <div><strong>Customer:</strong> ${escapeHtml(shopName)}<br/><strong>Address:</strong> ${escapeHtml(customerExtra?.address || "—")}</div>
+        <table style="border-collapse:collapse;">
+          <tr><td style="border:1px solid #000; padding:5px; background:#000; color:#fff;">Invoice No</td><td style="border:1px solid #000; padding:5px;">${escapeHtml(billNo)}</td></tr>
+          <tr><td style="border:1px solid #000; padding:5px; background:#000; color:#fff;">Date</td><td style="border:1px solid #000; padding:5px;">${escapeHtml(billDate)}</td></tr>
+        </table>
+      </div>
+      <div class="tax-invoice-bar">TAX INVOICE</div>
+      <table class="items-table">
+        <thead><tr><th>Code</th><th>Product Name</th><th>Price</th><th>Free</th><th>Qty</th><th>Disc</th><th>Amount</th></tr></thead>
+        <tbody>${itemsHtml}</tbody>
+      </table>
+      <div class="totals-area">
+        <table style="width:100%;">
+          <tr><td>Sub Total:</td><td align="right">${subtotal.toFixed(2)}</td></tr>
+          <tr><td>VAT (${bill?.vat_presentage || 0}%):</td><td align="right">${vatAmount.toFixed(2)}</td></tr>
+          <tr style="font-weight:bold; font-size:15px; border-top:1.5px solid #000;"><td>Total Due:</td><td align="right">Rs.${total.toFixed(2)}</td></tr>
+        </table>
+      </div>
+      <div style="clear:both;"></div>
+      <div class="footer-sig">
+        <div class="sig-box">Authorized Signature</div><div class="sig-box">Checked By</div><div class="sig-box">Customer Signature</div>
+      </div>
+    </body></html>`;
+  };
+
+  const handlePrint = async (type) => {
     try {
-      setPrinting(true);
-      const html = buildPrintableHtml();
-      if (Platform.OS === "web") {
-        const printWindow = window.open("", "_blank");
-        if (printWindow) {
-          printWindow.document.write(html);
-          printWindow.document.close();
-        }
+      setProcessing(true);
+      
+      // Resolve logo URI dynamically
+      const asset = Asset.fromModule(logo);
+      await asset.downloadAsync();
+      const logoUri = asset.localUri || asset.uri; 
+
+      const finalHtml = type === 'thermal' ? buildThermalHtml(logoUri) : buildFormalHtml(logoUri);
+      const jobName = `BUDDIKA DISTRIBUTORS - Invoice ${invoiceNo}`;
+
+      if (Platform.OS === 'web') {
+        const printWindow = window.open('', '_blank');
+        printWindow.document.write(finalHtml);
+        printWindow.document.title = jobName;
+        printWindow.document.close();
+        printWindow.focus();
+        printWindow.print();
       } else {
-        const Print = await import("expo-print");
-        const Sharing = await import("expo-sharing");
-        const { uri } = await Print.printToFileAsync({ html });
-        await Sharing.shareAsync(uri);
+        await Print.printAsync({ 
+          html: finalHtml,
+          jobName: jobName 
+        });
       }
     } catch (e) {
-      Alert.alert("Error", "Print failed");
+      console.log("Print Error:", e);
+      Alert.alert("Error", "Printing failed");
     } finally {
-      setPrinting(false);
+      setProcessing(false);
     }
   };
 
-  if (loading) {
-    return (
-      <View style={[styles.container, { justifyContent: "center" }]}>
-        <ActivityIndicator size="large" color="#30a830" />
-      </View>
-    );
-  }
+  if (loading) return <View style={styles.center}><ActivityIndicator size="large" color="#30a830" /></View>;
 
   return (
     <View style={styles.container}>
-      <View style={styles.header}>
+      <View style={styles.headerContainer}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
           <MaterialCommunityIcons name="chevron-left" size={32} color="white" />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>View Invoice</Text>
+        <Text style={styles.headerTitle}>Invoice Details</Text>
         <Text style={styles.headerSub}>{shopName}</Text>
       </View>
 
-      <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 40 }}>
+      <ScrollView contentContainerStyle={{ padding: 15 }}>
         <View style={styles.card}>
-          <View style={styles.billTop}>
-            <View style={styles.iconBox}>
-              <MaterialCommunityIcons name="file-document-outline" size={24} color="#30a830" />
-            </View>
-            <View style={{ flex: 1, marginLeft: 12 }}>
-              <Text style={styles.billNo}>INV-{bill?.Invoice_no || bill?.Sales_no}</Text>
-              <Text style={styles.date}>{bill?.Invoice_date || bill?.Payment_date}</Text>
+          <View style={styles.rowBetween}>
+            <View>
+              <Text style={styles.invLabel}>Invoice Number</Text>
+              <Text style={styles.invValue}>INV-{invoiceNo}</Text>
             </View>
             <View style={styles.statusBadge}>
-              <Text style={[styles.statusText, { color: statusColor(due) }]}>
-                {due <= 0 ? "PAID" : due < total ? "PARTIAL" : "UNPAID"}
+              <Text style={[styles.statusText, { color: due <= 0 ? "#10b981" : "#ef4444" }]}>
+                {due <= 0 ? "PAID" : "PENDING"}
               </Text>
             </View>
           </View>
 
-          <Text style={styles.sectionLabel}>Items</Text>
-          {items.map((it, i) => (
-            <View key={i} style={styles.itemRowMain}>
-              <View style={{flex: 1}}>
-                <Text style={styles.itemName}>{it.Item_description || it.item_name}</Text>
-                <Text style={styles.metaText}>Qty: {it.QTY || 0} • Rs.{Number(it.Unit_price || 0).toFixed(2)}</Text>
-              </View>
-              <Text style={styles.itemPrice}>Rs.{Number(it.Net_value || 0).toFixed(2)}</Text>
+          <View style={styles.infoGrid}>
+             <View style={styles.infoItem}><Text style={styles.infoLabel}>Date</Text><Text style={styles.infoValue}>{bill?.Invoice_date}</Text></View>
+             <View style={styles.infoItem}><Text style={styles.infoLabel}>Salesman</Text><Text style={styles.infoValue}>{salesmanName || "N/A"}</Text></View>
+          </View>
+
+          <View style={styles.divider} />
+          <Text style={styles.sectionTitle}>Bill Items</Text>
+          {items.map((it, idx) => (
+            <View key={idx} style={styles.itemRow}>
+               <View style={{flex: 1}}>
+                 <Text style={styles.itemName}>{it.Item_description || it.item_name}</Text>
+                 <Text style={styles.itemMeta}>Qty: {it.QTY} x {Number(it.Unit_price).toFixed(2)}</Text>
+               </View>
+               <Text style={styles.itemTotal}>Rs.{Number(it.Net_value).toFixed(2)}</Text>
             </View>
           ))}
 
           <View style={styles.divider} />
-
           <View style={styles.totalRow}><Text style={styles.totalLabel}>Subtotal</Text><Text style={styles.totalValue}>Rs.{subtotal.toFixed(2)}</Text></View>
           <View style={styles.totalRow}><Text style={styles.totalLabel}>VAT</Text><Text style={styles.totalValue}>Rs.{vatAmount.toFixed(2)}</Text></View>
-          <View style={styles.divider} />
-          <View style={styles.totalRow}>
-            <Text style={[styles.totalLabel, {fontWeight: 'bold', color: '#1e293b'}]}>Total</Text>
-            <Text style={[styles.totalValue, {fontSize: 18, color: '#30a830'}]}>Rs.{total.toFixed(2)}</Text>
-          </View>
-          <View style={styles.totalRow}>
-             <Text style={styles.totalLabel}>Paid</Text>
-             <Text style={[styles.totalValue, { color: "#10b981" }]}>Rs.{paid.toFixed(2)}</Text>
-          </View>
-          <View style={styles.totalRow}>
-             <Text style={styles.totalLabel}>Due</Text>
-             <Text style={[styles.totalValue, { color: "#ef4444" }]}>Rs.{due.toFixed(2)}</Text>
+          <View style={[styles.totalRow, { marginTop: 10 }]}>
+            <Text style={styles.grandLabel}>Grand Total</Text>
+            <Text style={styles.grandValue}>Rs.${total.toFixed(2)}</Text>
           </View>
         </View>
 
-        <TouchableOpacity style={[styles.printBtn, printing && {opacity: 0.7}]} onPress={onPrint} disabled={printing}>
-          {printing ? <ActivityIndicator color="white" /> : (
-            <>
-              <MaterialCommunityIcons name="printer" size={20} color="white" />
-              <Text style={styles.printText}>Print Invoice</Text>
-            </>
-          )}
+        <TouchableOpacity style={styles.printBtn} onPress={() => handlePrint('thermal')} disabled={processing}>
+           {processing ? <ActivityIndicator color="white" /> : <><MaterialCommunityIcons name="printer-pos" size={24} color="white" /><Text style={styles.btnText}>Print Bill (Receipt)</Text></>}
+        </TouchableOpacity>
+
+        <TouchableOpacity style={styles.pdfBtn} onPress={() => handlePrint('formal')} disabled={processing}>
+           {processing ? <ActivityIndicator color="white" /> : <><MaterialCommunityIcons name="printer" size={24} color="white" /><Text style={styles.btnText}>Print Full Invoice</Text></>}
         </TouchableOpacity>
       </ScrollView>
     </View>
@@ -266,51 +291,33 @@ export default function ViewBillScreen({ route, navigation }) {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#f8fafc" },
-  header: {
-    backgroundColor: "#30a830",
-    padding: 25,
-    paddingTop: 50,
-    borderBottomLeftRadius: 40,
-    borderBottomRightRadius: 40,
-  },
-  backBtn: { marginBottom: 5, marginLeft: -10 },
-  headerTitle: { color: "white", fontSize: 24, fontWeight: "bold" },
-  headerSub: { color: "white", opacity: 0.9, fontSize: 13, marginTop: 4 },
-  card: {
-    backgroundColor: "white",
-    borderRadius: 25,
-    padding: 20,
-    marginBottom: 15,
-    elevation: 3,
-    shadowColor: "#000",
-    shadowOpacity: 0.1,
-    shadowRadius: 10,
-  },
-  billTop: { flexDirection: "row", alignItems: "center", marginBottom: 20 },
-  iconBox: { backgroundColor: "#dcfce7", padding: 10, borderRadius: 15 },
-  billNo: { fontSize: 16, fontWeight: "bold", color: "#1e293b" },
-  date: { color: "#94a3b8", fontSize: 12 },
-  statusBadge: { backgroundColor: "#f0fdf4", paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8 },
+  container: { flex: 1, backgroundColor: "#f1f5f9" },
+  center: { flex: 1, justifyContent: "center", alignItems: "center" },
+  headerContainer: { backgroundColor: "#30a830", padding: 20, paddingTop: 50, borderBottomLeftRadius: 30, borderBottomRightRadius: 30 },
+  headerTitle: { color: "white", fontSize: 22, fontWeight: "bold" },
+  headerSub: { color: "white", opacity: 0.8, fontSize: 14 },
+  card: { backgroundColor: "white", borderRadius: 20, padding: 20, elevation: 4 },
+  rowBetween: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
+  invLabel: { fontSize: 12, color: "#64748b" },
+  invValue: { fontSize: 18, fontWeight: "bold", color: "#1e293b" },
+  statusBadge: { backgroundColor: "#f0fdf4", paddingHorizontal: 10, paddingVertical: 4, borderRadius: 10 },
   statusText: { fontSize: 10, fontWeight: "bold" },
-  sectionLabel: { fontSize: 12, fontWeight: "bold", color: "#94a3b8", textTransform: "uppercase", marginBottom: 15 },
-  itemRowMain: { flexDirection: "row", justifyContent: "space-between", marginBottom: 15 },
-  itemName: { fontWeight: "700", color: "#1e293b", fontSize: 14 },
-  metaText: { color: "#94a3b8", fontSize: 11, marginTop: 2 },
-  itemPrice: { fontWeight: "bold", color: "#1e293b" },
-  divider: { height: 1, backgroundColor: "#f1f5f9", marginVertical: 15 },
-  totalRow: { flexDirection: "row", justifyContent: "space-between", marginBottom: 6 },
-  totalLabel: { color: "#64748b", fontSize: 14 },
-  totalValue: { fontWeight: "bold", color: "#1e293b", fontSize: 15 },
-  printBtn: {
-    backgroundColor: "#0061ff",
-    padding: 18,
-    borderRadius: 20,
-    flexDirection: "row",
-    justifyContent: "center",
-    alignItems: "center",
-    gap: 10,
-    marginTop: 10,
-  },
-  printText: { color: "white", fontWeight: "bold", fontSize: 16 },
+  infoGrid: { flexDirection: "row", marginTop: 15 },
+  infoItem: { flex: 1 },
+  infoLabel: { fontSize: 11, color: "#94a3b8" },
+  infoValue: { fontSize: 13, color: "#334155", fontWeight: "600" },
+  divider: { height: 1, backgroundColor: "#e2e8f0", marginVertical: 15 },
+  sectionTitle: { fontSize: 12, fontWeight: "bold", color: "#64748b", marginBottom: 10, textTransform: 'uppercase' },
+  itemRow: { flexDirection: "row", justifyContent: "space-between", marginBottom: 10 },
+  itemName: { fontSize: 14, fontWeight: "600", color: "#1e293b" },
+  itemMeta: { fontSize: 11, color: "#94a3b8" },
+  itemTotal: { fontWeight: "bold", color: "#1e293b" },
+  totalRow: { flexDirection: "row", justifyContent: "space-between", marginBottom: 4 },
+  totalLabel: { color: "#64748b" },
+  totalValue: { fontWeight: "600" },
+  grandLabel: { fontSize: 16, fontWeight: "bold" },
+  grandValue: { fontSize: 18, fontWeight: "bold", color: "#30a830" },
+  printBtn: { backgroundColor: "#1e293b", padding: 18, borderRadius: 15, flexDirection: "row", justifyContent: "center", alignItems: "center", gap: 10, marginTop: 20 },
+  pdfBtn: { backgroundColor: "#30a830", padding: 18, borderRadius: 15, flexDirection: "row", justifyContent: "center", alignItems: "center", gap: 10, marginTop: 15 },
+  btnText: { color: "white", fontWeight: "bold", fontSize: 16 },
 });

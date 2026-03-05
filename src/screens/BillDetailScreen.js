@@ -15,10 +15,11 @@ import { useFocusEffect } from "@react-navigation/native";
 
 import { getBillById, addPayment } from "../services/billApi";
 
+// Helper to determine the total bill value based on various possible API field names
 const totalOf = (b) =>
-  Number(b?.after_vat_amount ?? b?.Net_Amount ?? b?.Gross_Amount ?? 0);
+  Number(b?.total_amount ?? b?.after_vat_amount ?? b?.Net_Amount ?? b?.Gross_Amount ?? 0);
 
-const paidOf = (b) => Number(b?.Paid_Amount ?? 0);
+const paidOf = (b) => Number(b?.Paid_Amount ?? b?.paid_amount ?? 0);
 
 export default function BillDetailScreen({ route, navigation }) {
   const { invoiceNo } = route.params;
@@ -34,18 +35,19 @@ export default function BillDetailScreen({ route, navigation }) {
   const [submitting, setSubmitting] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
 
-  // --- MAPPING ---
+  // --- MAPPING LOGIC ---
+  // Ensuring we catch all variations of field names from the backend
   const subtotal = useMemo(() => 
-    Number(bill?.Gross_Amount ?? bill?.gross_amount ?? bill?.Sub_Total ?? 0), [bill]);
+    Number(bill?.subtotal ?? bill?.Gross_Amount ?? bill?.gross_amount ?? bill?.Sub_Total ?? 0), [bill]);
   
   const vatAmount = useMemo(() => 
-    Number(bill?.Vat_Amount ?? bill?.vat_amount ?? bill?.Vat ?? 0), [bill]);
+    Number(bill?.vat_amount ?? bill?.Vat_Amount ?? bill?.Vat ?? 0), [bill]);
   
   const discountAmount = useMemo(() => 
-    Number(bill?.Discount_Amount ?? bill?.discount_amount ?? bill?.Discount ?? 0), [bill]);
+    Number(bill?.bill_discount ?? bill?.Discount_Amount ?? bill?.discount_amount ?? 0), [bill]);
   
   const additionalAmount = useMemo(() => 
-    Number(bill?.Additional_Amount ?? bill?.additional_amount ?? bill?.Other_Charges ?? 0), [bill]);
+    Number(bill?.additional_amount ?? bill?.Additional_Amount ?? bill?.Other_Charges ?? 0), [bill]);
   
   const total = useMemo(() => totalOf(bill), [bill]);
   const paid = useMemo(() => paidOf(bill), [bill]);
@@ -55,7 +57,8 @@ export default function BillDetailScreen({ route, navigation }) {
     try {
       setLoading(true);
       const data = await getBillById(invoiceNo);
-      const currentBill = data?.bill || null;
+      // Backend usually returns { bill: {...}, items: [...] }
+      const currentBill = data?.bill || data || null;
       setBill(currentBill);
       setItems(data?.items || []);
 
@@ -63,6 +66,7 @@ export default function BillDetailScreen({ route, navigation }) {
       setAmount(currentDue > 0 ? String(currentDue.toFixed(2)) : "0.00");
     } catch (e) {
       Alert.alert("Error", "Cannot load bill details");
+      console.error(e);
     } finally {
       setLoading(false);
     }
@@ -72,17 +76,22 @@ export default function BillDetailScreen({ route, navigation }) {
 
   const submitPayment = async () => {
     const amt = Number(amount || 0);
-    if (due <= 0.5) { Alert.alert("Notice", "Fully paid."); return; }
-    if (!amt || amt <= 0) { Alert.alert("Input", "Enter a valid amount."); return; }
+    if (due <= 0.5) { Alert.alert("Notice", "This bill is already fully paid."); return; }
+    if (!amt || amt <= 0) { Alert.alert("Input", "Please enter a valid amount."); return; }
     
     try {
       setSubmitting(true);
-      await addPayment({ invoice_no: invoiceNo, amount: amt, method, note });
+      await addPayment({ 
+        invoice_no: invoiceNo, 
+        amount: amt, 
+        method, 
+        note 
+      });
       setShowSuccess(true);
       setNote(""); 
-      await load(); 
+      await load(); // Refresh data to show updated 'Paid' and 'Due'
     } catch (e) {
-      Alert.alert("Error", "Payment failed");
+      Alert.alert("Error", "Payment processing failed");
     } finally {
       setSubmitting(false);
     }
@@ -91,7 +100,7 @@ export default function BillDetailScreen({ route, navigation }) {
   if (loading) {
     return (
       <View style={[styles.container, { justifyContent: 'center' }]}>
-        <ActivityIndicator size="large" color="#0f172a" />
+        <ActivityIndicator size="large" color="#30a830" />
       </View>
     );
   }
@@ -104,43 +113,56 @@ export default function BillDetailScreen({ route, navigation }) {
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Invoice Detail</Text>
         <Text style={styles.headerSub}>
-            Transaction ID: INV- {invoiceNo}
+            Transaction ID: {invoiceNo}
         </Text>
         <Text style={styles.headerSub1}>
-            Salesman: {bill?.Salesmen || bill?.salesmen || "—"}
+            Salesman: {bill?.Salesmen || bill?.salesman || "—"}
         </Text>
       </View>
 
       <ScrollView contentContainerStyle={styles.content}>
+        {/* Bill Summary Card */}
         <View style={styles.card}>
           <View style={styles.billTop}>
             <View style={styles.iconBox}>
               <MaterialCommunityIcons name="file-document-outline" size={24} color="#334155" />
             </View>
             <View style={{ flex: 1, marginLeft: 12 }}>
-              <Text style={styles.billNo}>Invoice No: {bill?.Invoice_no || bill?.invoice_no}</Text>
+              <Text style={styles.billNo}>Invoice: {bill?.Invoice_no || bill?.invoice_no}</Text>
               <Text style={styles.date}>{bill?.Invoice_date || bill?.date || "—"}</Text>
+            </View>
+            <View style={[styles.badge, { backgroundColor: due <= 0.5 ? '#dcfce7' : '#fee2e2' }]}>
+                <Text style={[styles.badgeText, { color: due <= 0.5 ? '#166534' : '#991b1b' }]}>
+                    {due <= 0.5 ? 'PAID' : 'PENDING'}
+                </Text>
             </View>
           </View>
 
           <View style={styles.divider} />
 
           <View style={styles.totalRow}>
-            <Text style={styles.totalLabel}>Subtotal</Text>
+            <Text style={styles.totalLabel}>Gross Subtotal</Text>
             <Text style={styles.totalValue}>Rs. {subtotal.toFixed(2)}</Text>
           </View>
 
-          {vatAmount !== 0 && (
+          {discountAmount !== 0 && (
             <View style={styles.totalRow}>
-              <Text style={styles.totalLabel}>VAT</Text>
-              <Text style={styles.totalValue}>+ {vatAmount.toFixed(2)}</Text>
+              <Text style={styles.totalLabel}>Bill Discount</Text>
+              <Text style={[styles.totalValue, { color: '#be123c' }]}>- {discountAmount.toFixed(2)}</Text>
             </View>
           )}
 
-          {discountAmount !== 0 && (
+          {additionalAmount !== 0 && (
             <View style={styles.totalRow}>
-              <Text style={styles.totalLabel}>Discount</Text>
-              <Text style={[styles.totalValue, { color: '#be123c' }]}>- {discountAmount.toFixed(2)}</Text>
+              <Text style={styles.totalLabel}>Additional</Text>
+              <Text style={styles.totalValue}>+ {additionalAmount.toFixed(2)}</Text>
+            </View>
+          )}
+
+          {vatAmount !== 0 && (
+            <View style={styles.totalRow}>
+              <Text style={styles.totalLabel}>VAT ({bill?.vat_percent || 18}%)</Text>
+              <Text style={styles.totalValue}>+ {vatAmount.toFixed(2)}</Text>
             </View>
           )}
 
@@ -154,80 +176,93 @@ export default function BillDetailScreen({ route, navigation }) {
           </View>
 
           <View style={styles.totalRow}>
-            <Text style={styles.totalLabel}>Received</Text>
+            <Text style={styles.totalLabel}>Paid Amount</Text>
             <Text style={[styles.totalValue, { color: '#059669' }]}>
                 Rs. {paid.toLocaleString(undefined, { minimumFractionDigits: 2 })}
             </Text>
           </View>
 
           <View style={styles.totalRow}>
-            <Text style={[styles.totalLabel, { color: '#e11d48', fontWeight: '700' }]}>Outstanding</Text>
+            <Text style={[styles.totalLabel, { color: '#e11d48', fontWeight: '700' }]}>Balance Due</Text>
             <Text style={[styles.totalValue, { color: due <= 0.5 ? "#059669" : "#e11d48", fontSize: 20 }]}>
               Rs. {due.toLocaleString(undefined, { minimumFractionDigits: 2 })}
             </Text>
           </View>
         </View>
 
-        {/* Collect Payment Section */}
-        <View style={styles.card}>
-          <Text style={styles.cardTitle}>Record Payment</Text>
-          <View style={styles.methodRow}>
-            {["Cash", "Card", "Cheque", "Bank"].map((m) => (
-              <TouchableOpacity
-                key={m}
-                style={[styles.methodBtn, method === m && styles.methodBtnActive]}
-                onPress={() => setMethod(m)}
-              >
-                <Text style={[styles.methodText, method === m && { color: "white" }]}>{m}</Text>
-              </TouchableOpacity>
-            ))}
+        {/* Payment Form Section */}
+        {due > 0.5 && (
+          <View style={styles.card}>
+            <Text style={styles.cardTitle}>Record Payment</Text>
+            <View style={styles.methodRow}>
+              {["Cash", "Card", "Cheque", "Bank"].map((m) => (
+                <TouchableOpacity
+                  key={m}
+                  style={[styles.methodBtn, method === m && styles.methodBtnActive]}
+                  onPress={() => setMethod(m)}
+                >
+                  <Text style={[styles.methodText, method === m && { color: "white" }]}>{m}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+
+            <TextInput
+              style={styles.input}
+              value={amount}
+              onChangeText={setAmount}
+              keyboardType="decimal-pad"
+              placeholder="0.00"
+              placeholderTextColor="#94a3b8"
+            />
+
+            <TextInput
+              style={styles.input}
+              value={note}
+              onChangeText={setNote}
+              placeholder="Reference Note (Optional)"
+              placeholderTextColor="#94a3b8"
+            />
+
+            <TouchableOpacity
+              style={[styles.submitBtn, submitting && { backgroundColor: "#94a3b8" }]}
+              onPress={submitPayment}
+              disabled={submitting}
+            >
+              {submitting ? <ActivityIndicator color="white" /> : <Text style={styles.submitText}>CONFIRM PAYMENT</Text>}
+            </TouchableOpacity>
           </View>
+        )}
 
-          <TextInput
-            style={styles.input}
-            value={amount}
-            onChangeText={setAmount}
-            keyboardType="decimal-pad"
-            placeholder="0.00"
-            placeholderTextColor="#94a3b8"
-          />
-
-          <TextInput
-            style={styles.input}
-            value={note}
-            onChangeText={setNote}
-            placeholder="Reference Note"
-            placeholderTextColor="#94a3b8"
-          />
-
-          <TouchableOpacity
-            style={[styles.submitBtn, (due <= 0.5 || submitting) && { backgroundColor: "#94a3b8" }]}
-            onPress={submitPayment}
-            disabled={due <= 0.5 || submitting}
-          >
-            {submitting ? <ActivityIndicator color="white" /> : <Text style={styles.submitText}>CONFIRM PAYMENT</Text>}
-          </TouchableOpacity>
-        </View>
-
-        {/* Line Items with Free Issues restore */}
+        {/* Item List Section */}
         <View style={styles.card}>
           <Text style={styles.sectionLabel}>Inventory Items</Text>
-          {items.map((it, idx) => (
+          {items.length > 0 ? items.map((it, idx) => (
             <View key={idx} style={styles.itemCard}>
               <View style={styles.itemHeaderRow}>
-                <Text style={styles.itemName} numberOfLines={1}>{it.Item_description || it.item_name || "Item"}</Text>
-                <Text style={styles.itemPrice}>Rs. {Number(it.Net_value || it.total || 0).toFixed(2)}</Text>
+                <Text style={styles.itemName} numberOfLines={1}>{it.Item_description || it.item_desc || "Item"}</Text>
+                <Text style={styles.itemPrice}>Rs. {Number(it.Net_value || it.total || it.Net_Value || 0).toFixed(2)}</Text>
               </View>
               <View style={styles.itemMetaRow}>
                 <View style={styles.badge}><Text style={styles.badgeText}>Qty: {it.QTY || it.qty}</Text></View>
-                {/* RESTORED FREE ISSUES BELOW */}
-                <View style={[styles.badge, { backgroundColor: '#f0f9ff' }]}>
-                    <Text style={[styles.badgeText, { color: '#0369a1' }]}>Free: {it.Free_Issues ?? it.free_issues ?? it.Free ?? 0}</Text>
-                </View>
-                <Text style={styles.metaPrice}>@ {Number(it.Unit_price || it.price || 0).toFixed(2)}</Text>
+                
+                {/* Free Issues Badge */}
+                {(it.Free_Issues > 0 || it.free_issues > 0) && (
+                  <View style={[styles.badge, { backgroundColor: '#f0f9ff' }]}>
+                      <Text style={[styles.badgeText, { color: '#0369a1' }]}>Free: {it.Free_Issues ?? it.free_issues ?? 0}</Text>
+                  </View>
+                )}
+                
+                {/* Item level Discount Badge */}
+                {(it.Discount > 0 || it.discount > 0) && (
+                   <View style={[styles.badge, { backgroundColor: '#fff1f2' }]}>
+                    <Text style={[styles.badgeText, { color: '#be123c' }]}>Disc: {Number(it.Discount || it.discount).toFixed(2)}</Text>
+                   </View>
+                )}
+
+                <Text style={styles.metaPrice}>@ {Number(it.Unit_price || it.unit_price || 0).toFixed(2)}</Text>
               </View>
             </View>
-          ))}
+          )) : <Text style={{textAlign: 'center', color: '#64748b'}}>No items found</Text>}
         </View>
       </ScrollView>
 
@@ -236,8 +271,8 @@ export default function BillDetailScreen({ route, navigation }) {
         <View style={styles.modalOverlay}>
           <View style={styles.modernCard}>
             <MaterialCommunityIcons name="check-decagram" size={70} color="#059669" />
-            <Text style={styles.modernTitle}>Payment Processed</Text>
-            <Text style={styles.modernMessage}>The transaction for invoice #{invoiceNo} has been successfully updated.</Text>
+            <Text style={styles.modernTitle}>Payment Success</Text>
+            <Text style={styles.modernMessage}>The payment for invoice #{invoiceNo} has been recorded and the balance updated.</Text>
             <TouchableOpacity style={styles.modernDoneBtn} onPress={() => setShowSuccess(false)}>
               <Text style={styles.modernDoneText}>Continue</Text>
             </TouchableOpacity>
@@ -251,7 +286,7 @@ export default function BillDetailScreen({ route, navigation }) {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#f1f5f9" },
   header: { 
-   backgroundColor: "#30a830", // Professional Slate/Navy
+    backgroundColor: "#30a830", 
     paddingHorizontal: 25, 
     paddingTop: 60, 
     paddingBottom: 30,
@@ -318,8 +353,7 @@ const styles = StyleSheet.create({
     marginHorizontal: 3,
     backgroundColor: 'white'
   },
-  methodBtnActive: { backgroundColor: "#30a830", borderColor: "#30a830" 
-},
+  methodBtnActive: { backgroundColor: "#30a830", borderColor: "#30a830" },
   methodText: { fontWeight: "600", fontSize: 12, color: "#475569" },
   submitBtn: { 
     backgroundColor: "#30a830", 

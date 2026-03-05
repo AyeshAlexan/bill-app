@@ -7,30 +7,39 @@ export const getBills = async () => {
 };
 
 // Fetch a single bill with its items
-export const getBillById = async (id) => {
-  const res = await Api.get(`/bills/${id}`);
+// Note: Ensure your backend controller accepts the Invoice String if passing invoiceNo
+export const getBillById = async (idOrInvoice) => {
+  const res = await Api.get(`/bills/${idOrInvoice}`);
   return res.data;
 };
 
 // Create a new bill
 export const addBill = async (data) => {
-  const res = await Api.post("/bills", data);
-  return res.data;
+  try {
+    const res = await Api.post("/bills", data);
+    return res.data;
+  } catch (error) {
+    console.error("Add Bill API Error:", error.response?.data || error.message);
+    throw error; // Re-throw so the UI (AddBillScreen) can show the Alert
+  }
 };
 
 // Fetch only pending bills
 export const getPendingBills = async () => {
   const res = await Api.get("/bills/pending");
-  console.log("PENDING:", res.data);
   return res.data;
 };
 
 /**
- * ADDED: Submit a payment for a specific bill
- * This matches the call in BillDetailScreen.js
+ * Submit a payment for a specific bill
  */
 export const addPayment = async (paymentData) => {
-  // paymentData contains: invoice_no, amount, method, note
-  const res = await Api.post("/payments", paymentData);
-  return res.data;
+  try {
+    // paymentData: { invoice_no, amount, method, note }
+    const res = await Api.post("/payments", paymentData);
+    return res.data;
+  } catch (error) {
+    console.error("Payment API Error:", error.response?.data || error.message);
+    throw error;
+  }
 };

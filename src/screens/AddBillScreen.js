@@ -222,19 +222,21 @@ export default function AddBillScreen({ navigation }) {
 
     const cleanedItems = rows.map(r => {
       const qty = toNum(r.qty);
+      const free = toNum(r.free_issues); // Updated to Number
       const unit = toNum(r.unit_price);
       const discP = toNum(r.discount_percent);
       const lineGross = qty * unit;
       const discAmt = (lineGross * discP) / 100;
+      
       return {
         item_code: r.item_code,
         item_desc: r.item_desc,
-        qty,
-        free_issues: String(r.free_issues || "0"),
+        qty: qty,
+        free_issues: free, // Send as Number for the backend
         unit_price: unit,
-        discount: discAmt,
+        discount: discAmt, // The calculated Rs. discount amount
       };
-    }).filter(x => x.item_code && x.qty > 0);
+    }).filter(x => x.item_code && (x.qty > 0 || x.free_issues > 0)); // Corrected filter
 
     if (cleanedItems.length === 0) return Alert.alert("Validation", "Add at least 1 item");
 
@@ -270,6 +272,7 @@ export default function AddBillScreen({ navigation }) {
     }
   };
 
+  // ... (UI Code remains the same as your previous version)
   if (loading) {
     return (
       <View style={styles.center}>
@@ -406,12 +409,11 @@ export default function AddBillScreen({ navigation }) {
         </TouchableOpacity>
       </ScrollView>
 
-      {/* Modals */}
+      {/* Selection Modal components and other Modals are same as your previous code */}
       <SelectionModal visible={routeModal} title="Select Route" search={routeSearch} onSearch={setRouteSearch} onClose={() => setRouteModal(false)} data={filteredRoutes} onSelect={setSelectedRoute} />
       <SelectionModal visible={shopModal} title="Select Shop" search={shopSearch} onSearch={setShopSearch} onClose={() => setShopModal(false)} data={filteredShops} onSelect={setSelectedShop} />
       <SelectionModal visible={salesmanModal} title="Select Salesman" search={salesmanSearch} onSearch={setSalesmanSearch} onClose={() => setSalesmanModal(false)} data={filteredSalesmen} onSelect={setSelectedSalesman} />
       
-      {/* Item Modal */}
       <Modal visible={itemModal} transparent animationType="fade">
         <ModalBox title="Select Item" searchValue={itemSearch} onSearch={setItemSearch} onClose={() => setItemModal(false)}>
           <FlatList
@@ -427,7 +429,6 @@ export default function AddBillScreen({ navigation }) {
         </ModalBox>
       </Modal>
 
-      {/* Success Modal */}
       <Modal visible={successModal} transparent animationType="fade">
         <View style={styles.modalOverlay}>
           <View style={styles.modernCard}>
@@ -452,7 +453,7 @@ export default function AddBillScreen({ navigation }) {
   );
 }
 
-// Internal UI Components
+// ... helper components (InputField, OptionSwitch, SelectionModal, Row, ModalBox) and Styles remain same
 function InputField({ label, value, onChange }) {
   return (
     <View style={styles.field}>
@@ -484,7 +485,6 @@ function SelectionModal({ visible, title, search, onSearch, onClose, data, onSel
                 style={styles.modalItem} 
                 onPress={() => { onSelect(item); onClose(); }}
               >
-                {/* Logic to handle different data types (Route vs Shop vs Salesman) */}
                 <Text style={styles.modalItemTitle}>
                   {item.name || item.description || "No Title"}
                 </Text>
