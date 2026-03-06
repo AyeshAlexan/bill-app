@@ -1,4 +1,4 @@
-import React, { useCallback, useState, useMemo } from "react";
+import React, { useCallback, useState, useMemo, useEffect, useRef } from "react";
 import {
   View,
   Text,
@@ -7,12 +7,53 @@ import {
   StyleSheet,
   ActivityIndicator,
   Modal,
+  Animated,
+  Easing,
+  Platform,
 } from "react-native";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { useFocusEffect } from "@react-navigation/native";
 
 import { getPendingBills } from "../services/billApi";
 import { fetchRoutes } from "../services/shopApi"; 
+
+// --- MATCHING LOADING ANIMATION ---
+const BillLoadingView = () => {
+  const floatAnim = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(floatAnim, {
+          toValue: -20,
+          duration: 1000,
+          easing: Easing.inOut(Easing.sin),
+          useNativeDriver: Platform.OS !== 'web',
+        }),
+        Animated.timing(floatAnim, {
+          toValue: 0,
+          duration: 1000,
+          easing: Easing.inOut(Easing.sin),
+          useNativeDriver: Platform.OS !== 'web',
+        }),
+      ])
+    ).start();
+  }, []);
+
+  return (
+    <View style={styles.center}>
+      <Animated.View style={{ transform: [{ translateY: floatAnim }] }}>
+        <View style={loaderStyles.iconContainer}>
+          <MaterialCommunityIcons name="file-clock-outline" size={60} color="#ff3d00" />
+        </View>
+      </Animated.View>
+      <Text style={loaderStyles.text}>Scanning Pending Bills...</Text>
+      <View style={loaderStyles.progressTrack}>
+          <ActivityIndicator size="small" color="#ff3d00" />
+      </View>
+    </View>
+  );
+};
 
 const totalOf = (b) => Number(b?.after_vat_amount ?? b?.Net_Amount ?? b?.Gross_Amount ?? 0);
 const paidOf = (b) => Number(b?.Paid_Amount ?? 0);
@@ -36,7 +77,8 @@ export default function PendingBillsScreen({ navigation }) {
     } catch (e) {
       console.log("Error loading pending bills:", e);
     } finally {
-      setLoading(false);
+      // Small artificial delay to let animation be seen
+      setTimeout(() => setLoading(false), 800);
     }
   };
 
@@ -62,7 +104,6 @@ export default function PendingBillsScreen({ navigation }) {
         onPress={() => navigation.navigate("BillDetail", { invoiceNo: item.Invoice_no })}
       >
         <View style={styles.cardTop}>
-          <div style={{ display: 'none' }}></div>
           <View style={styles.iconCircle}>
             <MaterialCommunityIcons name="clock-outline" size={24} color="#ef4444" />
           </View>
@@ -79,7 +120,6 @@ export default function PendingBillsScreen({ navigation }) {
           </View>
         </View>
 
-        {/* Shop Name and Route */}
         <View style={styles.shopRow}>
           <MaterialCommunityIcons name="storefront-outline" size={16} color="#94a3b8" />
           <Text style={styles.shopText} numberOfLines={1}>
@@ -87,7 +127,6 @@ export default function PendingBillsScreen({ navigation }) {
           </Text>
         </View>
 
-        {/* NEW: Salesman Row - Added directly below Shop Name */}
         <View style={styles.salesmanRow}>
           <MaterialCommunityIcons name="account-outline" size={16} color="#94a3b8" />
           <Text style={styles.salesmanText} numberOfLines={1}>
@@ -97,7 +136,6 @@ export default function PendingBillsScreen({ navigation }) {
 
         <View style={styles.divider} />
 
-        <div style={{ display: 'none' }}></div>
         <View style={styles.amountRow}>
           <View>
             <Text style={styles.amtLabel}>Bill Total</Text>
@@ -141,9 +179,7 @@ export default function PendingBillsScreen({ navigation }) {
       </View>
 
       {loading ? (
-        <View style={styles.center}>
-            <ActivityIndicator size="large" color="#ff3d00" />
-        </View>
+        <BillLoadingView />
       ) : (
         <FlatList
           data={filteredBills}
@@ -153,6 +189,7 @@ export default function PendingBillsScreen({ navigation }) {
         />
       )}
 
+      {/* Route Modal */}
       <Modal visible={routeModal} transparent animationType="fade">
         <View style={styles.modalOverlay}>
           <View style={styles.modalCard}>
@@ -184,6 +221,33 @@ export default function PendingBillsScreen({ navigation }) {
     </View>
   );
 }
+
+// --- STYLES ---
+const loaderStyles = StyleSheet.create({
+  iconContainer: {
+    width: 100,
+    height: 100,
+    backgroundColor: '#fff',
+    borderRadius: 50,
+    justifyContent: 'center',
+    alignItems: 'center',
+    elevation: 5,
+    shadowColor: '#000',
+    shadowOpacity: 0.1,
+    shadowRadius: 10,
+  },
+  text: {
+    marginTop: 20,
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#475569',
+  },
+  progressTrack: {
+    marginTop: 15,
+    flexDirection: 'row',
+    alignItems: 'center'
+  }
+});
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#f8fafc" },
@@ -235,7 +299,6 @@ const styles = StyleSheet.create({
   statusText: { fontSize: 10, fontWeight: "bold", textTransform: 'uppercase' },
   shopRow: { flexDirection: "row", alignItems: "center", marginTop: 15 },
   shopText: { color: "#64748b", fontSize: 13, marginLeft: 8 },
-  // Styles for the new Salesman row
   salesmanRow: { flexDirection: "row", alignItems: "center", marginTop: 4 },
   salesmanText: { color: "#94a3b8", fontSize: 12, marginLeft: 8 },
   divider: { height: 1, backgroundColor: "#f1f5f9", marginVertical: 15 },

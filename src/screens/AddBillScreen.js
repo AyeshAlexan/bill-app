@@ -23,10 +23,52 @@ import { fetchItems } from "../services/itemApi";
 import { fetchRoutes, fetchShopsByRoute } from "../services/shopApi";
 import { fetchSalesmen } from "../services/salesmanApi";
 
+// --- NEW: ANIMATED SHOP ITEM COMPONENT ---
+const AnimatedShopItem = ({ item, index, onSelect }) => {
+  const animatedValue = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    Animated.timing(animatedValue, {
+      toValue: 1,
+      duration: 400,
+      delay: index * 80, // Stagger effect
+      easing: Easing.out(Easing.back(1)),
+      useNativeDriver: true,
+    }).start();
+  }, []);
+
+  const translateY = animatedValue.interpolate({
+    inputRange: [0, 1],
+    outputRange: [20, 0],
+  });
+
+  return (
+    <Animated.View
+      style={[
+        styles.modalItem,
+        {
+          opacity: animatedValue,
+          transform: [{ translateY }],
+        },
+      ]}
+    >
+      <TouchableOpacity onPress={() => onSelect(item)} style={{ flexDirection: 'row', alignItems: 'center' }}>
+        <View style={styles.shopIconCircle}>
+            <MaterialCommunityIcons name="storefront-outline" size={20} color="#2563eb" />
+        </View>
+        <View style={{ flex: 1 }}>
+          <Text style={styles.modalItemTitle}>{item.name}</Text>
+          <Text style={styles.modalItemSub}>Code: {item.code} {item.phone ? `• ${item.phone}` : ""}</Text>
+        </View>
+        <MaterialCommunityIcons name="chevron-right" size={20} color="#cbd5e1" />
+      </TouchableOpacity>
+    </Animated.View>
+  );
+};
+
 // --- BILL LOADING ANIMATION COMPONENT ---
 const BillLoader = ({ message = "Preparing Invoice..." }) => {
   const moveAnim = useRef(new Animated.Value(0)).current;
-  const opacityAnim = useRef(new Animated.Value(1)).current;
 
   useEffect(() => {
     Animated.loop(
@@ -68,7 +110,6 @@ const toNum = (v) => {
 };
 
 export default function AddBillScreen({ navigation }) {
-  // Routes & Shops
   const [routes, setRoutes] = useState([]);
   const [selectedRoute, setSelectedRoute] = useState(null);
   const [routeModal, setRouteModal] = useState(false);
@@ -79,19 +120,16 @@ export default function AddBillScreen({ navigation }) {
   const [shopModal, setShopModal] = useState(false);
   const [shopSearch, setShopSearch] = useState("");
 
-  // Salesman State
   const [salesmen, setSalesmen] = useState([]);
   const [selectedSalesman, setSelectedSalesman] = useState(null);
   const [salesmanModal, setSalesmanModal] = useState(false);
   const [salesmanSearch, setSalesmanSearch] = useState("");
 
-  // Items Master
   const [itemsMaster, setItemsMaster] = useState([]);
   const [itemModal, setItemModal] = useState(false);
   const [itemSearch, setItemSearch] = useState("");
   const [activeRowId, setActiveRowId] = useState(null);
 
-  // Bill Status
   const [successModal, setSuccessModal] = useState(false);
   const [savedInvoiceNo, setSavedInvoiceNo] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -100,7 +138,6 @@ export default function AddBillScreen({ navigation }) {
   const [resetModalVisible, setResetModalVisible] = useState(false);
   const [tempInvoiceNum, setTempInvoiceNum] = useState("");
 
-  // Bill rows
   const [rows, setRows] = useState([
     {
       id: Date.now(),
@@ -117,7 +154,6 @@ export default function AddBillScreen({ navigation }) {
   const [billDate, setBillDate] = useState(new Date());
   const [showDatePicker, setShowDatePicker] = useState(false);
 
-  // Bill Options
   const [isBillDiscountEnabled, setIsBillDiscountEnabled] = useState(false);
   const [billDiscountPercent, setBillDiscountPercent] = useState("0");
   const [isVatEnabled, setIsVatEnabled] = useState(true);
@@ -145,7 +181,7 @@ export default function AddBillScreen({ navigation }) {
       } catch (e) {
         console.error("Load Error:", e);
       } finally {
-        setTimeout(() => setLoading(false), 1000);
+        setTimeout(() => setLoading(false), 800);
       }
     })();
   }, []);
@@ -327,7 +363,6 @@ export default function AddBillScreen({ navigation }) {
 
   return (
     <View style={styles.container}>
-      {/* Header */}
       <View style={styles.header}>
         <View style={{ flexDirection: "row", alignItems: "center" }}>
           <TouchableOpacity onPress={() => navigation.goBack()}>
@@ -341,7 +376,6 @@ export default function AddBillScreen({ navigation }) {
       </View>
 
       <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 140 }}>
-        {/* Invoice and Date Section */}
         <View style={styles.topRow}>
           <TouchableOpacity style={styles.invoiceBox} onPress={() => setResetModalVisible(true)}>
             <Text style={styles.topLabel}>Invoice No (Edit)</Text>
@@ -444,7 +478,7 @@ export default function AddBillScreen({ navigation }) {
         </View>
 
         <TouchableOpacity style={styles.saveBtn} onPress={onSave}>
-           <Text style={styles.saveText}>Save Bill</Text>
+            <Text style={styles.saveText}>Save Bill</Text>
         </TouchableOpacity>
       </ScrollView>
 
@@ -461,27 +495,66 @@ export default function AddBillScreen({ navigation }) {
               onChangeText={setTempInvoiceNum}
             />
             <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-               <TouchableOpacity 
-                style={[styles.smallBtn, { width: '45%', alignItems: 'center' }]} 
-                onPress={() => setResetModalVisible(false)}
-               >
-                <Text>Cancel</Text>
-               </TouchableOpacity>
-               <TouchableOpacity 
-                style={[styles.saveBtn, { marginTop: 0, width: '45%', padding: 10 }]} 
-                onPress={handleManualReset}
-               >
-                <Text style={{ color: 'white', fontWeight: 'bold' }}>Update</Text>
-               </TouchableOpacity>
+                <TouchableOpacity 
+                 style={[styles.smallBtn, { width: '45%', alignItems: 'center' }]} 
+                 onPress={() => setResetModalVisible(false)}
+                >
+                 <Text>Cancel</Text>
+                </TouchableOpacity>
+                <TouchableOpacity 
+                 style={[styles.saveBtn, { marginTop: 0, width: '45%', padding: 10 }]} 
+                 onPress={handleManualReset}
+                >
+                 <Text style={{ color: 'white', fontWeight: 'bold' }}>Update</Text>
+                </TouchableOpacity>
             </View>
           </View>
         </View>
       </Modal>
 
-      {/* Selection Modals */}
-      <SelectionModal visible={routeModal} title="Select Route" search={routeSearch} onSearch={setRouteSearch} onClose={() => setRouteModal(false)} data={filteredRoutes} onSelect={setSelectedRoute} />
-      <SelectionModal visible={shopModal} title="Select Shop" search={shopSearch} onSearch={setShopSearch} onClose={() => setShopModal(false)} data={filteredShops} onSelect={setSelectedShop} />
-      <SelectionModal visible={salesmanModal} title="Select Salesman" search={salesmanSearch} onSearch={setSalesmanSearch} onClose={() => setSalesmanModal(false)} data={filteredSalesmen} onSelect={setSelectedSalesman} />
+      {/* SELECTION MODALS */}
+      <SelectionModal 
+        visible={routeModal} 
+        title="Select Route" 
+        search={routeSearch} 
+        onSearch={setRouteSearch} 
+        onClose={() => setRouteModal(false)} 
+        data={filteredRoutes} 
+        onSelect={setSelectedRoute} 
+      />
+      
+      {/* SHOP MODAL WITH NEW ANIMATIONS */}
+      <Modal visible={shopModal} transparent animationType="fade">
+        <ModalBox 
+            title="Select Shop" 
+            searchValue={shopSearch} 
+            onSearch={setShopSearch} 
+            onClose={() => { setShopModal(false); setShopSearch(""); }}
+        >
+            <FlatList
+                data={filteredShops}
+                keyExtractor={(item, idx) => String(item.code || idx)}
+                renderItem={({ item, index }) => (
+                    <AnimatedShopItem 
+                        item={item} 
+                        index={index} 
+                        onSelect={(val) => { setSelectedShop(val); setShopModal(false); setShopSearch(""); }} 
+                    />
+                )}
+                contentContainerStyle={{ paddingBottom: 20 }}
+            />
+        </ModalBox>
+      </Modal>
+
+      <SelectionModal 
+        visible={salesmanModal} 
+        title="Select Salesman" 
+        search={salesmanSearch} 
+        onSearch={setSalesmanSearch} 
+        onClose={() => setSalesmanModal(false)} 
+        data={filteredSalesmen} 
+        onSelect={setSelectedSalesman} 
+      />
       
       <Modal visible={itemModal} transparent animationType="fade">
         <ModalBox title="Select Item" searchValue={itemSearch} onSearch={setItemSearch} onClose={() => setItemModal(false)}>
@@ -588,12 +661,23 @@ function ModalBox({ title, searchValue, onSearch, onClose, children }) {
   return (
     <View style={styles.modalOverlay}>
       <View style={styles.modalCard}>
-        <Text style={styles.modalTitle}>{title}</Text>
-        <TextInput style={styles.modalInput} placeholder="Search..." value={searchValue} onChangeText={onSearch} />
-        <View style={{ maxHeight: 400 }}>{children}</View>
-        <TouchableOpacity style={styles.modalClose} onPress={onClose}>
-          <Text style={styles.modalCloseText}>Close</Text>
-        </TouchableOpacity>
+        <View style={{flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 15}}>
+            <Text style={styles.modalTitle}>{title}</Text>
+            <TouchableOpacity onPress={onClose}>
+                <MaterialCommunityIcons name="close-circle" size={24} color="#cbd5e1" />
+            </TouchableOpacity>
+        </View>
+        <View style={styles.searchContainer}>
+            <MaterialCommunityIcons name="magnify" size={20} color="#94a3b8" />
+            <TextInput 
+                style={styles.modalSearchInput} 
+                placeholder="Search..." 
+                value={searchValue} 
+                onChangeText={onSearch} 
+                placeholderTextColor="#94a3b8"
+            />
+        </View>
+        <View style={{ maxHeight: 450 }}>{children}</View>
       </View>
     </View>
   );
@@ -652,7 +736,7 @@ const styles = StyleSheet.create({
   grandTotalValue: { fontSize: 20, fontWeight: "800", color: "#2563eb" },
   saveBtn: { backgroundColor: "#2563eb", padding: 18, borderRadius: 15, alignItems: "center", marginTop: 20 },
   saveText: { color: "white", fontWeight: "800", fontSize: 16 },
-  modalOverlay: { flex: 1, backgroundColor: "rgba(15,23,42,0.5)", justifyContent: "center", alignItems: "center", padding: 20 },
+  modalOverlay: { flex: 1, backgroundColor: "rgba(15,23,42,0.6)", justifyContent: "center", alignItems: "center", padding: 20 },
   modernCard: { backgroundColor: "white", borderRadius: 30, padding: 25, width: "85%", alignItems: "center" },
   iconCircle: { width: 90, height: 90, borderRadius: 50, backgroundColor: "#eff6ff", justifyContent: "center", alignItems: "center", marginBottom: 15 },
   modernTitle: { fontSize: 20, fontWeight: "800", color: "#1e293b", textAlign: "center" },
@@ -663,12 +747,14 @@ const styles = StyleSheet.create({
   modernYesBtn: { width: "48%", paddingVertical: 14, borderRadius: 14, backgroundColor: "#2563eb", alignItems: "center" },
   modernNoText: { color: "#ef4444", fontWeight: "700" },
   modernYesText: { color: "white", fontWeight: "700" },
-  modalCard: { backgroundColor: "white", borderRadius: 25, padding: 20, width: "90%", maxHeight: "80%", maxWidth: 400 },
-  modalTitle: { fontSize: 18, fontWeight: "800", marginBottom: 15, color: "#1e293b" },
-  modalInput: { backgroundColor: "#f1f5f9", borderRadius: 12, padding: 14, marginBottom: 15, borderWidth: 1, borderColor: "#e2e8f0" },
-  modalItem: { paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: "#f1f5f9" },
-  modalItemTitle: { fontWeight: "700", color: "#1e293b", fontSize: 15 },
-  modalItemSub: { color: "#64748b", fontSize: 13 },
+  modalCard: { backgroundColor: "white", borderRadius: 25, padding: 20, width: "95%", maxHeight: "85%", maxWidth: 450, elevation: 20, shadowColor: '#000', shadowOffset: { width: 0, height: 10 }, shadowOpacity: 0.1, shadowRadius: 20 },
+  modalTitle: { fontSize: 20, fontWeight: "900", color: "#1e293b" },
+  searchContainer: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#f1f5f9', borderRadius: 12, paddingHorizontal: 12, marginBottom: 15, borderWidth: 1, borderColor: '#e2e8f0' },
+  modalSearchInput: { flex: 1, paddingVertical: 12, marginLeft: 8, color: "#1e293b", fontWeight: '600' },
+  modalItem: { paddingVertical: 16, borderBottomWidth: 1, borderBottomColor: "#f1f5f9" },
+  shopIconCircle: { width: 40, height: 40, borderRadius: 20, backgroundColor: '#eff6ff', justifyContent: 'center', alignItems: 'center', marginRight: 12 },
+  modalItemTitle: { fontWeight: "700", color: "#1e293b", fontSize: 16 },
+  modalItemSub: { color: "#64748b", fontSize: 13, marginTop: 2 },
   modalClose: { marginTop: 15, alignItems: "center", padding: 15, backgroundColor: "#f1f5f9", borderRadius: 12 },
   modalCloseText: { fontWeight: "700", color: "#ef4444" },
 });
