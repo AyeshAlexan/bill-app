@@ -1,4 +1,4 @@
-import React, { useCallback, useState, useMemo } from "react";
+import React, { useCallback, useState, useMemo, useEffect, useRef } from "react";
 import {
   View,
   Text,
@@ -8,10 +8,52 @@ import {
   ActivityIndicator,
   Modal,
   TouchableWithoutFeedback,
+  Animated,
+  Easing,
+  Platform,
 } from "react-native";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { useFocusEffect } from "@react-navigation/native";
 import { getPayments } from "../services/paymentApi";
+
+// --- MATCHING PAYMENT LOADER ---
+const PaymentLoader = () => {
+  const floatAnim = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(floatAnim, {
+          toValue: -20,
+          duration: 1000,
+          easing: Easing.inOut(Easing.sin),
+          useNativeDriver: Platform.OS !== 'web',
+        }),
+        Animated.timing(floatAnim, {
+          toValue: 0,
+          duration: 1000,
+          easing: Easing.inOut(Easing.sin),
+          useNativeDriver: Platform.OS !== 'web',
+        }),
+      ])
+    ).start();
+  }, []);
+
+  return (
+    <View style={styles.centerLoader}>
+      <Animated.View style={{ transform: [{ translateY: floatAnim }] }}>
+        <View style={loaderStyles.iconContainer}>
+          <MaterialCommunityIcons name="cash-check" size={55} color="#30a830" />
+        </View>
+      </Animated.View>
+      <Text style={loaderStyles.loaderText}>Syncing Payments...</Text>
+      <Text style={loaderStyles.loaderSubText}>Updating collection history</Text>
+      <View style={{ marginTop: 20 }}>
+          <ActivityIndicator size="small" color="#30a830" />
+      </View>
+    </View>
+  );
+};
 
 export default function PaymentScreen({ navigation }) {
   const [loading, setLoading] = useState(true);
@@ -27,7 +69,8 @@ export default function PaymentScreen({ navigation }) {
     } catch (e) {
       console.log("PaymentScreen load error:", e?.response?.data || e.message);
     } finally {
-      setLoading(false);
+      // Small artificial delay to ensure the matching animation is visible
+      setTimeout(() => setLoading(false), 1000);
     }
   };
 
@@ -145,7 +188,7 @@ export default function PaymentScreen({ navigation }) {
       </Modal>
 
       {loading ? (
-        <ActivityIndicator size="large" color="#30a830" style={{ marginTop: 50 }} />
+        <PaymentLoader />
       ) : (
         <FlatList
           data={filteredData}
@@ -164,8 +207,37 @@ export default function PaymentScreen({ navigation }) {
   );
 }
 
+// --- ANIMATION STYLES ---
+const loaderStyles = StyleSheet.create({
+  iconContainer: {
+    width: 100,
+    height: 100,
+    backgroundColor: 'white',
+    borderRadius: 50,
+    justifyContent: 'center',
+    alignItems: 'center',
+    elevation: 8,
+    shadowColor: '#000',
+    shadowOpacity: 0.12,
+    shadowRadius: 15,
+    shadowOffset: { width: 0, height: 4 },
+  },
+  loaderText: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: '#1e293b',
+    marginTop: 25,
+  },
+  loaderSubText: {
+    fontSize: 13,
+    color: '#64748b',
+    marginTop: 6,
+  },
+});
+
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#f8fafc" },
+  centerLoader: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   header: {
     backgroundColor: "#30a830",
     padding: 25,
@@ -214,9 +286,6 @@ const styles = StyleSheet.create({
   cashText: { color: "#0fa171", fontSize: 10, fontWeight: "bold" },
   shopInfo: { flexDirection: "row", alignItems: "center", marginTop: 15 },
   shopNameText: { color: "#64748b", fontSize: 13, marginLeft: 8 },
-  // Styles for the new Salesman row
-  salesmanRow: { flexDirection: "row", alignItems: "center", marginTop: 4 },
-  salesmanText: { color: "#94a3b8", fontSize: 12, marginLeft: 8 },
   divider: { height: 1, backgroundColor: "#f1f5f9", marginVertical: 15 },
   finalRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
   finalLabel: { color: "#94a3b8" },

@@ -16,6 +16,7 @@ import {
   View,
   Animated,
   Easing,
+  Platform,
 } from "react-native";
 
 import { addBill } from "../services/billApi";
@@ -23,15 +24,15 @@ import { fetchItems } from "../services/itemApi";
 import { fetchRoutes, fetchShopsByRoute } from "../services/shopApi";
 import { fetchSalesmen } from "../services/salesmanApi";
 
-// --- NEW: ANIMATED SHOP ITEM COMPONENT ---
-const AnimatedShopItem = ({ item, index, onSelect }) => {
+// --- UPDATED: ANIMATED SHOP ITEM COMPONENT (With Prices) ---
+const AnimatedShopItem = ({ item, index, onSelect, icon = "storefront-outline" }) => {
   const animatedValue = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
     Animated.timing(animatedValue, {
       toValue: 1,
       duration: 400,
-      delay: index * 80, // Stagger effect
+      delay: index * 50,
       easing: Easing.out(Easing.back(1)),
       useNativeDriver: true,
     }).start();
@@ -39,7 +40,7 @@ const AnimatedShopItem = ({ item, index, onSelect }) => {
 
   const translateY = animatedValue.interpolate({
     inputRange: [0, 1],
-    outputRange: [20, 0],
+    outputRange: [15, 0],
   });
 
   return (
@@ -54,13 +55,41 @@ const AnimatedShopItem = ({ item, index, onSelect }) => {
     >
       <TouchableOpacity onPress={() => onSelect(item)} style={{ flexDirection: 'row', alignItems: 'center' }}>
         <View style={styles.shopIconCircle}>
-            <MaterialCommunityIcons name="storefront-outline" size={20} color="#2563eb" />
+            <MaterialCommunityIcons name={icon} size={20} color="#2563eb" />
         </View>
         <View style={{ flex: 1 }}>
-          <Text style={styles.modalItemTitle}>{item.name}</Text>
+          <Text style={styles.modalItemTitle}>{item.name || item.description}</Text>
           <Text style={styles.modalItemSub}>Code: {item.code} {item.phone ? `• ${item.phone}` : ""}</Text>
         </View>
+        {/* NEW: Price Display */}
+        {item.price !== undefined && (
+          <View style={styles.priceBadge}>
+            <Text style={styles.priceBadgeText}>Rs.{item.price}</Text>
+          </View>
+        )}
         <MaterialCommunityIcons name="chevron-right" size={20} color="#cbd5e1" />
+      </TouchableOpacity>
+    </Animated.View>
+  );
+};
+
+// --- NEW: PULSE ANIMATED BUTTON FOR PAY NOW ---
+const PulsePayButton = ({ onPress, title }) => {
+  const pulseAnim = useRef(new Animated.Value(1)).current;
+
+  useEffect(() => {
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulseAnim, { toValue: 1.05, duration: 800, useNativeDriver: true }),
+        Animated.timing(pulseAnim, { toValue: 1, duration: 800, useNativeDriver: true }),
+      ])
+    ).start();
+  }, []);
+
+  return (
+    <Animated.View style={{ width: '48%', transform: [{ scale: pulseAnim }] }}>
+      <TouchableOpacity style={styles.modernYesBtn} onPress={onPress}>
+        <Text style={styles.modernYesText}>{title}</Text>
       </TouchableOpacity>
     </Animated.View>
   );
@@ -69,37 +98,34 @@ const AnimatedShopItem = ({ item, index, onSelect }) => {
 // --- BILL LOADING ANIMATION COMPONENT ---
 const BillLoader = ({ message = "Preparing Invoice..." }) => {
   const moveAnim = useRef(new Animated.Value(0)).current;
+  const shakeAnim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
     Animated.loop(
       Animated.sequence([
-        Animated.timing(moveAnim, {
-          toValue: 20,
-          duration: 1000,
-          easing: Easing.inOut(Easing.quad),
-          useNativeDriver: true,
-        }),
-        Animated.timing(moveAnim, {
-          toValue: 0,
-          duration: 1000,
-          easing: Easing.inOut(Easing.quad),
-          useNativeDriver: true,
-        }),
+        Animated.timing(moveAnim, { toValue: -15, duration: 1000, easing: Easing.inOut(Easing.quad), useNativeDriver: true }),
+        Animated.timing(moveAnim, { toValue: 0, duration: 1000, easing: Easing.inOut(Easing.quad), useNativeDriver: true }),
       ])
+    ).start();
+
+    Animated.loop(
+        Animated.sequence([
+          Animated.timing(shakeAnim, { toValue: 5, duration: 400, useNativeDriver: true }),
+          Animated.timing(shakeAnim, { toValue: -5, duration: 400, useNativeDriver: true }),
+        ])
     ).start();
   }, []);
 
   return (
     <View style={styles.center}>
       <View style={loaderStyles.container}>
-        <Animated.View style={{ transform: [{ translateY: moveAnim }] }}>
-          <MaterialCommunityIcons name="file-document-edit-outline" size={60} color="#2563eb" />
+        <Animated.View style={{ transform: [{ translateY: moveAnim }, { translateX: shakeAnim }] }}>
+          <MaterialCommunityIcons name="file-document-edit-outline" size={70} color="#2563eb" />
         </Animated.View>
-        <View style={loaderStyles.baseLine} />
       </View>
       <Text style={loaderStyles.title}>{message}</Text>
       <Text style={loaderStyles.subTitle}>Updating inventory and invoice records</Text>
-      <ActivityIndicator size="small" color="#2563eb" style={{ marginTop: 20 }} />
+      <ActivityIndicator size="small" color="#2563eb" style={{ marginTop: 25 }} />
     </View>
   );
 };
@@ -467,10 +493,10 @@ export default function AddBillScreen({ navigation }) {
         </View>
 
         <View style={styles.totalCard}>
-          <Row label="Subtotal" value={subtotal} />
-          <Row label="Bill Discount" value={billDiscountAmount} negative />
-          <Row label="Additional" value={additional} />
-          <Row label="VAT" value={vatAmt} />
+          <SummaryRow label="Subtotal" value={subtotal} />
+          <SummaryRow label="Bill Discount" value={billDiscountAmount} negative />
+          <SummaryRow label="Additional" value={additional} />
+          <SummaryRow label="VAT" value={vatAmt} />
           <View style={styles.grandTotalContainer}>
             <Text style={styles.grandTotalLabel}>Grand Total</Text>
             <Text style={styles.grandTotalValue}>  Rs. {grandTotal.toFixed(2)}</Text>
@@ -486,33 +512,40 @@ export default function AddBillScreen({ navigation }) {
       <Modal visible={resetModalVisible} transparent animationType="fade">
         <View style={styles.modalOverlay}>
           <View style={styles.modalCard}>
-            <Text style={styles.modalTitle}>Set Next Invoice Number</Text>
+            <View style={{flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 15}}>
+                <Text style={styles.modalTitle}>Set Next Invoice No</Text>
+                <TouchableOpacity onPress={() => setResetModalVisible(false)}>
+                    <MaterialCommunityIcons name="close-circle" size={24} color="#cbd5e1" />
+                </TouchableOpacity>
+            </View>
+            <Text style={{color: '#64748b', marginBottom: 12, fontSize: 13}}>Enter the numeric part of the next invoice (e.g. 506)</Text>
             <TextInput 
               style={styles.modalInput} 
               placeholder="e.g. 506" 
               keyboardType="numeric" 
               value={tempInvoiceNum}
               onChangeText={setTempInvoiceNum}
+              placeholderTextColor="#94a3b8"
             />
-            <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 10 }}>
                 <TouchableOpacity 
-                 style={[styles.smallBtn, { width: '45%', alignItems: 'center' }]} 
+                 style={styles.modalCancelBtn} 
                  onPress={() => setResetModalVisible(false)}
                 >
-                 <Text>Cancel</Text>
+                 <Text style={styles.modalCancelText}>Cancel</Text>
                 </TouchableOpacity>
                 <TouchableOpacity 
-                 style={[styles.saveBtn, { marginTop: 0, width: '45%', padding: 10 }]} 
+                 style={styles.modalUpdateBtn} 
                  onPress={handleManualReset}
                 >
-                 <Text style={{ color: 'white', fontWeight: 'bold' }}>Update</Text>
+                 <Text style={styles.modalUpdateText}>Update</Text>
                 </TouchableOpacity>
             </View>
           </View>
         </View>
       </Modal>
 
-      {/* SELECTION MODALS */}
+      {/* MODAL: SELECTIONS */}
       <SelectionModal 
         visible={routeModal} 
         title="Select Route" 
@@ -521,30 +554,19 @@ export default function AddBillScreen({ navigation }) {
         onClose={() => setRouteModal(false)} 
         data={filteredRoutes} 
         onSelect={setSelectedRoute} 
+        icon="map-marker-path"
       />
       
-      {/* SHOP MODAL WITH NEW ANIMATIONS */}
-      <Modal visible={shopModal} transparent animationType="fade">
-        <ModalBox 
-            title="Select Shop" 
-            searchValue={shopSearch} 
-            onSearch={setShopSearch} 
-            onClose={() => { setShopModal(false); setShopSearch(""); }}
-        >
-            <FlatList
-                data={filteredShops}
-                keyExtractor={(item, idx) => String(item.code || idx)}
-                renderItem={({ item, index }) => (
-                    <AnimatedShopItem 
-                        item={item} 
-                        index={index} 
-                        onSelect={(val) => { setSelectedShop(val); setShopModal(false); setShopSearch(""); }} 
-                    />
-                )}
-                contentContainerStyle={{ paddingBottom: 20 }}
-            />
-        </ModalBox>
-      </Modal>
+      <SelectionModal 
+        visible={shopModal} 
+        title="Select Shop" 
+        search={shopSearch} 
+        onSearch={setShopSearch} 
+        onClose={() => setShopModal(false)} 
+        data={filteredShops} 
+        onSelect={setSelectedShop} 
+        icon="storefront-outline"
+      />
 
       <SelectionModal 
         visible={salesmanModal} 
@@ -554,23 +576,32 @@ export default function AddBillScreen({ navigation }) {
         onClose={() => setSalesmanModal(false)} 
         data={filteredSalesmen} 
         onSelect={setSelectedSalesman} 
+        icon="account-tie-outline"
       />
       
+      {/* ITEMS MODAL - Updated to pass Prices */}
       <Modal visible={itemModal} transparent animationType="fade">
         <ModalBox title="Select Item" searchValue={itemSearch} onSearch={setItemSearch} onClose={() => setItemModal(false)}>
           <FlatList
             data={filteredItems}
             keyExtractor={(item, idx) => String(item.Item_code ?? idx)}
-            renderItem={({ item }) => (
-              <TouchableOpacity style={styles.modalItem} onPress={() => chooseItem(item)}>
-                <Text style={styles.modalItemTitle}>{item.Item_description}</Text>
-                <Text style={styles.modalItemSub}>{item.Item_code} • Rs.{Number(item.saleprice || 0).toFixed(2)}</Text>
-              </TouchableOpacity>
+            renderItem={({ item, index }) => (
+              <AnimatedShopItem 
+                item={{ 
+                  name: item.Item_description, 
+                  code: item.Item_code,
+                  price: item.saleprice // Added price
+                }} 
+                index={index} 
+                onSelect={() => chooseItem(item)} 
+                icon="package-variant-closed"
+              />
             )}
           />
         </ModalBox>
       </Modal>
 
+      {/* SUCCESS MODAL - Updated with Pulse Animation */}
       <Modal visible={successModal} transparent animationType="fade">
         <View style={styles.modalOverlay}>
           <View style={styles.modernCard}>
@@ -584,9 +615,12 @@ export default function AddBillScreen({ navigation }) {
               <TouchableOpacity style={styles.modernNoBtn} onPress={() => { setSuccessModal(false); navigation.replace("Dashboard"); }}>
                 <Text style={styles.modernNoText}>Later</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={styles.modernYesBtn} onPress={() => { setSuccessModal(false); navigation.replace("BillDetail", { invoiceNo: savedInvoiceNo }); }}>
-                <Text style={styles.modernYesText}>Pay Now</Text>
-              </TouchableOpacity>
+              
+              {/* Pulse Animated Payment Button */}
+              <PulsePayButton 
+                title="Pay Now" 
+                onPress={() => { setSuccessModal(false); navigation.replace("BillDetail", { invoiceNo: savedInvoiceNo }); }}
+              />
             </View>
           </View>
         </View>
@@ -614,31 +648,27 @@ function OptionSwitch({ label, value, onValueChange }) {
   );
 }
 
-function SelectionModal({ visible, title, search, onSearch, onClose, data, onSelect }) {
+function SelectionModal({ visible, title, search, onSearch, onClose, data, onSelect, icon }) {
   return (
     <Modal visible={visible} transparent animationType="fade">
       <ModalBox title={title} searchValue={search} onSearch={onSearch} onClose={onClose}>
         {data && data.length > 0 ? (
           <FlatList
             data={data}
-            keyExtractor={(item, idx) => String(item.id || idx)}
-            renderItem={({ item }) => (
-              <TouchableOpacity 
-                style={styles.modalItem} 
-                onPress={() => { onSelect(item); onClose(); }}
-              >
-                <Text style={styles.modalItemTitle}>
-                  {item.name || item.description || "No Title"}
-                </Text>
-                <Text style={styles.modalItemSub}>
-                  {item.code ? `Code: ${item.code}` : ""}
-                </Text>
-              </TouchableOpacity>
+            keyExtractor={(item, idx) => String(item.id || item.code || idx)}
+            renderItem={({ item, index }) => (
+              <AnimatedShopItem 
+                item={item} 
+                index={index} 
+                onSelect={(val) => { onSelect(val); onClose(); }} 
+                icon={icon}
+              />
             )}
           />
         ) : (
-          <View style={{ padding: 20, alignItems: 'center' }}>
-            <Text style={{ color: '#64748b' }}>No data found</Text>
+          <View style={{ padding: 40, alignItems: 'center' }}>
+            <MaterialCommunityIcons name="database-off" size={40} color="#cbd5e1" />
+            <Text style={{ color: '#64748b', marginTop: 10 }}>No results found</Text>
           </View>
         )}
       </ModalBox>
@@ -646,7 +676,7 @@ function SelectionModal({ visible, title, search, onSearch, onClose, data, onSel
   );
 }
 
-function Row({ label, value, negative }) {
+function SummaryRow({ label, value, negative }) {
   return (
     <View style={styles.summaryRow}>
       <Text style={styles.summaryLabel}>{label}</Text>
@@ -683,11 +713,9 @@ function ModalBox({ title, searchValue, onSearch, onClose, children }) {
   );
 }
 
-// --- STYLES ---
 const loaderStyles = StyleSheet.create({
   container: { height: 100, alignItems: 'center', justifyContent: 'center' },
-  baseLine: { width: 50, height: 4, backgroundColor: '#e2e8f0', borderRadius: 2, marginTop: 5 },
-  title: { fontSize: 18, fontWeight: '800', color: '#1e293b', marginTop: 15 },
+  title: { fontSize: 18, fontWeight: '800', color: '#1e293b', marginTop: 20 },
   subTitle: { fontSize: 13, color: '#64748b', marginTop: 4 }
 });
 
@@ -707,7 +735,7 @@ const styles = StyleSheet.create({
   invoiceBox: { flex: 1, backgroundColor: "white", borderRadius: 12, padding: 14, borderWidth: 1, borderColor: "#e2e8f0" },
   dateBox: { flex: 1, backgroundColor: "white", borderRadius: 12, padding: 14, borderWidth: 1, borderColor: "#e2e8f0" },
   topLabel: { color: "#64748b", fontSize: 11, fontWeight: "700", textTransform: "uppercase", marginBottom: 4 },
-  invoiceValue: { color: "#1e293b", fontSize: 16, fontWeight: "800" },
+  invoiceValue: { color: "#2563eb", fontSize: 16, fontWeight: "800" },
   dateValue: { color: "#1e293b", fontSize: 15, fontWeight: "700" },
   selectBtn: { backgroundColor: "white", borderRadius: 15, padding: 16, marginBottom: 12, borderWidth: 1, borderColor: "#e2e8f0" },
   selectLabel: { color: "#64748b", fontSize: 11, fontWeight: "700", textTransform: "uppercase" },
@@ -719,14 +747,14 @@ const styles = StyleSheet.create({
   rowGrid: { flexDirection: "row", flexWrap: "wrap", gap: 10, marginTop: 15 },
   field: { width: "47%" },
   fieldLabel: { color: "#64748b", fontSize: 11, fontWeight: "700", marginBottom: 5 },
-  fieldInput: { backgroundColor: "#f8fafc", padding: 12, borderRadius: 10, borderWidth: 1, borderColor: "#e2e8f0", color: "#1e293b" },
+  fieldInput: { backgroundColor: "#f8fafc", padding: 12, borderRadius: 10, borderWidth: 1, borderColor: "#e2e8f0", color: "#1e293b", fontWeight: '600' },
   rowActionRow: { flexDirection: "row", justifyContent: "space-between", marginTop: 15 },
-  smallBtn: { backgroundColor: "#f1f5f9", paddingVertical: 10, paddingHorizontal: 15, borderRadius: 10 },
+  smallBtn: { backgroundColor: "#eff6ff", paddingVertical: 10, paddingHorizontal: 15, borderRadius: 10 },
   smallBtnText: { fontWeight: "700", color: "#2563eb", fontSize: 13 },
   optionCard: { backgroundColor: "white", borderRadius: 15, padding: 16, marginTop: 5, borderWidth: 1, borderColor: "#e2e8f0" },
   optionRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 5 },
   optionLabel: { fontWeight: "700", color: "#1e293b" },
-  optionInput: { backgroundColor: "#f8fafc", padding: 10, borderRadius: 10, borderWidth: 1, borderColor: "#e2e8f0", marginTop: 5, marginBottom: 10 },
+  optionInput: { backgroundColor: "#f8fafc", padding: 10, borderRadius: 10, borderWidth: 1, borderColor: "#e2e8f0", marginTop: 5, marginBottom: 10, fontWeight: '600' },
   totalCard: { backgroundColor: "#f1f5f9", borderRadius: 20, padding: 20, marginTop: 15 },
   summaryRow: { flexDirection: "row", justifyContent: "space-between", marginBottom: 8 },
   summaryLabel: { color: "#64748b", fontWeight: "600" },
@@ -742,19 +770,25 @@ const styles = StyleSheet.create({
   modernTitle: { fontSize: 20, fontWeight: "800", color: "#1e293b", textAlign: "center" },
   invoiceText: { fontSize: 13, color: "#2563eb", marginTop: 5, fontWeight: "600" },
   modernMessage: { fontSize: 14, color: "#64748b", marginTop: 10, textAlign: "center" },
-  modernBtnRow: { flexDirection: "row", marginTop: 25, width: "100%", justifyContent: "space-between" },
+  modernBtnRow: { flexDirection: "row", marginTop: 25, width: "100%", justifyContent: "space-between", alignItems: 'center' },
   modernNoBtn: { width: "48%", paddingVertical: 14, borderRadius: 14, backgroundColor: "#f1f5f9", alignItems: "center" },
-  modernYesBtn: { width: "48%", paddingVertical: 14, borderRadius: 14, backgroundColor: "#2563eb", alignItems: "center" },
+  modernYesBtn: { width: "100%", paddingVertical: 14, borderRadius: 14, backgroundColor: "#2563eb", alignItems: "center", elevation: 4 },
   modernNoText: { color: "#ef4444", fontWeight: "700" },
   modernYesText: { color: "white", fontWeight: "700" },
-  modalCard: { backgroundColor: "white", borderRadius: 25, padding: 20, width: "95%", maxHeight: "85%", maxWidth: 450, elevation: 20, shadowColor: '#000', shadowOffset: { width: 0, height: 10 }, shadowOpacity: 0.1, shadowRadius: 20 },
-  modalTitle: { fontSize: 20, fontWeight: "900", color: "#1e293b" },
+  modalCard: { backgroundColor: "white", borderRadius: 25, padding: 20, width: "95%", maxHeight: "85%", maxWidth: 450, elevation: 20 },
+  modalTitle: { fontSize: 18, fontWeight: "900", color: "#1e293b" },
   searchContainer: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#f1f5f9', borderRadius: 12, paddingHorizontal: 12, marginBottom: 15, borderWidth: 1, borderColor: '#e2e8f0' },
   modalSearchInput: { flex: 1, paddingVertical: 12, marginLeft: 8, color: "#1e293b", fontWeight: '600' },
-  modalItem: { paddingVertical: 16, borderBottomWidth: 1, borderBottomColor: "#f1f5f9" },
-  shopIconCircle: { width: 40, height: 40, borderRadius: 20, backgroundColor: '#eff6ff', justifyContent: 'center', alignItems: 'center', marginRight: 12 },
-  modalItemTitle: { fontWeight: "700", color: "#1e293b", fontSize: 16 },
-  modalItemSub: { color: "#64748b", fontSize: 13, marginTop: 2 },
-  modalClose: { marginTop: 15, alignItems: "center", padding: 15, backgroundColor: "#f1f5f9", borderRadius: 12 },
-  modalCloseText: { fontWeight: "700", color: "#ef4444" },
+  modalInput: { backgroundColor: '#f8fafc', paddingHorizontal: 15, paddingVertical: 14, borderRadius: 12, borderWidth: 1, borderColor: '#e2e8f0', color: '#1e293b', fontSize: 16, fontWeight: '700', marginBottom: 10 },
+  modalCancelBtn: { backgroundColor: '#f1f5f9', paddingVertical: 14, width: '48%', borderRadius: 12, alignItems: 'center' },
+  modalCancelText: { color: '#64748b', fontWeight: '700' },
+  modalUpdateBtn: { backgroundColor: '#2563eb', paddingVertical: 14, width: '48%', borderRadius: 12, alignItems: 'center' },
+  modalUpdateText: { color: 'white', fontWeight: '800' },
+  modalItem: { paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: "#f1f5f9" },
+  modalItemTitle: { fontSize: 15, fontWeight: "700", color: "#1e293b" },
+  modalItemSub: { fontSize: 12, color: "#64748b", marginTop: 2 },
+  shopIconCircle: { width: 40, height: 40, borderRadius: 20, backgroundColor: "#eff6ff", justifyContent: "center", alignItems: "center", marginRight: 12 },
+  // Price Badge Styles
+  priceBadge: { backgroundColor: '#f0fdf4', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8, marginRight: 8, borderWidth: 1, borderColor: '#dcfce7' },
+  priceBadgeText: { color: '#16a34a', fontWeight: '800', fontSize: 12 }
 });
