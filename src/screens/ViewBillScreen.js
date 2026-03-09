@@ -1,6 +1,6 @@
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -50,15 +50,13 @@ export default function ViewBillScreen({ route, navigation }) {
       setPayments(data?.payments || currentBill?.payments || []);
       setCompany(data?.company || null);
       
-      // ✅ Salesman Name Fix
       setSalesmanName(data?.salesman_name || currentBill?.Salesmen || currentBill?.salesman || "");
-      
-      // ✅ Pulling extended customer data (Address_1, Contact_1)
       setCustomerExtra(data?.customer_extra || null);
     } catch (e) {
       Alert.alert("Error", "Failed to load bill");
     } finally {
-      setLoading(false);
+      // Artificial delay to keep the loading animation smooth
+      setTimeout(() => setLoading(false), 800);
     }
   };
 
@@ -86,15 +84,17 @@ export default function ViewBillScreen({ route, navigation }) {
 
   // --- HTML TEMPLATES ---
 
-  // 1. MODERN THERMAL RECEIPT
   const buildThermalHtml = (logoUri) => {
     const itemsHtml = items.map((it) => `
       <div style="margin-bottom: 12px;"> 
         <div style="font-weight: bold; text-transform: uppercase; font-size: 12px;">${escapeHtml(it.Item_description || it.item_name)}</div>
-        <div style="display: flex; justify-content: space-between; font-family: monospace; font-size: 11px;">
-          <span>${it.QTY} x ${Number(it.Unit_price).toFixed(2)}</span>
-          <span>${Number(it.Net_value).toFixed(2)}</span>
-        </div>
+         <div style="display: flex; justify-content: space-between; font-family: monospace; font-size: 11px;">
+           <span>
+              ${it.QTY} x ${Number(it.Unit_price).toFixed(2)}
+              ${Number(it.Free_Issues) > 0 ? `<br/>Free issues: ${it.Free_Issues}` : ""}
+            </span>
+              <span>${Number(it.Net_value).toFixed(2)}</span>
+          </div>
         ${it.Discount > 0 ? `<div style="font-size: 10px; color: #555;">Item Disc: -${Number(it.Discount).toFixed(2)}</div>` : ''}
       </div>`).join("");
 
@@ -139,22 +139,9 @@ export default function ViewBillScreen({ route, navigation }) {
     </html>`;
   };
 
-  // 2. PROFESSIONAL FULL INVOICE
   const buildFormalHtml = (logoUri) => {
-    // Logic for Address_1 and Contact_1
-    const custAddress =
-     customerExtra?.Address_1 ??
-     bill?.Address_1 ??
-     bill?.Customer_Address ??
-     bill?.customer?.Address_1 ??
-     "—";
-
-    const custPhone =
-     customerExtra?.Contact_1 ??
-     bill?.Contact_1 ??
-     bill?.Customer_Phone ??
-     bill?.customer?.Contact_1 ??
-     "—";
+    const custAddress = customerExtra?.Address_1 ?? bill?.Address_1 ?? bill?.Customer_Address ?? "—";
+    const custPhone = customerExtra?.Contact_1 ?? bill?.Contact_1 ?? bill?.Customer_Phone ?? "—";
 
     const itemsHtml = items.map((it) => `
       <tr>
@@ -253,7 +240,19 @@ export default function ViewBillScreen({ route, navigation }) {
     }
   };
 
-  if (loading) return <View style={styles.center}><ActivityIndicator size="large" color="#30a830" /></View>;
+  // --- LOADING SCREEN ---
+  if (loading) {
+    return (
+      <View style={styles.centerLoader}>
+        <View style={styles.loaderIconContainer}>
+          <MaterialCommunityIcons name="printer-search" size={65} color="#30a830" />
+        </View>
+        <ActivityIndicator size="large" color="#30a830" style={{ marginTop: 25 }} />
+        <Text style={styles.loaderText}>Fetching Invoice Details...</Text>
+        <Text style={styles.loaderSubText}>Preparing your bill for view</Text>
+      </View>
+    );
+  }
 
   return (
     <View style={styles.container}>
@@ -263,7 +262,6 @@ export default function ViewBillScreen({ route, navigation }) {
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Invoice Details</Text>
         <Text style={styles.headerSub}>{shopName}</Text>
-        {/* ✅ Added Customer Phone number to Header area */}
         {shopPhone ? <Text style={styles.headerPhone}>{shopPhone}</Text> : null}
       </View>
 
@@ -274,10 +272,13 @@ export default function ViewBillScreen({ route, navigation }) {
               <Text style={styles.invLabel}>Invoice Number</Text>
               <Text style={styles.invValue}>INV-{invoiceNo}</Text>
             </View>
-            <View style={styles.statusBadge}><Text style={[styles.statusText, { color: due <= 0 ? "#10b981" : "#ef4444" }]}>{due <= 0 ? "PAID" : "PENDING"}</Text></View>
+            <View style={styles.statusBadge}>
+              <Text style={[styles.statusText, { color: due <= 0 ? "#10b981" : "#ef4444" }]}>
+                {due <= 0 ? "PAID" : "PENDING"}
+              </Text>
+            </View>
           </View>
 
-          {/* ✅ UPDATED GRID: Date Left, Salesman Right */}
           <View style={styles.infoGrid}>
             <View style={styles.infoItem}>
               <Text style={styles.infoLabel}>Date</Text>
@@ -296,7 +297,10 @@ export default function ViewBillScreen({ route, navigation }) {
                <View style={{flex: 1}}>
                  <Text style={styles.itemName}>{it.Item_description || it.item_name}</Text>
                  <View style={{flexDirection: 'row', alignItems: 'center', marginTop: 2}}>
-                    <Text style={styles.itemMeta}>Qty: {it.QTY} x {Number(it.Unit_price).toFixed(2)}</Text>
+                      <Text style={styles.itemMeta}> Qty: {it.QTY} 
+                        {Number(it.Free_Issues) > 0 ? ` (+${it.Free_Issues} Free)` : ""}
+                            {" "}x {Number(it.Unit_price).toFixed(2)}
+                       </Text>
                     {Number(it.Discount) > 0 && (
                         <View style={styles.itemDiscBadge}>
                             <Text style={styles.itemDiscText}>Disc: {Number(it.Discount).toFixed(2)}</Text>
@@ -347,7 +351,22 @@ export default function ViewBillScreen({ route, navigation }) {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#f1f5f9" },
-  center: { flex: 1, justifyContent: "center", alignItems: "center" },
+  centerLoader: { flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: '#f8fafc' },
+  loaderIconContainer: {
+    width: 130,
+    height: 130,
+    backgroundColor: 'white',
+    borderRadius: 65,
+    justifyContent: 'center',
+    alignItems: 'center',
+    elevation: 6,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
+  },
+  loaderText: { marginTop: 25, fontSize: 18, fontWeight: '800', color: '#1e293b' },
+  loaderSubText: { marginTop: 6, fontSize: 14, color: '#64748b' },
   headerContainer: { backgroundColor: "#30a830", padding: 20, paddingTop: 50, borderBottomLeftRadius: 30, borderBottomRightRadius: 30 },
   headerTitle: { color: "white", fontSize: 22, fontWeight: "bold" },
   headerSub: { color: "white", opacity: 0.9, fontSize: 16, fontWeight: '600', marginTop: 4 },

@@ -55,26 +55,59 @@ const PaymentLoader = () => {
   );
 };
 
+// --- NEW: VIEW BILL TRANSITION LOADER ---
+const ViewBillLoader = ({ visible }) => (
+  <Modal visible={visible} transparent animationType="fade">
+    <View style={styles.fullScreenLoader}>
+      <View style={styles.loaderContent}>
+        <ActivityIndicator size="large" color="#30a830" />
+        <Text style={styles.loaderMsg}>Opening Invoice...</Text>
+      </View>
+    </View>
+  </Modal>
+);
+
 export default function PaymentScreen({ navigation }) {
   const [loading, setLoading] = useState(true);
+  const [navigating, setNavigating] = useState(false); // To handle "View Bill" loading
   const [payments, setPayments] = useState([]);
   const [selectedCity, setSelectedCity] = useState("All Cities");
   const [showDropdown, setShowDropdown] = useState(false);
+  
+  // Animation for the list entrance
+  const fadeAnim = useRef(new Animated.Value(0)).current;
 
   const load = async () => {
     try {
       setLoading(true);
+      fadeAnim.setValue(0); // Reset animation
       const data = await getPayments();
       setPayments(Array.isArray(data) ? data : []);
     } catch (e) {
       console.log("PaymentScreen load error:", e?.response?.data || e.message);
     } finally {
-      // Small artificial delay to ensure the matching animation is visible
-      setTimeout(() => setLoading(false), 1000);
+      setTimeout(() => {
+        setLoading(false);
+        Animated.timing(fadeAnim, {
+          toValue: 1,
+          duration: 600,
+          easing: Easing.out(Easing.back(1)),
+          useNativeDriver: true,
+        }).start();
+      }, 1000);
     }
   };
 
   useFocusEffect(useCallback(() => { load(); }, []));
+
+  const handleViewBill = (billId) => {
+    setNavigating(true);
+    // Simulate a brief loading state before navigating to the screen in your image
+    setTimeout(() => {
+      setNavigating(false);
+      navigation.navigate("ViewBill", { billId });
+    }, 800);
+  };
 
   const citiesList = useMemo(() => {
     const extractedCities = payments
@@ -92,8 +125,14 @@ export default function PaymentScreen({ navigation }) {
     return filteredData.reduce((sum, p) => sum + parseFloat(p.Payment_Amount || 0), 0);
   }, [filteredData]);
 
-  const renderItem = ({ item }) => (
-    <View style={styles.historyCard}>
+  const renderItem = ({ item, index }) => (
+    <Animated.View style={[
+        styles.historyCard, 
+        { 
+          opacity: fadeAnim,
+          transform: [{ translateY: fadeAnim.interpolate({ inputRange: [0, 1], outputRange: [20 * (index + 1), 0] }) }] 
+        }
+    ]}>
       <View style={styles.cardHeader}>
         <View style={styles.iconCircle}>
           <MaterialCommunityIcons name="check-decagram" size={20} color="#10b981" />
@@ -123,16 +162,19 @@ export default function PaymentScreen({ navigation }) {
 
       <TouchableOpacity
         style={styles.viewBtn}
-        onPress={() => navigation.navigate("ViewBill", { billId: item.Sales_no })}
+        onPress={() => handleViewBill(item.Sales_no)}
       >
         <MaterialCommunityIcons name="eye-outline" size={18} color="#0061ff" />
         <Text style={styles.viewBtnText}>View Bill</Text>
       </TouchableOpacity>
-    </View>
+    </Animated.View>
   );
 
   return (
     <View style={styles.container}>
+      {/* Loading Overlay for View Bill */}
+      <ViewBillLoader visible={navigating} />
+
       <View style={styles.header}>
         <View style={styles.headerTopRow}>
           <TouchableOpacity onPress={() => navigation.goBack()} style={{ padding: 5 }}>
@@ -207,7 +249,7 @@ export default function PaymentScreen({ navigation }) {
   );
 }
 
-// --- ANIMATION STYLES ---
+// --- STYLES ---
 const loaderStyles = StyleSheet.create({
   iconContainer: {
     width: 100,
@@ -238,6 +280,25 @@ const loaderStyles = StyleSheet.create({
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#f8fafc" },
   centerLoader: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  fullScreenLoader: {
+    flex: 1,
+    backgroundColor: "rgba(255, 255, 255, 0.8)",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  loaderContent: {
+    padding: 30,
+    backgroundColor: "white",
+    borderRadius: 20,
+    alignItems: "center",
+    elevation: 10,
+  },
+  loaderMsg: {
+    marginTop: 15,
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#30a830",
+  },
   header: {
     backgroundColor: "#30a830",
     padding: 25,
