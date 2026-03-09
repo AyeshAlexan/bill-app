@@ -10,94 +10,46 @@ import {
   Animated,
   Easing,
   Platform,
+  TextInput,
 } from "react-native";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { useFocusEffect } from "@react-navigation/native";
 
 import { getPendingBills } from "../services/billApi";
-import { fetchRoutes } from "../services/shopApi"; 
+import { fetchRoutes } from "../services/shopApi";
 
-// --- MATCHING LOADING ANIMATION ---
-const BillLoadingView = () => {
-  const floatAnim = useRef(new Animated.Value(0)).current;
+// --- ANIMATED BILL CARD COMPONENT ---
+const AnimatedBillCard = ({ item, index, navigation, filterKey }) => {
+  const animatedValue = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
-    Animated.loop(
-      Animated.sequence([
-        Animated.timing(floatAnim, {
-          toValue: -20,
-          duration: 1000,
-          easing: Easing.inOut(Easing.sin),
-          useNativeDriver: Platform.OS !== 'web',
-        }),
-        Animated.timing(floatAnim, {
-          toValue: 0,
-          duration: 1000,
-          easing: Easing.inOut(Easing.sin),
-          useNativeDriver: Platform.OS !== 'web',
-        }),
-      ])
-    ).start();
-  }, []);
+    animatedValue.setValue(0);
+    Animated.timing(animatedValue, {
+      toValue: 1,
+      duration: 400,
+      delay: (index % 10) * 60, // Reduced delay for snappier feel
+      easing: Easing.out(Easing.back(1)),
+      useNativeDriver: true,
+    }).start();
+  }, [item.Invoice_no, filterKey]); // Re-animate when filter changes
+
+  const translateY = animatedValue.interpolate({
+    inputRange: [0, 1],
+    outputRange: [25, 0],
+  });
+
+  const opacity = animatedValue.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0, 1],
+  });
+
+  const total = totalOf(item);
+  const paid = paidOf(item);
+  const due = Math.max(total - paid, 0);
+  const status = paid > 0 ? "Partial" : "Pending";
 
   return (
-    <View style={styles.center}>
-      <Animated.View style={{ transform: [{ translateY: floatAnim }] }}>
-        <View style={loaderStyles.iconContainer}>
-          <MaterialCommunityIcons name="file-clock-outline" size={60} color="#ff3d00" />
-        </View>
-      </Animated.View>
-      <Text style={loaderStyles.text}>Scanning Pending Bills...</Text>
-      <View style={loaderStyles.progressTrack}>
-          <ActivityIndicator size="small" color="#ff3d00" />
-      </View>
-    </View>
-  );
-};
-
-const totalOf = (b) => Number(b?.after_vat_amount ?? b?.Net_Amount ?? b?.Gross_Amount ?? 0);
-const paidOf = (b) => Number(b?.Paid_Amount ?? 0);
-
-export default function PendingBillsScreen({ navigation }) {
-  const [loading, setLoading] = useState(true);
-  const [bills, setBills] = useState([]);
-  const [routes, setRoutes] = useState([]);
-  const [selectedRoute, setSelectedRoute] = useState(null);
-  const [routeModal, setRouteModal] = useState(false);
-
-  const loadData = async () => {
-    try {
-      setLoading(true);
-      const [billData, routeData] = await Promise.all([
-        getPendingBills(),
-        fetchRoutes()
-      ]);
-      setBills(Array.isArray(billData) ? billData : []);
-      setRoutes(routeData || []);
-    } catch (e) {
-      console.log("Error loading pending bills:", e);
-    } finally {
-      // Small artificial delay to let animation be seen
-      setTimeout(() => setLoading(false), 800);
-    }
-  };
-
-  useFocusEffect(useCallback(() => { loadData(); }, []));
-
-  const filteredBills = useMemo(() => {
-    if (!selectedRoute) return bills;
-    return bills.filter(item => 
-      (item.Route === selectedRoute || item.City_1 === selectedRoute)
-    );
-  }, [bills, selectedRoute]);
-
-  const renderItem = ({ item }) => {
-    const total = totalOf(item);
-    const paid = paidOf(item);
-    const due = Math.max(total - paid, 0);
-    const status = paid > 0 ? "Partial" : "Pending";
-
-    return (
+    <Animated.View key={`${item.Invoice_no}-${filterKey}`} style={{ opacity, transform: [{ translateY }] }}>
       <TouchableOpacity
         style={styles.card}
         activeOpacity={0.8}
@@ -113,7 +65,12 @@ export default function PendingBillsScreen({ navigation }) {
               {item.Invoice_Date || item.date || item.created_at || "Recent"}
             </Text>
           </View>
-          <View style={[styles.statusBadge, { backgroundColor: status === "Partial" ? "#fef3c7" : "#fee2e2" }]}>
+          <View
+            style={[
+              styles.statusBadge,
+              { backgroundColor: status === "Partial" ? "#fef3c7" : "#fee2e2" },
+            ]}
+          >
             <Text style={[styles.statusText, { color: status === "Partial" ? "#d97706" : "#ef4444" }]}>
               {status}
             </Text>
@@ -143,14 +100,102 @@ export default function PendingBillsScreen({ navigation }) {
           </View>
           <View style={{ alignItems: "flex-end" }}>
             <Text style={styles.amtLabel}>Balance Due</Text>
-            <Text style={[styles.amtValue, { color: "#ef4444" }]}>
-              Rs. {due.toFixed(2)}
-            </Text>
+            <Text style={[styles.amtValue, { color: "#ef4444" }]}>Rs. {due.toFixed(2)}</Text>
           </View>
         </View>
       </TouchableOpacity>
-    );
+    </Animated.View>
+  );
+};
+
+// --- LOADING ANIMATION ---
+const BillLoadingView = () => {
+  const floatAnim = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(floatAnim, {
+          toValue: -20,
+          duration: 1000,
+          easing: Easing.inOut(Easing.sin),
+          useNativeDriver: Platform.OS !== "web",
+        }),
+        Animated.timing(floatAnim, {
+          toValue: 0,
+          duration: 1000,
+          easing: Easing.inOut(Easing.sin),
+          useNativeDriver: Platform.OS !== "web",
+        }),
+      ])
+    ).start();
+  }, []);
+
+  return (
+    <View style={styles.center}>
+      <Animated.View style={{ transform: [{ translateY: floatAnim }] }}>
+        <View style={loaderStyles.iconContainer}>
+          <MaterialCommunityIcons name="file-clock-outline" size={60} color="#ff3d00" />
+        </View>
+      </Animated.View>
+      <Text style={loaderStyles.text}>Scanning Pending Bills...</Text>
+      <View style={loaderStyles.progressTrack}>
+        <ActivityIndicator size="small" color="#ff3d00" />
+      </View>
+    </View>
+  );
+};
+
+const totalOf = (b) => Number(b?.after_vat_amount ?? b?.Net_Amount ?? b?.Gross_Amount ?? 0);
+const paidOf = (b) => Number(b?.Paid_Amount ?? 0);
+
+export default function PendingBillsScreen({ navigation }) {
+  const [loading, setLoading] = useState(true);
+  const [bills, setBills] = useState([]);
+  const [routes, setRoutes] = useState([]);
+  const [selectedRoute, setSelectedRoute] = useState(null);
+  const [routeModal, setRouteModal] = useState(false);
+  const [routeSearch, setRouteSearch] = useState("");
+
+  const loadData = async () => {
+    try {
+      setLoading(true);
+      const [billData, routeData] = await Promise.all([getPendingBills(), fetchRoutes()]);
+      setBills(Array.isArray(billData) ? billData : []);
+      setRoutes(routeData || []);
+    } catch (e) {
+      console.log("Error loading pending bills:", e);
+    } finally {
+      setTimeout(() => setLoading(false), 800);
+    }
   };
+
+  useFocusEffect(useCallback(() => { loadData(); }, []));
+
+  // FILTERED ROUTES FOR DROPDOWN
+  const filteredRoutes = useMemo(() => {
+    const q = routeSearch.toLowerCase().trim();
+    if (!q) return routes;
+    return routes.filter(r => (r.code || "").toLowerCase().includes(q));
+  }, [routes, routeSearch]);
+
+  // FILTERED BILLS FOR MAIN LIST
+  const filteredBills = useMemo(() => {
+    if (!selectedRoute) return bills;
+    return bills.filter((item) => item.Route === selectedRoute || item.City_1 === selectedRoute);
+  }, [bills, selectedRoute]);
+
+  const renderItem = useCallback(
+    ({ item, index }) => (
+      <AnimatedBillCard 
+        item={item} 
+        index={index} 
+        navigation={navigation} 
+        filterKey={selectedRoute || 'all'}
+      />
+    ),
+    [navigation, selectedRoute]
+  );
 
   return (
     <View style={styles.container}>
@@ -158,18 +203,18 @@ export default function PendingBillsScreen({ navigation }) {
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
           <MaterialCommunityIcons name="chevron-left" size={32} color="white" />
         </TouchableOpacity>
-        
+
         <View style={styles.headerRow}>
-            <View>
-                <Text style={styles.headerTitle}>Pending Bills</Text>
-                <Text style={styles.headerSub}>Bills awaiting collection</Text>
-            </View>
-            <TouchableOpacity style={styles.filterDropdown} onPress={() => setRouteModal(true)}>
-                <Text style={styles.filterText} numberOfLines={1}>
-                    {selectedRoute || "All Cities"}
-                </Text>
-                <MaterialCommunityIcons name="chevron-down" size={20} color="white" />
-            </TouchableOpacity>
+          <View>
+            <Text style={styles.headerTitle}>Pending Bills</Text>
+            <Text style={styles.headerSub}>Bills awaiting collection</Text>
+          </View>
+          <TouchableOpacity style={styles.filterDropdown} onPress={() => setRouteModal(true)}>
+            <Text style={styles.filterText} numberOfLines={1}>
+              {selectedRoute || "All Cities"}
+            </Text>
+            <MaterialCommunityIcons name="chevron-down" size={20} color="white" />
+          </TouchableOpacity>
         </View>
 
         <View style={styles.statsBox}>
@@ -186,34 +231,55 @@ export default function PendingBillsScreen({ navigation }) {
           renderItem={renderItem}
           keyExtractor={(item, idx) => String(item.Invoice_no ?? idx)}
           contentContainerStyle={{ padding: 20, paddingBottom: 100 }}
+          initialNumToRender={8}
+          maxToRenderPerBatch={10}
+          windowSize={10}
+          removeClippedSubviews={Platform.OS === 'android'}
+          getItemLayout={(data, index) => ({ length: 180, offset: 180 * index, index })}
         />
       )}
 
-      {/* Route Modal */}
-      <Modal visible={routeModal} transparent animationType="fade">
+      {/* Route Modal with Search */}
+      <Modal visible={routeModal} transparent animationType="slide">
         <View style={styles.modalOverlay}>
           <View style={styles.modalCard}>
             <Text style={styles.modalTitle}>Select Route/City</Text>
+            
+            {/* SEARCH BAR INSIDE MODAL */}
+            <View style={styles.modalSearchBox}>
+              <MaterialCommunityIcons name="magnify" size={20} color="#94a3b8" />
+              <TextInput 
+                style={styles.modalSearchInput}
+                placeholder="Search route..."
+                value={routeSearch}
+                onChangeText={setRouteSearch}
+              />
+            </View>
+
             <FlatList
-              data={[{ code: null }, ...routes]}
-              keyExtractor={(item, index) => item.code || 'all'}
+              data={[{ code: null }, ...filteredRoutes]}
+              keyExtractor={(item, index) => item.code || "all"}
               renderItem={({ item }) => (
-                <TouchableOpacity 
+                <TouchableOpacity
                   style={styles.modalItem}
                   onPress={() => {
-                    setSelectedRoute(item.code);
                     setRouteModal(false);
+                    setRouteSearch(""); // Clear search on select
+                    // Small delay to prevent animation stuttering while modal closes
+                    setTimeout(() => setSelectedRoute(item.code), 300);
                   }}
                 >
                   <Text style={[styles.modalItemText, selectedRoute === item.code && styles.selectedText]}>
                     {item.code || "All Cities"}
                   </Text>
-                  {selectedRoute === item.code && <MaterialCommunityIcons name="check" size={20} color="#ff3d00" />}
+                  {selectedRoute === item.code && (
+                    <MaterialCommunityIcons name="check" size={20} color="#ff3d00" />
+                  )}
                 </TouchableOpacity>
               )}
             />
-            <TouchableOpacity style={styles.modalClose} onPress={() => setRouteModal(false)}>
-                <Text style={styles.closeBtnText}>Close</Text>
+            <TouchableOpacity style={styles.modalClose} onPress={() => { setRouteModal(false); setRouteSearch(""); }}>
+              <Text style={styles.closeBtnText}>Close</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -224,93 +290,47 @@ export default function PendingBillsScreen({ navigation }) {
 
 // --- STYLES ---
 const loaderStyles = StyleSheet.create({
-  iconContainer: {
-    width: 100,
-    height: 100,
-    backgroundColor: '#fff',
-    borderRadius: 50,
-    justifyContent: 'center',
-    alignItems: 'center',
-    elevation: 5,
-    shadowColor: '#000',
-    shadowOpacity: 0.1,
-    shadowRadius: 10,
-  },
-  text: {
-    marginTop: 20,
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#475569',
-  },
-  progressTrack: {
-    marginTop: 15,
-    flexDirection: 'row',
-    alignItems: 'center'
-  }
+  iconContainer: { width: 100, height: 100, backgroundColor: "#fff", borderRadius: 50, justifyContent: "center", alignItems: "center", elevation: 5, shadowColor: "#000", shadowOpacity: 0.1, shadowRadius: 10 },
+  text: { marginTop: 20, fontSize: 16, fontWeight: "700", color: "#475569" },
+  progressTrack: { marginTop: 15, flexDirection: "row", alignItems: "center" },
 });
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#f8fafc" },
   center: { flex: 1, justifyContent: "center", alignItems: "center" },
-  header: {
-    backgroundColor: "#ff3d00",
-    padding: 25,
-    paddingTop: 50,
-    borderBottomLeftRadius: 40,
-    borderBottomRightRadius: 40,
-  },
-  headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  header: { backgroundColor: "#ff3d00", padding: 25, paddingTop: 50, borderBottomLeftRadius: 40, borderBottomRightRadius: 40 },
+  headerRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
   headerTitle: { color: "white", fontSize: 24, fontWeight: "bold" },
   headerSub: { color: "white", opacity: 0.9, fontSize: 13 },
-  backBtn: { width: 40, height: 40, justifyContent: 'center', marginBottom: 5 },
-  filterDropdown: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'rgba(255,255,255,0.2)',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 12,
-    maxWidth: 150,
-  },
-  filterText: { color: 'white', fontWeight: 'bold', marginRight: 4, fontSize: 12 },
-  statsBox: {
-    backgroundColor: "rgba(255,255,255,0.25)",
-    padding: 18,
-    borderRadius: 20,
-    marginTop: 20,
-  },
+  backBtn: { width: 40, height: 40, justifyContent: "center", marginBottom: 5 },
+  filterDropdown: { flexDirection: "row", alignItems: "center", backgroundColor: "rgba(255,255,255,0.2)", paddingHorizontal: 12, paddingVertical: 8, borderRadius: 12, maxWidth: 150 },
+  filterText: { color: "white", fontWeight: "bold", marginRight: 4, fontSize: 12 },
+  statsBox: { backgroundColor: "rgba(255,255,255,0.25)", padding: 18, borderRadius: 20, marginTop: 20 },
   statsLabel: { color: "white", fontSize: 13 },
   statsValue: { color: "white", fontSize: 32, fontWeight: "bold" },
-  card: {
-    backgroundColor: "white",
-    borderRadius: 25,
-    padding: 20,
-    marginBottom: 15,
-    elevation: 3,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-  },
+  card: { backgroundColor: "white", borderRadius: 25, padding: 20, marginBottom: 15, elevation: 3, shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, minHeight: 180 },
   cardTop: { flexDirection: "row", alignItems: "center" },
   iconCircle: { backgroundColor: "#fee2e2", padding: 10, borderRadius: 15 },
   billNo: { fontSize: 16, fontWeight: "bold", color: "#1e293b" },
   date: { color: "#94a3b8", fontSize: 12, marginTop: 2 },
   statusBadge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8 },
-  statusText: { fontSize: 10, fontWeight: "bold", textTransform: 'uppercase' },
+  statusText: { fontSize: 10, fontWeight: "bold", textTransform: "uppercase" },
   shopRow: { flexDirection: "row", alignItems: "center", marginTop: 15 },
   shopText: { color: "#64748b", fontSize: 13, marginLeft: 8 },
   salesmanRow: { flexDirection: "row", alignItems: "center", marginTop: 4 },
   salesmanText: { color: "#94a3b8", fontSize: 12, marginLeft: 8 },
   divider: { height: 1, backgroundColor: "#f1f5f9", marginVertical: 15 },
   amountRow: { flexDirection: "row", justifyContent: "space-between" },
-  amtLabel: { color: "#94a3b8", fontSize: 11, textTransform: 'uppercase', fontWeight: 'bold' },
+  amtLabel: { color: "#94a3b8", fontSize: 11, textTransform: "uppercase", fontWeight: "bold" },
   amtValue: { fontSize: 16, fontWeight: "bold", marginTop: 4 },
-  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', padding: 30 },
-  modalCard: { backgroundColor: 'white', borderRadius: 25, padding: 25, maxHeight: '80%' },
-  modalTitle: { fontSize: 18, fontWeight: 'bold', marginBottom: 20, textAlign: 'center' },
-  modalItem: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 15, borderBottomWidth: 1, borderBottomColor: '#f1f5f9' },
-  modalItemText: { fontSize: 15, color: '#475569' },
-  selectedText: { color: '#ff3d00', fontWeight: 'bold' },
-  modalClose: { marginTop: 20, backgroundColor: '#f1f5f9', padding: 12, borderRadius: 15, alignItems: 'center' },
-  closeBtnText: { fontWeight: 'bold', color: '#64748b' }
+  modalOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "flex-end" },
+  modalCard: { backgroundColor: "white", borderTopLeftRadius: 35, borderTopRightRadius: 35, padding: 25, maxHeight: "85%" },
+  modalTitle: { fontSize: 18, fontWeight: "bold", marginBottom: 15, textAlign: "center" },
+  modalSearchBox: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#f1f5f9', borderRadius: 15, paddingHorizontal: 15, marginBottom: 15 },
+  modalSearchInput: { flex: 1, paddingVertical: 12, fontSize: 15, color: '#1e293b', marginLeft: 8 },
+  modalItem: { flexDirection: "row", justifyContent: "space-between", paddingVertical: 15, borderBottomWidth: 1, borderBottomColor: "#f1f5f9" },
+  modalItemText: { fontSize: 15, color: "#475569" },
+  selectedText: { color: "#ff3d00", fontWeight: "bold" },
+  modalClose: { marginTop: 10, backgroundColor: "#f1f5f9", padding: 12, borderRadius: 15, alignItems: "center", marginBottom: 20 },
+  closeBtnText: { fontWeight: "bold", color: "#64748b" },
 });

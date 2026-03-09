@@ -9,6 +9,7 @@ import {
   TextInput,
   Animated,
   Easing,
+  Platform,
 } from "react-native";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { useFocusEffect } from "@react-navigation/native";
@@ -16,29 +17,89 @@ import { useFocusEffect } from "@react-navigation/native";
 import { fetchRoutes, fetchShopsByRoute } from "../services/shopApi";
 import { getBills } from "../services/billApi";
 
+// --- ANIMATED SHOP CARD COMPONENT ---
+const AnimatedShopCard = ({ item, index, onPress }) => {
+  const animatedValue = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    // Reset animation value when items change
+    animatedValue.setValue(0);
+    
+    Animated.timing(animatedValue, {
+      toValue: 1,
+      duration: 400,
+      // We cap the index at 15 so the 190th shop doesn't wait forever to animate
+      delay: (index % 15) * 60, 
+      easing: Easing.out(Easing.back(1)),
+      useNativeDriver: true,
+    }).start();
+  }, [item.code]);
+
+  const translateY = animatedValue.interpolate({
+    inputRange: [0, 1],
+    outputRange: [25, 0],
+  });
+
+  const opacity = animatedValue.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0, 1],
+  });
+
+  return (
+    <Animated.View style={{ opacity, transform: [{ translateY }] }}>
+      <TouchableOpacity style={styles.shopCard} onPress={onPress}>
+        <View style={styles.shopTop}>
+          <View style={styles.iconBox}>
+            <MaterialCommunityIcons name="storefront-outline" size={24} color="#30a830" />
+          </View>
+          <View style={{ flex: 1, marginLeft: 12 }}>
+            <Text style={styles.shopName}>{item.name || "—"}</Text>
+            <Text style={styles.shopMeta}>
+              ID: {item.code || "—"} {item.phone ? `• ${item.phone}` : ""}
+            </Text>
+          </View>
+          <MaterialCommunityIcons name="chevron-right" size={24} color="#cbd5e1" />
+        </View>
+
+        <View style={styles.divider} />
+
+        <View style={styles.summaryRow}>
+          <View style={styles.summaryChip}>
+            <Text style={styles.summaryLabel}>Pending</Text>
+            <Text
+              style={[
+                styles.summaryValue,
+                { fontWeight: "800", color: item.pendingCount > 0 ? "#dc2626" : "#30a830" },
+              ]}
+            >
+              {item.pendingCount || 0} Bills
+            </Text>
+          </View>
+          <View style={[styles.summaryChip, { backgroundColor: "#f8fafc" }]}>
+            <Text style={styles.summaryLabel}>Outstanding</Text>
+            <Text style={styles.summaryValue}>
+              Rs. {Number(item.dueTotal || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+            </Text>
+          </View>
+        </View>
+      </TouchableOpacity>
+    </Animated.View>
+  );
+};
+
 // --- MODERN SHOP LOADING ANIMATION ---
 const ShopLoader = () => {
   const scaleAnim = useRef(new Animated.Value(1)).current;
   const bounceAnim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
-    // Pulse effect for the shop
     Animated.loop(
       Animated.sequence([
-        Animated.timing(scaleAnim, {
-          toValue: 1.1,
-          duration: 800,
-          useNativeDriver: true,
-        }),
-        Animated.timing(scaleAnim, {
-          toValue: 1,
-          duration: 800,
-          useNativeDriver: true,
-        }),
+        Animated.timing(scaleAnim, { toValue: 1.1, duration: 800, useNativeDriver: true }),
+        Animated.timing(scaleAnim, { toValue: 1, duration: 800, useNativeDriver: true }),
       ])
     ).start();
 
-    // Bounce effect for the location pin
     Animated.loop(
       Animated.sequence([
         Animated.timing(bounceAnim, {
@@ -60,17 +121,12 @@ const ShopLoader = () => {
   return (
     <View style={loaderStyles.container}>
       <View style={loaderStyles.animationBox}>
-        {/* Bouncing Pin */}
         <Animated.View style={{ transform: [{ translateY: bounceAnim }] }}>
           <MaterialCommunityIcons name="map-marker" size={30} color="#30a830" />
         </Animated.View>
-        
-        {/* Pulsing Shop */}
         <Animated.View style={[loaderStyles.shopIcon, { transform: [{ scale: scaleAnim }] }]}>
           <MaterialCommunityIcons name="storefront" size={50} color="#30a830" />
         </Animated.View>
-        
-        {/* Shadow floor */}
         <View style={loaderStyles.shadow} />
       </View>
       <Text style={loaderStyles.loaderText}>Searching for Shops...</Text>
@@ -79,9 +135,7 @@ const ShopLoader = () => {
   );
 };
 
-const billTotal = (b) =>
-  Number(b?.after_vat_amount ?? b?.Net_Amount ?? b?.Gross_Amount ?? 0);
-
+const billTotal = (b) => Number(b?.after_vat_amount ?? b?.Net_Amount ?? b?.Gross_Amount ?? 0);
 const billPaid = (b) => Number(b?.Paid_Amount ?? 0);
 
 export default function ShopListScreen({ navigation }) {
@@ -89,7 +143,7 @@ export default function ShopListScreen({ navigation }) {
   const [routes, setRoutes] = useState([]);
   const [routeModal, setRouteModal] = useState(false);
   const [routeSearch, setRouteSearch] = useState("");
-  const [selectedRoute, setSelectedRoute] = useState(null); 
+  const [selectedRoute, setSelectedRoute] = useState(null);
 
   const [shops, setShops] = useState([]);
   const [bills, setBills] = useState([]);
@@ -100,7 +154,7 @@ export default function ShopListScreen({ navigation }) {
     return routes.filter(
       (r) =>
         String(r.code || "").toLowerCase().includes(q) ||
-        String(r.description || "").toLowerCase().includes(q),
+        String(r.description || "").toLowerCase().includes(q)
     );
   }, [routes, routeSearch]);
 
@@ -116,15 +170,15 @@ export default function ShopListScreen({ navigation }) {
     } catch (e) {
       console.log("Load Error:", e);
     } finally {
-      // Small timeout to make the animation feel smooth
-      setTimeout(() => setLoading(false), 1200);
+      // Keep slightly shorter timeout for better UX
+      setTimeout(() => setLoading(false), 800);
     }
   };
 
   useFocusEffect(
     useCallback(() => {
       load(selectedRoute?.code || null);
-    }, [selectedRoute?.code]),
+    }, [selectedRoute?.code])
   );
 
   const shopsWithSummary = useMemo(() => {
@@ -149,9 +203,23 @@ export default function ShopListScreen({ navigation }) {
     });
   }, [shops, bills]);
 
+  // MEMOIZED RENDER ITEM FOR PERFORMANCE
+  const renderItem = useCallback(({ item, index }) => (
+    <AnimatedShopCard
+      item={item}
+      index={index}
+      onPress={() =>
+        navigation.navigate("BillList", {
+          shopCode: item.code,
+          shopName: item.name,
+          routeCode: item.route,
+        })
+      }
+    />
+  ), [navigation]);
+
   return (
     <View style={styles.container}>
-      {/* PROFESSIONAL GREEN HEADER */}
       <View style={styles.header}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={{ marginBottom: 10 }}>
           <MaterialCommunityIcons name="chevron-left" size={32} color="white" />
@@ -162,14 +230,9 @@ export default function ShopListScreen({ navigation }) {
             {selectedRoute ? `City: ${selectedRoute.code}` : "Showing All Cities"}
           </Text>
         </View>
-        <TouchableOpacity
-          style={styles.routeBtn}
-          onPress={() => setRouteModal(true)}
-        >
+        <TouchableOpacity style={styles.routeBtn} onPress={() => setRouteModal(true)}>
           <MaterialCommunityIcons name="map-marker-radius" size={18} color="white" />
-          <Text style={styles.routeBtnText}>
-            {selectedRoute?.code ? selectedRoute.code : "Cities"}
-          </Text>
+          <Text style={styles.routeBtnText}>{selectedRoute?.code ? selectedRoute.code : "Cities"}</Text>
         </TouchableOpacity>
       </View>
 
@@ -180,48 +243,19 @@ export default function ShopListScreen({ navigation }) {
           data={shopsWithSummary}
           keyExtractor={(item, idx) => item.code?.toString() || idx.toString()}
           contentContainerStyle={{ padding: 15, paddingBottom: 40 }}
-          renderItem={({ item }) => (
-            <TouchableOpacity
-              style={styles.shopCard}
-              onPress={() =>
-                navigation.navigate("BillList", {
-                  shopCode: item.code,
-                  shopName: item.name,
-                  routeCode: item.route,
-                })
-              }
-            >
-              <View style={styles.shopTop}>
-                <View style={styles.iconBox}>
-                  <MaterialCommunityIcons name="storefront-outline" size={24} color="#30a830" />
-                </View>
-                <View style={{ flex: 1, marginLeft: 12 }}>
-                  <Text style={styles.shopName}>{item.name || "—"}</Text>
-                  <Text style={styles.shopMeta}>
-                    ID: {item.code || "—"} {item.phone ? `• ${item.phone}` : ""}
-                  </Text>
-                </View>
-                <MaterialCommunityIcons name="chevron-right" size={24} color="#cbd5e1" />
-              </View>
-
-              <View style={styles.divider} />
-
-              <View style={styles.summaryRow}>
-                <View style={styles.summaryChip}>
-                  <Text style={styles.summaryLabel}>Pending</Text>
-                  <Text style={[styles.summaryValue, { fontWeight: '800', color: item.pendingCount > 0 ? '#dc2626' : '#30a830' }]}>
-                    {item.pendingCount || 0} Bills
-                  </Text>
-                </View>
-                <View style={[styles.summaryChip, { backgroundColor: '#f8fafc' }]}>
-                  <Text style={styles.summaryLabel}>Outstanding</Text>
-                  <Text style={styles.summaryValue}>
-                    Rs. {Number(item.dueTotal || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                  </Text>
-                </View>
-              </View>
-            </TouchableOpacity>
+          renderItem={renderItem}
+          
+          // --- PERFORMANCE OPTIMIZATIONS FOR LARGE LISTS ---
+          initialNumToRender={8}
+          maxToRenderPerBatch={10}
+          windowSize={10}
+          removeClippedSubviews={Platform.OS === 'android'}
+          // Helps the list calculate scroll position without measuring items
+          getItemLayout={(data, index) => (
+            { length: 175, offset: 175 * index, index }
           )}
+          // ------------------------------------------------
+          
           ListEmptyComponent={
             <View style={styles.emptyBox}>
               <MaterialCommunityIcons name="store-off-outline" size={48} color="#cbd5e1" />
@@ -244,15 +278,17 @@ export default function ShopListScreen({ navigation }) {
               value={routeSearch}
               onChangeText={setRouteSearch}
             />
-            
+
             <FlatList
               data={[{ code: null, description: "All Cities" }, ...filteredRoutes]}
               keyExtractor={(item, idx) => item.code || "all"}
               renderItem={({ item }) => (
                 <TouchableOpacity
                   style={[
-                    styles.modalItem, 
-                    ((!item.code && !selectedRoute) || (item.code === selectedRoute?.code)) && { backgroundColor: '#f0fdf4' }
+                    styles.modalItem,
+                    ((!item.code && !selectedRoute) || item.code === selectedRoute?.code) && {
+                      backgroundColor: "#f0fdf4",
+                    },
                   ]}
                   onPress={() => {
                     setSelectedRoute(item.code ? item : null);
@@ -260,15 +296,12 @@ export default function ShopListScreen({ navigation }) {
                   }}
                 >
                   <Text style={[styles.modalItemText, !item.code && { color: "#30a830" }]}>
-                      {item.code || "SHOW ALL CITIES"}
+                    {item.code || "SHOW ALL CITIES"}
                   </Text>
                 </TouchableOpacity>
               )}
             />
-            <TouchableOpacity
-              style={styles.modalClose}
-              onPress={() => setRouteModal(false)}
-            >
+            <TouchableOpacity style={styles.modalClose} onPress={() => setRouteModal(false)}>
               <Text style={styles.modalCloseText}>Dismiss</Text>
             </TouchableOpacity>
           </View>
@@ -278,40 +311,19 @@ export default function ShopListScreen({ navigation }) {
   );
 }
 
-// --- ANIMATION STYLES ---
 const loaderStyles = StyleSheet.create({
-  container: { 
-    flex: 1, 
-    justifyContent: 'center', 
-    alignItems: 'center', 
-    backgroundColor: '#f1f5f9' 
-  },
-  animationBox: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    height: 120,
-  },
-  shopIcon: {
-    marginTop: 5,
-  },
+  container: { flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: "#f1f5f9" },
+  animationBox: { alignItems: "center", justifyContent: "center", height: 120 },
+  shopIcon: { marginTop: 5 },
   shadow: {
     width: 40,
     height: 4,
-    backgroundColor: 'rgba(0,0,0,0.05)',
+    backgroundColor: "rgba(0,0,0,0.05)",
     borderRadius: 10,
     marginTop: 4,
   },
-  loaderText: {
-    fontSize: 18,
-    fontWeight: '800',
-    color: '#1e293b',
-    marginTop: 20,
-  },
-  loaderSubText: {
-    fontSize: 13,
-    color: '#64748b',
-    marginTop: 5,
-  }
+  loaderText: { fontSize: 18, fontWeight: "800", color: "#1e293b", marginTop: 20 },
+  loaderSubText: { fontSize: 13, color: "#64748b", marginTop: 5 },
 });
 
 const styles = StyleSheet.create({
@@ -346,6 +358,8 @@ const styles = StyleSheet.create({
     shadowColor: "#000",
     shadowOpacity: 0.05,
     shadowRadius: 10,
+    height: 160, // Fixed height helps with FlatList optimization
+    justifyContent: 'center'
   },
   shopTop: { flexDirection: "row", alignItems: "center" },
   iconBox: { backgroundColor: "#f0fdf4", padding: 10, borderRadius: 14 },
@@ -359,18 +373,14 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     padding: 12,
     borderWidth: 1,
-    borderColor: '#f1f5f9'
+    borderColor: "#f1f5f9",
   },
-  summaryLabel: { color: "#94a3b8", fontSize: 11, fontWeight: '700', textTransform: 'uppercase' },
+  summaryLabel: { color: "#94a3b8", fontSize: 11, fontWeight: "700", textTransform: "uppercase" },
   summaryValue: { color: "#1e293b", fontWeight: "800", marginTop: 4, fontSize: 14 },
   emptyBox: { alignItems: "center", marginTop: 100, paddingHorizontal: 40 },
   emptyTitle: { fontWeight: "800", fontSize: 18, marginTop: 15, color: "#1e293b" },
   emptySub: { color: "#64748b", marginTop: 8, textAlign: "center", lineHeight: 20 },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: "rgba(15, 23, 42, 0.6)",
-    justifyContent: "flex-end",
-  },
+  modalOverlay: { flex: 1, backgroundColor: "rgba(15, 23, 42, 0.6)", justifyContent: "flex-end" },
   modalCard: {
     backgroundColor: "white",
     borderTopLeftRadius: 35,
@@ -385,14 +395,9 @@ const styles = StyleSheet.create({
     padding: 15,
     marginBottom: 15,
     fontSize: 16,
-    color: '#1e293b'
+    color: "#1e293b",
   },
-  modalItem: {
-    paddingVertical: 16,
-    paddingHorizontal: 15,
-    borderRadius: 12,
-    marginBottom: 5,
-  },
+  modalItem: { paddingVertical: 16, paddingHorizontal: 15, borderRadius: 12, marginBottom: 5 },
   modalItemText: { fontWeight: "700", fontSize: 15, color: "#334155" },
   modalClose: {
     marginTop: 15,
@@ -400,7 +405,7 @@ const styles = StyleSheet.create({
     padding: 16,
     backgroundColor: "#f1f5f9",
     borderRadius: 18,
-    marginBottom: 10
+    marginBottom: 10,
   },
-  modalCloseText: { fontWeight: "800", color: "#64748b", fontSize: 15 }
+  modalCloseText: { fontWeight: "800", color: "#64748b", fontSize: 15 },
 });
