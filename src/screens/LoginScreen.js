@@ -1,14 +1,16 @@
-import React, { useState } from "react";
+import React, { useState, useRef } from "react";
 import {
   View,
-  Text,
   TextInput,
   TouchableOpacity,
   Image,
   StyleSheet,
   SafeAreaView,
   ActivityIndicator,
+  Modal,
+  Text,
 } from "react-native";
+import LottieView from "lottie-react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { login } from "../services/authApi";
 import { setAuthToken } from "../services/Api";
@@ -17,11 +19,13 @@ export default function LoginScreen({ navigation }) {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
+  const [loginSuccess, setLoginSuccess] = useState(false);
   const [errorText, setErrorText] = useState("");
+  
+  const animation = useRef(null);
 
   const onSignIn = async () => {
     setErrorText("");
-
     if (!username.trim() || !password.trim()) {
       setErrorText("Please enter username and password");
       return;
@@ -29,32 +33,43 @@ export default function LoginScreen({ navigation }) {
 
     try {
       setLoading(true);
-
       const data = await login(username.trim(), password);
 
       await AsyncStorage.setItem("token", data.token);
       await AsyncStorage.setItem("user", JSON.stringify(data.user));
       setAuthToken(data.token);
 
-      navigation.replace("Dashboard");
-    } catch (e) {
-      const status = e?.response?.status;
-      const backendMsg = e?.response?.data?.message;
-
-      let msg = "Login failed. Please try again.";
-      if (status === 401) msg = backendMsg || "Invalid username or password";
-      else if (status === 422) msg = "Please fill all fields correctly";
-      else if (e.message?.includes("Network Error"))
-        msg = "Cannot connect to server. Check backend is running.";
-
-      setErrorText(msg);
-    } finally {
       setLoading(false);
+      setLoginSuccess(true);
+
+      // Delay to let the slow animation finish before switching screens
+      setTimeout(() => {
+        setLoginSuccess(false);
+        navigation.replace("Dashboard");
+      }, 3000);
+
+    } catch (e) {
+      setLoading(false);
+      setErrorText("Invalid username or password");
     }
   };
 
   return (
     <SafeAreaView style={styles.container}>
+      {/* --- FULL WHITE LOTTIE OVERLAY --- */}
+      <Modal visible={loginSuccess} transparent={false} animationType="fade">
+        <View style={styles.overlay}>
+          <LottieView
+            autoPlay
+            ref={animation}
+            style={styles.lottieFullscreen}
+            source={require("../assets/Cred tick animation (2).json")}
+            loop={false}
+            speed={0.6} 
+          />
+        </View>
+      </Modal>
+
       <View style={styles.card}>
         <Image
           source={require("../assets/bill-logo.png")}
@@ -63,7 +78,7 @@ export default function LoginScreen({ navigation }) {
         />
 
         <Text style={styles.welcomeText}>Welcome Back</Text>
-        <Text style={styles.signInSub}>Sign in to continue bill collection</Text>
+        <Text style={styles.signInSub}>Sign in to continue</Text>
 
         {!!errorText && (
           <View style={styles.errorBox}>
@@ -74,7 +89,7 @@ export default function LoginScreen({ navigation }) {
         <View style={styles.inputGroup}>
           <Text style={styles.label}>Username</Text>
           <TextInput
-            placeholder="Enter your username"
+            placeholder="Username"
             style={styles.input}
             value={username}
             onChangeText={setUsername}
@@ -85,7 +100,7 @@ export default function LoginScreen({ navigation }) {
         <View style={styles.inputGroup}>
           <Text style={styles.label}>Password</Text>
           <TextInput
-            placeholder="Enter your password"
+            placeholder="Password"
             secureTextEntry
             style={styles.input}
             value={password}
@@ -96,8 +111,7 @@ export default function LoginScreen({ navigation }) {
         <TouchableOpacity
           style={[styles.button, loading && { opacity: 0.7 }]}
           onPress={onSignIn}
-          disabled={loading}
-          activeOpacity={0.85}
+          disabled={loading || loginSuccess}
         >
           {loading ? (
             <ActivityIndicator color="white" />
@@ -106,7 +120,6 @@ export default function LoginScreen({ navigation }) {
           )}
         </TouchableOpacity>
 
-        {/* Updated Footer with Company Logo */}
         <View style={styles.footerContainer}>
           <Text style={styles.designedByText}>DESIGNED BY</Text>
           <Image
@@ -121,66 +134,29 @@ export default function LoginScreen({ navigation }) {
 }
 
 const styles = StyleSheet.create({
-  container: {
+  container: { flex: 1, backgroundColor: "#F8FAFC", justifyContent: "center", padding: 10 },
+  overlay: {
     flex: 1,
-    backgroundColor: "#F8FAFC",
+    backgroundColor: "#FFFFFF", // ✅ Pure white solid background
     justifyContent: "center",
-    padding: 10,
-  },
-  card: {
-    backgroundColor: "white",
-    borderRadius: 30,
-    padding: 30,
     alignItems: "center",
-    elevation: 5,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 10,
   },
+  lottieFullscreen: {
+    width: 350, // ✅ Slightly bigger as requested
+    height: 350,
+  },
+  card: { backgroundColor: "white", borderRadius: 30, padding: 30, alignItems: "center" },
   logo: { width: 250, height: 100, marginBottom: 10 },
   welcomeText: { fontSize: 22, fontWeight: "bold", color: "#1e293b" },
   signInSub: { color: "#64748b", marginBottom: 20 },
-  errorBox: {
-    backgroundColor: "#FEF2F2",
-    borderColor: "#FCA5A5",
-    borderWidth: 1,
-    padding: 10,
-    width: "100%",
-    borderRadius: 12,
-    marginBottom: 12,
-  },
+  errorBox: { backgroundColor: "#FEF2F2", padding: 10, width: "100%", borderRadius: 12, marginBottom: 12 },
   errorText: { color: "#B91C1C", fontWeight: "600" },
   inputGroup: { width: "100%", marginBottom: 15 },
-  label: {
-    color: "#475569",
-    fontWeight: "600",
-    marginBottom: 5,
-    marginLeft: 5,
-  },
+  label: { color: "#475569", fontWeight: "600", marginBottom: 5 },
   input: { backgroundColor: "#f1f5f9", padding: 15, borderRadius: 15 },
-  button: {
-    backgroundColor: "#58c058",
-    padding: 18,
-    borderRadius: 15,
-    width: "100%",
-    alignItems: "center",
-    marginTop: 10,
-  },
+  button: { backgroundColor: "#58c058", padding: 18, borderRadius: 15, width: "100%", alignItems: "center" },
   buttonText: { color: "white", fontWeight: "bold", fontSize: 18 },
-  footerContainer: {
-    marginTop: 30,
-    alignItems: "center",
-  },
-  designedByText: {
-    color: "#94a3b8",
-    fontSize: 9,
-    fontWeight: "700",
-    letterSpacing: 1,
-    marginBottom: 5,
-  },
-  footerLogo: {
-    width: 120, // Adjust size as needed
-    height: 40,
-  },
+  footerContainer: { marginTop: 30, alignItems: "center" },
+  designedByText: { color: "#94a3b8", fontSize: 9, fontWeight: "700", marginBottom: 5 },
+  footerLogo: { width: 120, height: 40 },
 });

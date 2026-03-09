@@ -11,6 +11,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import { LinearGradient } from 'expo-linear-gradient';
 
 import { fetchDashboardStats, fetchRecentActivity } from "../services/dashboardApi";
 import { setAuthToken } from "../services/Api";
@@ -115,13 +116,8 @@ export default function DashboardScreen({ navigation }) {
   const renderRecentActivity = () => {
     if (loading) return <ActivityIndicator color="#2563eb" style={{ padding: 20 }} />;
 
-    let dataToRender = [];
-    let iconName = "help-circle-outline";
-    let iconColor = "#64748b";
-
     if (activeStat === "shops") {
-      dataToRender = recent.shops.slice(0, 3);
-      return dataToRender.map((s, idx) => (
+      return recent.shops.slice(0, 3).map((s, idx) => (
         <View key={`shop-${idx}`} style={styles.activityTap}>
           <View style={styles.activityRow}>
             <MaterialCommunityIcons name="storefront-outline" size={24} color="#3cbf00" />
@@ -156,20 +152,29 @@ export default function DashboardScreen({ navigation }) {
 
   return (
     <View style={styles.screenWrapper}>
-      {/* 1. EVERYTHING SCROLLABLE GOES HERE */}
       <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
-        <View style={styles.header}>
+        
+        {/* HEADER WITH CORRECT GRADIENT COLORS */}
+        <LinearGradient
+          colors={['#275ddb', '#5bc9ed']}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 0.5, y: 0 }}
+          style={styles.header}
+        >
           <View>
             <Text style={styles.headerTitle}>Dashboard</Text>
             <Text style={styles.headerSub}>Hello, {userName}!</Text>
           </View>
-          <TouchableOpacity style={styles.logoutBtn} onPress={async () => {
-            await AsyncStorage.clear();
-            navigation.replace("Login");
-          }}>
+          <TouchableOpacity 
+            style={styles.logoutBtn} 
+            onPress={async () => {
+              await AsyncStorage.clear();
+              navigation.replace("Login");
+            }}
+          >
             <MaterialCommunityIcons name="logout" size={24} color="white" />
           </TouchableOpacity>
-        </View>
+        </LinearGradient>
 
         <View style={styles.statGrid}>
           <StatCard color="#3cbf00" icon="store" label="Shops" value={stats.shops.toString()} active={activeStat === "shops"} onPress={() => setActiveStat("shops")} />
@@ -179,6 +184,7 @@ export default function DashboardScreen({ navigation }) {
         </View>
 
         <Text style={styles.sectionTitle}>Quick Actions</Text>
+        {/* FIXED: Changed <div> to <View> and updated styles for horizontal layout */}
         <View style={styles.actionRow}>
           <ActionBtn imageSource={require("../assets/shop.jpg")} label="Shops" onPress={() => navigation.navigate("ShopList")} />
           <ActionBtn imageSource={require("../assets/pending.png")} label="Pending" onPress={() => navigation.navigate("PendingBills")} />
@@ -193,7 +199,6 @@ export default function DashboardScreen({ navigation }) {
         <View style={{ height: 120 }} /> 
       </ScrollView>
 
-      {/* 2. FAB IS ABSOLUTELY FIXED AT THE BOTTOM RIGHT */}
       <TouchableOpacity 
         style={styles.fab} 
         activeOpacity={0.8}
@@ -232,22 +237,41 @@ const styles = StyleSheet.create({
     flex: 1 
   },
   header: { 
-    backgroundColor: "#2563eb", 
     padding: 40, 
     paddingTop: 60, 
     borderBottomLeftRadius: 40, 
-    borderBottomRightRadius: 40 
+    borderBottomRightRadius: 40,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    overflow: 'hidden' 
   },
   headerTitle: { color: "white", fontSize: 26, fontWeight: "bold" },
   headerSub: { color: "#bfdbfe", fontSize: 16 },
-  logoutBtn: { position: "absolute", right: 25, top: 65 },
   statGrid: { flexDirection: "row", flexWrap: "wrap", padding: 10, justifyContent: "space-between" },
   statCard: { width: "47%", padding: 20, borderRadius: 20, margin: 5, height: 130, justifyContent: "space-between", elevation: 4 },
   statValue: { color: "white", fontSize: 16, fontWeight: "bold" },
   statLabel: { color: "white", opacity: 0.9, fontSize: 12 },
   sectionTitle: { paddingHorizontal: 20, paddingTop: 20, fontSize: 18, fontWeight: "bold", color: '#1e293b' },
-  actionRow: { flexDirection: "row", paddingHorizontal: 15, justifyContent: "space-around", marginTop: 15 },
-  actionBtn: { backgroundColor: "white", padding: 15, borderRadius: 20, width: "30%", alignItems: "center", elevation: 2 },
+  // UPDATED: Ensuring the row style is correct
+  actionRow: { 
+    flexDirection: "row", 
+    paddingHorizontal: 20, 
+    justifyContent: "space-between", 
+    marginTop: 15 
+  },
+  actionBtn: { 
+    backgroundColor: "white", 
+    paddingVertical: 15, 
+    borderRadius: 20, 
+    width: "30%", 
+    alignItems: "center", 
+    elevation: 2,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 3,
+  },
   actionLabel: { fontSize: 11, marginTop: 6, fontWeight: "bold", color: '#475569' },
   customIcon: { width: 32, height: 32, resizeMode: "contain" },
   activityBox: { backgroundColor: "white", margin: 20, padding: 15, borderRadius: 20, elevation: 3 },
@@ -267,10 +291,6 @@ const styles = StyleSheet.create({
     justifyContent: "center", 
     alignItems: "center", 
     elevation: 12,
-    zIndex: 999, // IMPORTANT: Keeps it above the ScrollView
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 5 },
-    shadowOpacity: 0.4,
-    shadowRadius: 5,
+    zIndex: 999,
   },
 });
