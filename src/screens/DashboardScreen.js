@@ -10,6 +10,7 @@ import {
   Text,
   TouchableOpacity,
   View,
+  Platform,
 } from "react-native";
 import { LinearGradient } from 'expo-linear-gradient';
 
@@ -151,10 +152,15 @@ export default function DashboardScreen({ navigation }) {
   };
 
   return (
-    <View style={styles.screenWrapper}>
+    // UPDATED: Main background now matches the login screen
+    <LinearGradient
+      colors={["#ffffff", "#9dbee1"]} 
+      style={styles.screenWrapper}
+      start={{ x: 0, y: 0 }}
+      end={{ x: 0, y: 2.5 }}
+    >
       <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
         
-        {/* HEADER WITH CORRECT GRADIENT COLORS */}
         <LinearGradient
           colors={['#275ddb', '#5bc9ed']}
           start={{ x: 0, y: 0 }}
@@ -184,7 +190,6 @@ export default function DashboardScreen({ navigation }) {
         </View>
 
         <Text style={styles.sectionTitle}>Quick Actions</Text>
-        {/* FIXED: Changed <div> to <View> and updated styles for horizontal layout */}
         <View style={styles.actionRow}>
           <ActionBtn imageSource={require("../assets/shop.jpg")} label="Shops" onPress={() => navigation.navigate("ShopList")} />
           <ActionBtn imageSource={require("../assets/pending.png")} label="Pending" onPress={() => navigation.navigate("PendingBills")} />
@@ -192,6 +197,7 @@ export default function DashboardScreen({ navigation }) {
         </View>
 
         <Text style={styles.sectionTitle}>Recent {activeStat}</Text>
+        {/* UPDATED: Added glass effect to activityBox */}
         <View style={styles.activityBox}>
           {renderRecentActivity()}
         </View>
@@ -206,7 +212,7 @@ export default function DashboardScreen({ navigation }) {
       >
         <MaterialCommunityIcons name="plus" size={35} color="white" />
       </TouchableOpacity>
-    </View>
+    </LinearGradient>
   );
 }
 
@@ -231,7 +237,6 @@ const ActionBtn = ({ label, onPress, imageSource }) => (
 const styles = StyleSheet.create({
   screenWrapper: { 
     flex: 1, 
-    backgroundColor: "#f8fafc" 
   },
   container: { 
     flex: 1 
@@ -249,37 +254,61 @@ const styles = StyleSheet.create({
   headerTitle: { color: "white", fontSize: 26, fontWeight: "bold" },
   headerSub: { color: "#bfdbfe", fontSize: 16 },
   statGrid: { flexDirection: "row", flexWrap: "wrap", padding: 10, justifyContent: "space-between" },
-  statCard: { width: "47%", padding: 20, borderRadius: 20, margin: 5, height: 130, justifyContent: "space-between", elevation: 4 },
+  statCard: { 
+    width: "47%", 
+    padding: 20, 
+    borderRadius: 20, 
+    margin: 5, 
+    height: 130, 
+    justifyContent: "space-between",
+    ...Platform.select({
+      ios: { shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 3 },
+      android: { elevation: 4 }
+    })
+  },
   statValue: { color: "white", fontSize: 16, fontWeight: "bold" },
   statLabel: { color: "white", opacity: 0.9, fontSize: 12 },
   sectionTitle: { paddingHorizontal: 20, paddingTop: 20, fontSize: 18, fontWeight: "bold", color: '#1e293b' },
-  // UPDATED: Ensuring the row style is correct
   actionRow: { 
     flexDirection: "row", 
     paddingHorizontal: 20, 
     justifyContent: "space-between", 
     marginTop: 15 
   },
+  // UPDATED: Added Liquid Glass effect to Quick Action Buttons
   actionBtn: { 
-    backgroundColor: "white", 
+    backgroundColor: "rgba(255, 255, 255, 0.4)", // Translucent
     paddingVertical: 15, 
     borderRadius: 20, 
     width: "30%", 
     alignItems: "center", 
-    elevation: 2,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 3,
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.5)", // Glass border
+    ...Platform.select({
+      ios: { shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 3 },
+      android: { elevation: 2 }
+    })
   },
-  actionLabel: { fontSize: 11, marginTop: 6, fontWeight: "bold", color: '#475569' },
+  actionLabel: { fontSize: 11, marginTop: 6, fontWeight: "bold", color: '#1e293b' },
   customIcon: { width: 32, height: 32, resizeMode: "contain" },
-  activityBox: { backgroundColor: "white", margin: 20, padding: 15, borderRadius: 20, elevation: 3 },
+  // UPDATED: Added Liquid Glass effect to Recent Activity Box
+  activityBox: { 
+    backgroundColor: "rgba(255, 255, 255, 0.35)", // Translucent
+    margin: 20, 
+    padding: 15, 
+    borderRadius: 20, 
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.4)",
+    ...Platform.select({
+      ios: { shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 3 },
+      android: { elevation: 3 }
+    })
+  },
   activityItem: { fontSize: 14, color: "#1e293b", fontWeight: '700' },
-  activitySub: { color: "#64748b", fontSize: 12, marginTop: 2 },
-  activityTap: { paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: '#f1f5f9' },
+  activitySub: { color: "#475569", fontSize: 12, marginTop: 2 },
+  activityTap: { paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: 'rgba(255, 255, 255, 0.2)' },
   activityRow: { flexDirection: 'row', alignItems: 'center' },
-  emptyText: { textAlign: 'center', color: '#94a3b8', padding: 20 },
+  emptyText: { textAlign: 'center', color: '#64748b', padding: 20 },
   fab: { 
     position: "absolute", 
     bottom: 110, 
