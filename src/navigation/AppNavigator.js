@@ -1,23 +1,30 @@
 import React from "react";
 import { createStackNavigator } from "@react-navigation/stack";
 
+import OpeningScreen from "../screens/openingscreen"; 
 import LoginScreen from "../screens/LoginScreen";
 import DashboardScreen from "../screens/DashboardScreen";
 import ShopListScreen from "../screens/ShopListScreen";
 import BillListScreen from "../screens/BillListScreen";
 import BillDetailScreen from "../screens/BillDetailScreen";
 import ViewBillScreen from "../screens/ViewBillScreen";
-import AddBillScreen  from "../screens/AddBillScreen";
-import AddShopScreen  from "../screens/AddShopScreen";
+import AddBillScreen from "../screens/AddBillScreen";
+import AddShopScreen from "../screens/AddShopScreen";
 import PaymentScreen from "../screens/PaymentScreen";
 import PendingBillsScreen from "../screens/PendingBillsScreen";
-
 
 const Stack = createStackNavigator();
 
 export default function AppNavigator() {
   return (
-    <Stack.Navigator initialRouteName="Login" screenOptions={{ headerShown: false }}>
+    <Stack.Navigator 
+      initialRouteName="Opening" // ✅ Set this as the starting point
+      screenOptions={{ headerShown: false }}
+    >
+      {/* --- Splash / Opening Screen --- */}
+      <Stack.Screen name="Opening" component={OpeningScreen} />
+
+      {/* --- Auth & Main Screens --- */}
       <Stack.Screen name="Login" component={LoginScreen} />
       <Stack.Screen name="Dashboard" component={DashboardScreen} />
       <Stack.Screen name="ShopList" component={ShopListScreen} />
@@ -26,10 +33,8 @@ export default function AppNavigator() {
       <Stack.Screen name="Payment" component={PaymentScreen} />
       <Stack.Screen name="PendingBills" component={PendingBillsScreen} />
       <Stack.Screen name="ViewBill" component={ViewBillScreen} />
-
       <Stack.Screen name="AddBill" component={AddBillScreen} />
       <Stack.Screen name="AddShop" component={AddShopScreen} />
-
     </Stack.Navigator>
   );
 }

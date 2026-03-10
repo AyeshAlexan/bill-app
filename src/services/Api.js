@@ -23,5 +23,8 @@ Api.interceptors.response.use(
     return Promise.reject(err);
   }
 );
-
+Api.interceptors.request.use((config) => {
+  console.log("REQUEST URL:", config.baseURL + config.url);
+  return config;
+});
 export default Api;
