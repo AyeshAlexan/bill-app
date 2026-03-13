@@ -1,6 +1,7 @@
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import DateTimePicker from "@react-native-community/datetimepicker";
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useEffect, useMemo, useState, useRef } from "react";
 import {
   ActivityIndicator,
@@ -24,7 +25,7 @@ import { fetchItems } from "../services/itemApi";
 import { fetchRoutes, fetchShopsByRoute } from "../services/shopApi";
 import { fetchSalesmen } from "../services/salesmanApi";
 
-// --- UPDATED: ANIMATED SHOP ITEM COMPONENT (With Prices) ---
+// --- ANIMATED SHOP/ITEM COMPONENT ---
 const AnimatedShopItem = ({ item, index, onSelect, icon = "storefront-outline" }) => {
   const animatedValue = useRef(new Animated.Value(0)).current;
 
@@ -55,13 +56,12 @@ const AnimatedShopItem = ({ item, index, onSelect, icon = "storefront-outline" }
     >
       <TouchableOpacity onPress={() => onSelect(item)} style={{ flexDirection: 'row', alignItems: 'center' }}>
         <View style={styles.shopIconCircle}>
-            <MaterialCommunityIcons name={icon} size={20} color="#2563eb" />
+          <MaterialCommunityIcons name={icon} size={20} color="#2563eb" />
         </View>
         <View style={{ flex: 1 }}>
           <Text style={styles.modalItemTitle}>{item.name || item.description}</Text>
           <Text style={styles.modalItemSub}>Code: {item.code} {item.phone ? `• ${item.phone}` : ""}</Text>
         </View>
-        {/* NEW: Price Display */}
         {item.price !== undefined && (
           <View style={styles.priceBadge}>
             <Text style={styles.priceBadgeText}>Rs.{item.price}</Text>
@@ -73,7 +73,7 @@ const AnimatedShopItem = ({ item, index, onSelect, icon = "storefront-outline" }
   );
 };
 
-// --- NEW: PULSE ANIMATED BUTTON FOR PAY NOW ---
+// --- PULSE ANIMATED BUTTON FOR PAY NOW ---
 const PulsePayButton = ({ onPress, title }) => {
   const pulseAnim = useRef(new Animated.Value(1)).current;
 
@@ -109,10 +109,10 @@ const BillLoader = ({ message = "Preparing Invoice..." }) => {
     ).start();
 
     Animated.loop(
-        Animated.sequence([
-          Animated.timing(shakeAnim, { toValue: 5, duration: 400, useNativeDriver: true }),
-          Animated.timing(shakeAnim, { toValue: -5, duration: 400, useNativeDriver: true }),
-        ])
+      Animated.sequence([
+        Animated.timing(shakeAnim, { toValue: 5, duration: 400, useNativeDriver: true }),
+        Animated.timing(shakeAnim, { toValue: -5, duration: 400, useNativeDriver: true }),
+      ])
     ).start();
   }, []);
 
@@ -545,7 +545,7 @@ export default function AddBillScreen({ navigation }) {
         </View>
       </Modal>
 
-      {/* MODAL: SELECTIONS */}
+      {/* MODAL: SELECTIONS (Routes, Shops, Salesmen) */}
       <SelectionModal 
         visible={routeModal} 
         title="Select Route" 
@@ -579,7 +579,7 @@ export default function AddBillScreen({ navigation }) {
         icon="account-tie-outline"
       />
       
-      {/* ITEMS MODAL - Updated to pass Prices */}
+      {/* ITEMS MODAL */}
       <Modal visible={itemModal} transparent animationType="fade">
         <ModalBox title="Select Item" searchValue={itemSearch} onSearch={setItemSearch} onClose={() => setItemModal(false)}>
           <FlatList
@@ -590,7 +590,7 @@ export default function AddBillScreen({ navigation }) {
                 item={{ 
                   name: item.Item_description, 
                   code: item.Item_code,
-                  price: item.saleprice // Added price
+                  price: item.saleprice 
                 }} 
                 index={index} 
                 onSelect={() => chooseItem(item)} 
@@ -601,7 +601,7 @@ export default function AddBillScreen({ navigation }) {
         </ModalBox>
       </Modal>
 
-      {/* SUCCESS MODAL - Updated with Pulse Animation */}
+      {/* SUCCESS MODAL */}
       <Modal visible={successModal} transparent animationType="fade">
         <View style={styles.modalOverlay}>
           <View style={styles.modernCard}>
@@ -616,7 +616,6 @@ export default function AddBillScreen({ navigation }) {
                 <Text style={styles.modernNoText}>Later</Text>
               </TouchableOpacity>
               
-              {/* Pulse Animated Payment Button */}
               <PulsePayButton 
                 title="Pay Now" 
                 onPress={() => { setSuccessModal(false); navigation.replace("BillDetail", { invoiceNo: savedInvoiceNo }); }}
@@ -713,6 +712,7 @@ function ModalBox({ title, searchValue, onSearch, onClose, children }) {
   );
 }
 
+// --- STYLES ---
 const loaderStyles = StyleSheet.create({
   container: { height: 100, alignItems: 'center', justifyContent: 'center' },
   title: { fontSize: 18, fontWeight: '800', color: '#1e293b', marginTop: 20 },
@@ -775,20 +775,19 @@ const styles = StyleSheet.create({
   modernYesBtn: { width: "100%", paddingVertical: 14, borderRadius: 14, backgroundColor: "#2563eb", alignItems: "center", elevation: 4 },
   modernNoText: { color: "#ef4444", fontWeight: "700" },
   modernYesText: { color: "white", fontWeight: "700" },
-  modalCard: { backgroundColor: "white", borderRadius: 25, padding: 20, width: "95%", maxHeight: "85%", maxWidth: 450, elevation: 20 },
-  modalTitle: { fontSize: 18, fontWeight: "900", color: "#1e293b" },
-  searchContainer: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#f1f5f9', borderRadius: 12, paddingHorizontal: 12, marginBottom: 15, borderWidth: 1, borderColor: '#e2e8f0' },
-  modalSearchInput: { flex: 1, paddingVertical: 12, marginLeft: 8, color: "#1e293b", fontWeight: '600' },
-  modalInput: { backgroundColor: '#f8fafc', paddingHorizontal: 15, paddingVertical: 14, borderRadius: 12, borderWidth: 1, borderColor: '#e2e8f0', color: '#1e293b', fontSize: 16, fontWeight: '700', marginBottom: 10 },
-  modalCancelBtn: { backgroundColor: '#f1f5f9', paddingVertical: 14, width: '48%', borderRadius: 12, alignItems: 'center' },
-  modalCancelText: { color: '#64748b', fontWeight: '700' },
-  modalUpdateBtn: { backgroundColor: '#2563eb', paddingVertical: 14, width: '48%', borderRadius: 12, alignItems: 'center' },
+  modalCard: { backgroundColor: "white", borderRadius: 25, padding: 20, width: "95%", shadowColor: "#000", shadowOffset: { width: 0, height: 10 }, shadowOpacity: 0.1, shadowRadius: 20, elevation: 10 },
+  modalTitle: { fontSize: 18, fontWeight: "800", color: "#1e293b" },
+  searchContainer: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#f1f5f9', borderRadius: 12, paddingHorizontal: 12, marginBottom: 15 },
+  modalSearchInput: { flex: 1, paddingVertical: 12, fontSize: 15, color: '#1e293b', marginLeft: 8, fontWeight: '600' },
+  modalItem: { paddingVertical: 15, borderBottomWidth: 1, borderBottomColor: '#f1f5f9' },
+  shopIconCircle: { width: 40, height: 40, borderRadius: 20, backgroundColor: '#eff6ff', justifyContent: 'center', alignItems: 'center', marginRight: 12 },
+  modalItemTitle: { fontSize: 15, fontWeight: '700', color: '#1e293b' },
+  modalItemSub: { fontSize: 12, color: '#64748b', marginTop: 2 },
+  priceBadge: { backgroundColor: '#dcfce7', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8, marginRight: 8 },
+  priceBadgeText: { color: '#166534', fontSize: 12, fontWeight: '700' },
+  modalInput: { backgroundColor: "#f8fafc", padding: 15, borderRadius: 12, borderWidth: 1, borderColor: "#e2e8f0", fontSize: 18, textAlign: 'center', fontWeight: 'bold', color: '#2563eb', marginBottom: 15 },
+  modalUpdateBtn: { flex: 1, backgroundColor: '#2563eb', padding: 14, borderRadius: 12, alignItems: 'center', marginLeft: 8 },
   modalUpdateText: { color: 'white', fontWeight: '800' },
-  modalItem: { paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: "#f1f5f9" },
-  modalItemTitle: { fontSize: 15, fontWeight: "700", color: "#1e293b" },
-  modalItemSub: { fontSize: 12, color: "#64748b", marginTop: 2 },
-  shopIconCircle: { width: 40, height: 40, borderRadius: 20, backgroundColor: "#eff6ff", justifyContent: "center", alignItems: "center", marginRight: 12 },
-  // Price Badge Styles
-  priceBadge: { backgroundColor: '#f0fdf4', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8, marginRight: 8, borderWidth: 1, borderColor: '#dcfce7' },
-  priceBadgeText: { color: '#16a34a', fontWeight: '800', fontSize: 12 }
+  modalCancelBtn: { flex: 1, backgroundColor: '#f1f5f9', padding: 14, borderRadius: 12, alignItems: 'center', marginRight: 8 },
+  modalCancelText: { color: '#64748b', fontWeight: '700' },
 });

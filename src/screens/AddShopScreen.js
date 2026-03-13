@@ -4,6 +4,7 @@ import {
 } from "react-native";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { addShop } from "../services/shopApi";
+import { SafeAreaView } from 'react-native-safe-area-context';
 import Toast from "react-native-toast-message";
 
 export default function AddShopScreen({ navigation, route }) {
