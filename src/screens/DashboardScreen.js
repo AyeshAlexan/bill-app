@@ -102,7 +102,7 @@ export default function DashboardScreen({ navigation }) {
         style={styles.activityTap}
       >
         <View style={styles.activityRow}>
-          <MaterialCommunityIcons name="file-document-outline" size={24} color="#64748b" />
+          <MaterialCommunityIcons name="file-document-outline" size={24} color="#1e293b" />
           <View style={{ marginLeft: 12, flex: 1 }}>
             <Text style={styles.activityItem}>INV-{b.Invoice_no} • {b.Customer_Name}</Text>
             <Text style={styles.activitySub}>
@@ -121,7 +121,7 @@ export default function DashboardScreen({ navigation }) {
       return recent.shops.slice(0, 3).map((s, idx) => (
         <View key={`shop-${idx}`} style={styles.activityTap}>
           <View style={styles.activityRow}>
-            <MaterialCommunityIcons name="storefront-outline" size={24} color="#3cbf00" />
+            <MaterialCommunityIcons name="storefront-outline" size={24} color="#1e293b" />
             <View style={{ marginLeft: 12 }}>
               <Text style={styles.activityItem}>{s.Name || s.name}</Text>
               <Text style={styles.activitySub}>{s.City_1 || "Location"}</Text>
@@ -138,7 +138,7 @@ export default function DashboardScreen({ navigation }) {
       return recent.payments.slice(0, 3).map((p, idx) => (
         <View key={`pay-${idx}`} style={styles.activityTap}>
           <View style={styles.activityRow}>
-            <MaterialCommunityIcons name="cash-check" size={24} color="#f97316" />
+            <MaterialCommunityIcons name="cash-check" size={24} color="#1e293b" />
             <View style={{ marginLeft: 12 }}>
               <Text style={styles.activityItem}>{formatMoney(p.Payment_Amount)}</Text>
               <Text style={styles.activitySub}>{p.Customer_Name}</Text>
@@ -152,67 +152,67 @@ export default function DashboardScreen({ navigation }) {
   };
 
   return (
-    // UPDATED: Main background now matches the login screen
-    <LinearGradient
-      colors={["#ffffff", "#9dbee1"]} 
-      style={styles.screenWrapper}
-      start={{ x: 0, y: 0 }}
-      end={{ x: 0, y: 2.5 }}
-    >
-      <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
-        
-        <LinearGradient
-          colors={['#275ddb', '#5bc9ed']}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 0.5, y: 0 }}
-          style={styles.header}
-        >
-          <View>
-            <Text style={styles.headerTitle}>Dashboard</Text>
-            <Text style={styles.headerSub}>Hello, {userName}!</Text>
-          </View>
-          <TouchableOpacity 
-            style={styles.logoutBtn} 
-            onPress={async () => {
-              await AsyncStorage.clear();
-              navigation.replace("Login");
-            }}
-          >
-            <MaterialCommunityIcons name="logout" size={24} color="white" />
-          </TouchableOpacity>
-        </LinearGradient>
-
-        <View style={styles.statGrid}>
-          <StatCard color="#3cbf00" icon="store" label="Shops" value={stats.shops.toString()} active={activeStat === "shops"} onPress={() => setActiveStat("shops")} />
-          <StatCard color="#ef4444" icon="clock-outline" label="Pending" value={stats.pending.toString()} active={activeStat === "pending"} onPress={() => setActiveStat("pending")} />
-          <StatCard color="#f97316" icon="trending-up" label="Collected" value={formatMoney(stats.collected)} active={activeStat === "collected"} onPress={() => setActiveStat("collected")} />
-          <StatCard color="#3b82f6" icon="check-all" label="Paid" value={stats.paid.toString()} active={activeStat === "paid"} onPress={() => setActiveStat("paid")} />
-        </View>
-
-        <Text style={styles.sectionTitle}>Quick Actions</Text>
-        <View style={styles.actionRow}>
-          <ActionBtn imageSource={require("../assets/shop.jpg")} label="Shops" onPress={() => navigation.navigate("ShopList")} />
-          <ActionBtn imageSource={require("../assets/pending.png")} label="Pending" onPress={() => navigation.navigate("PendingBills")} />
-          <ActionBtn imageSource={require("../assets/payment-icon.png")} label="Payments" onPress={() => navigation.navigate("Payment")} />
-        </View>
-
-        <Text style={styles.sectionTitle}>Recent {activeStat}</Text>
-        {/* UPDATED: Added glass effect to activityBox */}
-        <View style={styles.activityBox}>
-          {renderRecentActivity()}
-        </View>
-
-        <View style={{ height: 120 }} /> 
-      </ScrollView>
-
-      <TouchableOpacity 
-        style={styles.fab} 
-        activeOpacity={0.8}
-        onPress={() => navigation.navigate("AddBill")}
+    <View style={{ flex: 1, backgroundColor: '#f0fdf4' }}> 
+      <LinearGradient
+        colors={["#86efadd0","#f0fdf4", "#86edacd0", "#ffffff99",]} 
+        style={styles.screenWrapper}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 0, y: 1 }}
       >
-        <MaterialCommunityIcons name="plus" size={35} color="white" />
-      </TouchableOpacity>
-    </LinearGradient>
+        <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
+          
+          <LinearGradient
+            colors={['#275ddb', '#5bc9ed']}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 0.5, y: 0 }}
+            style={styles.header}
+          >
+            <View>
+              <Text style={styles.headerTitle}>Dashboard</Text>
+              <Text style={styles.headerSub}>Hello, {userName}!</Text>
+            </View>
+            <TouchableOpacity 
+              style={styles.logoutBtn} 
+              onPress={async () => {
+                await AsyncStorage.clear();
+                navigation.replace("Login");
+              }}
+            >
+              <MaterialCommunityIcons name="logout" size={24} color="white" />
+            </TouchableOpacity>
+          </LinearGradient>
+
+          <View style={styles.statGrid}>
+            <StatCard color="#3cbf00" icon="store" label="Shops" value={stats.shops.toString()} active={activeStat === "shops"} onPress={() => setActiveStat("shops")} />
+            <StatCard color="#ef4444" icon="clock-outline" label="Pending" value={stats.pending.toString()} active={activeStat === "pending"} onPress={() => setActiveStat("pending")} />
+            <StatCard color="#f97316" icon="trending-up" label="Collected" value={formatMoney(stats.collected)} active={activeStat === "collected"} onPress={() => setActiveStat("collected")} />
+            <StatCard color="#3b82f6" icon="check-all" label="Paid" value={stats.paid.toString()} active={activeStat === "paid"} onPress={() => setActiveStat("paid")} />
+          </View>
+
+          <Text style={styles.sectionTitle}>Quick Actions</Text>
+          <View style={styles.actionRow}>
+            <ActionBtn imageSource={require("../assets/shop.jpg")} label="Shops" onPress={() => navigation.navigate("ShopList")} />
+            <ActionBtn imageSource={require("../assets/pending.png")} label="Pending" onPress={() => navigation.navigate("PendingBills")} />
+            <ActionBtn imageSource={require("../assets/payment-icon.png")} label="Payments" onPress={() => navigation.navigate("Payment")} />
+          </View>
+
+          <Text style={styles.sectionTitle}>Recent {activeStat}</Text>
+          <View style={styles.activityBox}>
+            {renderRecentActivity()}
+          </View>
+
+          <View style={{ height: 120 }} /> 
+        </ScrollView>
+
+        <TouchableOpacity 
+          style={styles.fab} 
+          activeOpacity={0.8}
+          onPress={() => navigation.navigate("AddBill")}
+        >
+          <MaterialCommunityIcons name="plus" size={35} color="white" />
+        </TouchableOpacity>
+      </LinearGradient>
+    </View>
   );
 }
 
@@ -229,7 +229,9 @@ const StatCard = ({ color, icon, label, value, onPress, active }) => (
 
 const ActionBtn = ({ label, onPress, imageSource }) => (
   <TouchableOpacity style={styles.actionBtn} onPress={onPress}>
-    <Image source={imageSource} style={styles.customIcon} />
+    <View style={styles.iconContainer}>
+       <Image source={imageSource} style={styles.customIcon} />
+    </View>
     <Text style={styles.actionLabel}>{label}</Text>
   </TouchableOpacity>
 );
@@ -261,10 +263,7 @@ const styles = StyleSheet.create({
     margin: 5, 
     height: 130, 
     justifyContent: "space-between",
-    ...Platform.select({
-      ios: { shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 3 },
-      android: { elevation: 4 }
-    })
+    elevation: 4
   },
   statValue: { color: "white", fontSize: 16, fontWeight: "bold" },
   statLabel: { color: "white", opacity: 0.9, fontSize: 12 },
@@ -275,34 +274,31 @@ const styles = StyleSheet.create({
     justifyContent: "space-between", 
     marginTop: 15 
   },
-  // UPDATED: Added Liquid Glass effect to Quick Action Buttons
+  // LIQUID GLASS FIXED: Removed elevation and solid white
   actionBtn: { 
-    backgroundColor: "rgba(255, 255, 255, 0.4)", // Translucent
+    backgroundColor: "rgba(255, 255, 255, 0.25)", // Very transparent
     paddingVertical: 15, 
-    borderRadius: 20, 
+    borderRadius: 25, 
     width: "30%", 
     alignItems: "center", 
-    borderWidth: 1,
-    borderColor: "rgba(255, 255, 255, 0.5)", // Glass border
-    ...Platform.select({
-      ios: { shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 3 },
-      android: { elevation: 2 }
-    })
+    borderWidth: 1.5,
+    borderColor: "rgba(255, 255, 255, 0.5)", // Shiny glass edge
   },
-  actionLabel: { fontSize: 11, marginTop: 6, fontWeight: "bold", color: '#1e293b' },
-  customIcon: { width: 32, height: 32, resizeMode: "contain" },
-  // UPDATED: Added Liquid Glass effect to Recent Activity Box
+  iconContainer: {
+    backgroundColor: 'rgba(255, 255, 255, 0.4)',
+    padding: 8,
+    borderRadius: 12,
+  },
+  actionLabel: { fontSize: 12, marginTop: 8, fontWeight: "bold", color: '#1e293b' },
+  customIcon: { width: 28, height: 28, resizeMode: "contain" },
+  // LIQUID GLASS FIXED: Semi-transparent activity box
   activityBox: { 
-    backgroundColor: "rgba(255, 255, 255, 0.35)", // Translucent
+    backgroundColor: "rgba(255, 255, 255, 0.3)", 
     margin: 20, 
     padding: 15, 
-    borderRadius: 20, 
-    borderWidth: 1,
-    borderColor: "rgba(255, 255, 255, 0.4)",
-    ...Platform.select({
-      ios: { shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 3 },
-      android: { elevation: 3 }
-    })
+    borderRadius: 25, 
+    borderWidth: 1.5,
+    borderColor: "rgba(255, 255, 255, 0.6)",
   },
   activityItem: { fontSize: 14, color: "#1e293b", fontWeight: '700' },
   activitySub: { color: "#475569", fontSize: 12, marginTop: 2 },
