@@ -155,7 +155,7 @@ export default function BillDetailScreen({ route, navigation }) {
           ${logoUri ? `<img src="${logoUri}" style="width: 80px; margin-bottom: 5px;" />` : ''}
           <div style="font-size: 18px; font-weight: bold;">BUDDIKA DISTRIBUTORS</div>
           <div style="font-size: 12px;">Tel: 0772957067</div>
-          <div style="border: 1.5px solid #000; display: inline-block; padding: 4px 12px; margin: 10px 0; font-weight: bold;">CASH RECEIPT</div>
+          <div style="border: 1.5px solid #000; display: inline-block; padding: 4px 12px; margin: 10px 0; font-weight: bold;">BILL RECEIPT</div>
         </div>
         <div style="font-size: 11px; margin-top: 10px;">
           <div style="display: flex; justify-content: space-between;"><span>Date: ${bill?.Invoice_date || bill?.date}</span><span>Inv: ${invoiceNo}</span></div>
@@ -180,28 +180,32 @@ export default function BillDetailScreen({ route, navigation }) {
   };
 
   const handlePrint = async () => {
-    try {
-      setPrinting(true);
-      const asset = Asset.fromModule(logo);
-      await asset.downloadAsync();
-      const logoUri = asset.localUri || asset.uri;
-      const finalHtml = buildThermalHtml(logoUri);
-      const jobName = `BUDDIKA DISTRIBUTORS - Invoice (${invoiceNo})`;
+  try {
+    setPrinting(true);
+    const asset = Asset.fromModule(logo);
+    await asset.downloadAsync();
+    const logoUri = asset.localUri || asset.uri;
+    const finalHtml = buildThermalHtml(logoUri);
 
-      if (Platform.OS === "web") {
-        const w = window.open(""); 
-        w.document.write(finalHtml); 
-        w.document.close(); 
-        w.print();
-      } else {
-        await Print.printAsync({ html: finalHtml, jobName: jobName });
-      }
-    } catch (e) { 
-      Alert.alert("Print Error", "Could not generate print."); 
-    } finally { 
-      setPrinting(false); 
+    // --- UPDATE THIS LINE BELOW ---
+    const jobName = `BUDDIKA DISTRIBUTORS - Invoice (${invoiceNo})`; 
+    // ------------------------------
+
+    if (Platform.OS === "web") {
+      const w = window.open(""); 
+      w.document.write(finalHtml); 
+      w.document.close(); 
+      // Note: On web, the filename is usually handled by the browser's print dialog
+      w.print();
+    } else {
+      await Print.printAsync({ html: finalHtml, jobName: jobName });
     }
-  };
+  } catch (e) { 
+    Alert.alert("Print Error", "Could not generate print."); 
+  } finally { 
+    setPrinting(false); 
+  }
+};
 
   const submitPayment = async () => {
     const amt = Number(amount || 0);
@@ -323,6 +327,7 @@ export default function BillDetailScreen({ route, navigation }) {
 
           <View style={[styles.divider, { marginVertical: 10 }]} />
 
+          {/* NET AMOUNT */}
           <View style={styles.totalRow}>
             <Text style={[styles.totalLabel, { color: "#0f172a", fontWeight: '700' }]}>Net Amount</Text>
             <Text style={[styles.totalValue, { fontSize: 18, color: "#0f172a" }]}>
@@ -330,8 +335,31 @@ export default function BillDetailScreen({ route, navigation }) {
             </Text>
           </View>
 
+          {/* 1️⃣ INTEGRATED: AMOUNT PAID & CHANGE RETURNED (Only when Paid) */}
+          {due <= 0.5 && (
+            <>
+              <View style={styles.totalRow}>
+                <Text style={styles.totalLabel}>Amount Paid</Text>
+                <Text style={styles.totalValue}>
+                  Rs. {paid.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                </Text>
+              </View>
+              
+              <View style={styles.totalRow}>
+                <Text style={styles.totalLabel}>Change</Text>
+                <Text style={[styles.totalValue, { color: "#059669" }]}>
+                  Rs. {(lastChange > 0 ? lastChange : 0).toFixed(2)}
+                </Text>
+              </View>
+              <View style={[styles.divider, { marginVertical: 5 }]} />
+            </>
+          )}
+
+          {/* BALANCE DUE */}
           <View style={styles.totalRow}>
-            <Text style={[styles.totalLabel, { color: '#e11d48', fontWeight: '700' }]}>Balance Due</Text>
+            <Text style={[styles.totalLabel, { color: due <= 0.5 ? "#059669" : '#e11d48', fontWeight: '700' }]}>
+              Balance Due
+            </Text>
             <Text style={[styles.totalValue, { color: due <= 0.5 ? "#059669" : "#e11d48", fontSize: 20 }]}>
               Rs. {due.toLocaleString(undefined, { minimumFractionDigits: 2 })}
             </Text>
@@ -410,10 +438,10 @@ export default function BillDetailScreen({ route, navigation }) {
             const itemDisc = Number(it.Discount ?? it.discount ?? it.disc_amount ?? it.Discount_Amount ?? 0);
             return (
               <View key={idx} style={styles.itemCard}>
-                <div style={styles.itemHeaderRow}>
+                <View style={styles.itemHeaderRow}>
                   <Text style={styles.itemName} numberOfLines={1}>{it.Item_description || it.item_desc || "Item"}</Text>
                   <Text style={styles.itemPrice}>Rs. {Number(it.Net_value || it.total || 0).toFixed(2)}</Text>
-                </div>
+                </View>
                 <View style={styles.itemMetaRow}>
                   <View style={styles.badge}><Text style={styles.badgeText}>Qty: {it.QTY || it.qty}</Text></View>
                   {(it.Free_Issues > 0 || it.free_issues > 0) && (
@@ -434,7 +462,7 @@ export default function BillDetailScreen({ route, navigation }) {
         </View>
       </ScrollView>
 
-      {/* UPDATED SUCCESS MODAL WITH PAYMENT SUMMARY */}
+      {/* SUCCESS MODAL */}
       <Modal visible={showSuccess} transparent animationType="fade">
         <View style={styles.modalOverlay}>
           <View style={styles.modernCard}>
@@ -523,8 +551,6 @@ const styles = StyleSheet.create({
   modernMessage: { color: "#64748b", marginVertical: 15, textAlign: "center", lineHeight: 20 },
   modernDoneBtn: { backgroundColor: "#1e293b", paddingHorizontal: 40, paddingVertical: 14, borderRadius: 12, marginTop: 10 },
   modernDoneText: { color: "white", fontWeight: "700" },
-  
-  // NEW STYLES FOR SUMMARY BOX
   modalSummaryBox: {
     backgroundColor: '#f8fafc',
     borderRadius: 15,
