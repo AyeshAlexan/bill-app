@@ -73,8 +73,9 @@ export default function DashboardScreen({ navigation }) {
         fetchRecentActivity(),
       ]);
 
+      // Map the backend keys to frontend state
       setStats({
-        shops: Number(statsData?.shops || 0),
+        shops: Number(statsData?.shops_count || 0),
         pending: Number(statsData?.pending_bills || 0),
         paid: Number(statsData?.paid_bills || 0),
         collected: Number(statsData?.total_collected || 0),
@@ -108,7 +109,6 @@ export default function DashboardScreen({ navigation }) {
 
   const formatMoney = (n) => `Rs.${Number(n || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}`;
 
-  // --- LIQUID GLASS TARGET PROGRESS COMPONENT ---
   const TargetProgressBar = () => {
     const target = stats.target;
     if (!target.target_amount || target.target_amount === 0) return null;
@@ -116,7 +116,7 @@ export default function DashboardScreen({ navigation }) {
     return (
       <View style={styles.targetWrapper}>
         <View style={styles.targetHeader}>
-          <Text style={styles.targetTitle}>{target.month_label} Sales Target</Text>
+          <Text style={styles.targetTitle}>{target.month_label} Bills Collection Target</Text>
           <Text style={styles.targetPercent}>{target.progress_percentage}%</Text>
         </View>
         
@@ -171,24 +171,24 @@ export default function DashboardScreen({ navigation }) {
     if (loading) return <ActivityIndicator color="#2563eb" style={{ padding: 20 }} />;
 
     if (activeStat === "shops") {
-      return recent.shops.slice(0, 3).map((s, idx) => (
+      return recent.shops.length > 0 ? recent.shops.slice(0, 3).map((s, idx) => (
         <View key={`shop-${idx}`} style={styles.activityTap}>
           <View style={styles.activityRow}>
             <MaterialCommunityIcons name="storefront-outline" size={24} color="#1e293b" />
             <View style={{ marginLeft: 12 }}>
-              <Text style={styles.activityItem}>{s.Name || s.name}</Text>
-              <Text style={styles.activitySub}>{s.City_1 || "Location"}</Text>
+              <Text style={styles.activityItem}>{s.Name || s.name || "Unknown Shop"}</Text>
+              <Text style={styles.activitySub}>{s.City_1 || "Location verified"}</Text>
             </View>
           </View>
         </View>
-      ));
+      )) : <Text style={styles.emptyText}>No recent visits.</Text>;
     }
 
-    if (activeStat === "pending") return recent.pending_bills.slice(0, 3).map((b, idx) => renderBillItem(b, idx));
-    if (activeStat === "paid") return recent.paid_bills.slice(0, 3).map((b, idx) => renderBillItem(b, idx));
+    if (activeStat === "pending") return recent.pending_bills.length > 0 ? recent.pending_bills.slice(0, 3).map((b, idx) => renderBillItem(b, idx)) : <Text style={styles.emptyText}>No pending bills.</Text>;
+    if (activeStat === "paid") return recent.paid_bills.length > 0 ? recent.paid_bills.slice(0, 3).map((b, idx) => renderBillItem(b, idx)) : <Text style={styles.emptyText}>No paid bills.</Text>;
 
     if (activeStat === "collected") {
-      return recent.payments.slice(0, 3).map((p, idx) => (
+      return recent.payments.length > 0 ? recent.payments.slice(0, 3).map((p, idx) => (
         <View key={`pay-${idx}`} style={styles.activityTap}>
           <View style={styles.activityRow}>
             <MaterialCommunityIcons name="cash-check" size={24} color="#1e293b" />
@@ -198,7 +198,7 @@ export default function DashboardScreen({ navigation }) {
             </View>
           </View>
         </View>
-      ));
+      )) : <Text style={styles.emptyText}>No recent payments.</Text>;
     }
 
     return <Text style={styles.emptyText}>No recent activity found.</Text>;
@@ -208,7 +208,7 @@ export default function DashboardScreen({ navigation }) {
     <SafeAreaView style={styles.safeAreaWrapper} edges={['bottom']}>
       <View style={{ flex: 1, backgroundColor: '#f0fdf4' }}> 
         <LinearGradient
-          colors={["#86efadd0","#f0fdf4", "#86edacd0", "#ffffff99",]} 
+          colors={["#86efadd0","#f0fdf4", "#86edacd0", "#ffffff99"]} 
           style={styles.screenWrapper}
           start={{ x: 0, y: 0 }}
           end={{ x: 0, y: 1 }}
@@ -243,7 +243,6 @@ export default function DashboardScreen({ navigation }) {
               <StatCard color="#3b82f6" icon="check-all" label="Paid" value={stats.paid.toString()} active={activeStat === "paid"} onPress={() => setActiveStat("paid")} />
             </View>
 
-            {/* TARGET BAR MOVED BELOW CARDS */}
             <TargetProgressBar />
 
             <Text style={styles.sectionTitle}>Quick Actions</Text>
@@ -295,16 +294,9 @@ const ActionBtn = ({ label, onPress, imageSource }) => (
 );
 
 const styles = StyleSheet.create({
-  safeAreaWrapper: {
-    flex: 1,
-    backgroundColor: "#131313", 
-  },
-  screenWrapper: { 
-    flex: 1, 
-  },
-  container: { 
-    flex: 1 
-  },
+  safeAreaWrapper: { flex: 1, backgroundColor: "#131313" },
+  screenWrapper: { flex: 1 },
+  container: { flex: 1 },
   header: { 
     padding: 40, 
     paddingTop: Platform.OS === 'ios' ? 70 : 60, 
@@ -317,8 +309,6 @@ const styles = StyleSheet.create({
   },
   headerTitle: { color: "white", fontSize: 26, fontWeight: "bold" },
   headerSub: { color: "#bfdbfe", fontSize: 16 },
-  
-  // LIQUID GLASS TARGET STYLES
   targetWrapper: {
     backgroundColor: 'rgba(255, 255, 255, 0.5)', 
     margin: 15,
@@ -326,97 +316,31 @@ const styles = StyleSheet.create({
     borderRadius: 25,
     borderWidth: 1,
     borderColor: "rgba(255, 255, 255, 0.8)", 
-    shadowColor: '#000',
-    shadowOpacity: 0.05,
-    shadowRadius: 10,
     marginTop: 10,
   },
-  targetHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: 12,
-    alignItems: 'center'
-  },
-  targetTitle: { fontSize: 15, fontWeight: '700', color: '#1e293b', letterSpacing: 0.3 },
+  targetHeader: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 12, alignItems: 'center' },
+  targetTitle: { fontSize: 15, fontWeight: '700', color: '#1e293b' },
   targetPercent: { fontSize: 18, fontWeight: 'bold', color: '#16a34a' },
-  barBackground: {
-    height: 10,
-    backgroundColor: 'rgba(0, 0, 0, 0.05)', 
-    borderRadius: 5,
-    overflow: 'hidden',
-    marginBottom: 15,
-  },
-  barFill: {
-    height: '100%',
-    borderRadius: 5,
-  },
-  targetFooter: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    paddingTop: 5,
-  },
-  footerLabel: { fontSize: 10, color: '#64748b', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 2 },
+  barBackground: { height: 10, backgroundColor: 'rgba(0, 0, 0, 0.05)', borderRadius: 5, overflow: 'hidden', marginBottom: 15 },
+  barFill: { height: '100%', borderRadius: 5 },
+  targetFooter: { flexDirection: 'row', justifyContent: 'space-between', paddingTop: 5 },
+  footerLabel: { fontSize: 10, color: '#64748b', textTransform: 'uppercase', marginBottom: 2 },
   footerValue: { fontSize: 14, fontWeight: '800', color: '#0f172a' },
-
   statGrid: { flexDirection: "row", flexWrap: "wrap", padding: 10, justifyContent: "space-between" },
-  statCard: { 
-    width: "47%", 
-    padding: 20, 
-    borderRadius: 20, 
-    margin: 5, 
-    height: 130, 
-    justifyContent: "space-between",
-    elevation: 4
-  },
+  statCard: { width: "47%", padding: 20, borderRadius: 20, margin: 5, height: 130, justifyContent: "space-between", elevation: 4 },
   statValue: { color: "white", fontSize: 14, fontWeight: "bold" },
   statLabel: { color: "white", opacity: 0.9, fontSize: 12 },
   sectionTitle: { paddingHorizontal: 20, paddingTop: 10, fontSize: 18, fontWeight: "bold", color: '#1e293b' },
-  actionRow: { 
-    flexDirection: "row", 
-    paddingHorizontal: 20, 
-    justifyContent: "space-between", 
-    marginTop: 15 
-  },
-  actionBtn: { 
-    backgroundColor: "rgba(255, 255, 255, 0.4)", 
-    paddingVertical: 15, 
-    borderRadius: 25, 
-    width: "30%", 
-    alignItems: "center", 
-    borderWidth: 1,
-    borderColor: "rgba(255, 255, 255, 0.8)", 
-  },
-  iconContainer: {
-    backgroundColor: 'rgba(255, 255, 255, 0.8)',
-    padding: 8,
-    borderRadius: 12,
-  },
+  actionRow: { flexDirection: "row", paddingHorizontal: 20, justifyContent: "space-between", marginTop: 15 },
+  actionBtn: { backgroundColor: "rgba(255, 255, 255, 0.4)", paddingVertical: 15, borderRadius: 25, width: "30%", alignItems: "center", borderWidth: 1, borderColor: "rgba(255, 255, 255, 0.8)" },
+  iconContainer: { backgroundColor: 'rgba(255, 255, 255, 0.8)', padding: 8, borderRadius: 12 },
   actionLabel: { fontSize: 12, marginTop: 8, fontWeight: "bold", color: '#1e293b' },
   customIcon: { width: 28, height: 28, resizeMode: "contain" },
-  activityBox: { 
-    backgroundColor: "rgba(255, 255, 255, 0.5)", 
-    margin: 20, 
-    padding: 15, 
-    borderRadius: 25, 
-    borderWidth: 1,
-    borderColor: "rgba(255, 255, 255, 0.8)",
-  },
+  activityBox: { backgroundColor: "rgba(255, 255, 255, 0.5)", margin: 20, padding: 15, borderRadius: 25, borderWidth: 1, borderColor: "rgba(255, 255, 255, 0.8)" },
   activityItem: { fontSize: 14, color: "#1e293b", fontWeight: '700' },
   activitySub: { color: "#475569", fontSize: 12, marginTop: 2 },
   activityTap: { paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: 'rgba(0, 0, 0, 0.05)' },
   activityRow: { flexDirection: 'row', alignItems: 'center' },
   emptyText: { textAlign: 'center', color: '#64748b', padding: 20 },
-  fab: { 
-    position: "absolute", 
-    bottom: 40, 
-    right: 25, 
-    width: 70, 
-    height: 70, 
-    backgroundColor: "#2563eb", 
-    borderRadius: 35, 
-    justifyContent: "center", 
-    alignItems: "center", 
-    elevation: 12,
-    zIndex: 999,
-  },
+  fab: { position: "absolute", bottom: 40, right: 25, width: 70, height: 70, backgroundColor: "#2563eb", borderRadius: 35, justifyContent: "center", alignItems: "center", elevation: 12, zIndex: 999 },
 });
