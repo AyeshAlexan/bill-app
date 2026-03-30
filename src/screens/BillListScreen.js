@@ -10,6 +10,7 @@ import {
 } from "react-native";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { useFocusEffect } from "@react-navigation/native";
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { getBills } from "../services/billApi";
 
 const totalOf = (b) => Number(b?.after_vat_amount ?? b?.Net_Amount ?? b?.Gross_Amount ?? 0);
@@ -74,7 +75,7 @@ export default function BillListScreen({ route, navigation }) {
   }
 
   return (
-    <View style={styles.container}>
+    <SafeAreaView style={{ flex: 1 }} edges={["bottom"]}>
       {/* HEADER UPDATED TO #30a830 GREEN */}
       <View style={styles.header}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
@@ -190,7 +191,7 @@ export default function BillListScreen({ route, navigation }) {
           );
         }}
       />
-    </View>
+    </SafeAreaView>
   );
 }
 
@@ -199,7 +200,7 @@ const styles = StyleSheet.create({
   header: {
     backgroundColor: "#1D63DC", 
     padding: 25,
-    paddingTop: 50,
+    paddingTop: 40,
     borderBottomLeftRadius: 40,
     borderBottomRightRadius: 40,
     elevation: 5,

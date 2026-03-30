@@ -10,9 +10,11 @@ import {
   Animated,
   Easing,
   Platform,
+  StatusBar,
 } from "react-native";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { useFocusEffect } from "@react-navigation/native";
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { fetchRoutes, fetchShopsByRoute } from "../services/shopApi";
 import { getBills } from "../services/billApi";
@@ -22,13 +24,10 @@ const AnimatedShopCard = ({ item, index, onPress }) => {
   const animatedValue = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
-    // Reset animation value when items change
     animatedValue.setValue(0);
-    
     Animated.timing(animatedValue, {
       toValue: 1,
       duration: 400,
-      // We cap the index at 15 so the 190th shop doesn't wait forever to animate
       delay: (index % 15) * 60, 
       easing: Easing.out(Easing.back(1)),
       useNativeDriver: true,
@@ -170,7 +169,6 @@ export default function ShopListScreen({ navigation }) {
     } catch (e) {
       console.log("Load Error:", e);
     } finally {
-      // Keep slightly shorter timeout for better UX
       setTimeout(() => setLoading(false), 800);
     }
   };
@@ -191,7 +189,7 @@ export default function ShopListScreen({ navigation }) {
       const due = Math.max(total - paid, 0);
 
       if (!byCustomer.has(code)) byCustomer.set(code, { pendingCount: 0, due: 0 });
-      if (due > 0) {
+      if (due > 0.5) {
         const cur = byCustomer.get(code);
         cur.pendingCount += 1;
         cur.due += due;
@@ -203,7 +201,6 @@ export default function ShopListScreen({ navigation }) {
     });
   }, [shops, bills]);
 
-  // MEMOIZED RENDER ITEM FOR PERFORMANCE
   const renderItem = useCallback(({ item, index }) => (
     <AnimatedShopCard
       item={item}
@@ -219,95 +216,98 @@ export default function ShopListScreen({ navigation }) {
   ), [navigation]);
 
   return (
-    <View style={styles.container}>
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()} style={{ marginBottom: 10 }}>
-          <MaterialCommunityIcons name="chevron-left" size={32} color="white" />
-        </TouchableOpacity>
-        <View style={{ flex: 1, marginLeft: 12 }}>
-          <Text style={styles.headerTitle}>Shops ({shops.length})</Text>
-          <Text style={styles.headerSub}>
-            {selectedRoute ? `City: ${selectedRoute.code}` : "Showing All Cities"}
-          </Text>
-        </View>
-        <TouchableOpacity style={styles.routeBtn} onPress={() => setRouteModal(true)}>
-          <MaterialCommunityIcons name="map-marker-radius" size={18} color="white" />
-          <Text style={styles.routeBtnText}>{selectedRoute?.code ? selectedRoute.code : "Cities"}</Text>
-        </TouchableOpacity>
-      </View>
-
-      {loading ? (
-        <ShopLoader />
-      ) : (
-        <FlatList
-          data={shopsWithSummary}
-          keyExtractor={(item, idx) => item.code?.toString() || idx.toString()}
-          contentContainerStyle={{ padding: 15, paddingBottom: 40 }}
-          renderItem={renderItem}
-          
-          // --- PERFORMANCE OPTIMIZATIONS FOR LARGE LISTS ---
-          initialNumToRender={8}
-          maxToRenderPerBatch={10}
-          windowSize={10}
-          removeClippedSubviews={Platform.OS === 'android'}
-          // Helps the list calculate scroll position without measuring items
-          getItemLayout={(data, index) => (
-            { length: 175, offset: 175 * index, index }
-          )}
-          // ------------------------------------------------
-          
-          ListEmptyComponent={
-            <View style={styles.emptyBox}>
-              <MaterialCommunityIcons name="store-off-outline" size={48} color="#cbd5e1" />
-              <Text style={styles.emptyTitle}>No shops found</Text>
-              <Text style={styles.emptySub}>Try selecting a different city route</Text>
-            </View>
-          }
-        />
-      )}
-
-      {/* Route Modal */}
-      <Modal visible={routeModal} transparent animationType="slide">
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalCard}>
-            <Text style={styles.modalTitle}>Select Route City</Text>
-            <TextInput
-              style={styles.modalInput}
-              placeholder="Search by name or code..."
-              placeholderTextColor="#94a3b8"
-              value={routeSearch}
-              onChangeText={setRouteSearch}
-            />
-
-            <FlatList
-              data={[{ code: null, description: "All Cities" }, ...filteredRoutes]}
-              keyExtractor={(item, idx) => item.code || "all"}
-              renderItem={({ item }) => (
-                <TouchableOpacity
-                  style={[
-                    styles.modalItem,
-                    ((!item.code && !selectedRoute) || item.code === selectedRoute?.code) && {
-                      backgroundColor: "#f0fdf4",
-                    },
-                  ]}
-                  onPress={() => {
-                    setSelectedRoute(item.code ? item : null);
-                    setRouteModal(false);
-                  }}
-                >
-                  <Text style={[styles.modalItemText, !item.code && { color: "#30a830" }]}>
-                    {item.code || "SHOW ALL CITIES"}
-                  </Text>
-                </TouchableOpacity>
-              )}
-            />
-            <TouchableOpacity style={styles.modalClose} onPress={() => setRouteModal(false)}>
-              <Text style={styles.modalCloseText}>Dismiss</Text>
+    <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
+      <StatusBar barStyle="light-content" backgroundColor="#30a830" />
+      <View style={styles.container}>
+        <View style={styles.header}>
+          <View style={styles.headerTopRow}>
+            <TouchableOpacity onPress={() => navigation.goBack()}>
+              <MaterialCommunityIcons name="chevron-left" size={32} color="white" />
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.routeBtn} onPress={() => setRouteModal(true)}>
+              <MaterialCommunityIcons name="map-marker-radius" size={18} color="white" />
+              <Text style={styles.routeBtnText}>{selectedRoute?.code ? selectedRoute.code : "Cities"}</Text>
             </TouchableOpacity>
           </View>
+          <Text style={styles.headerTitle}>Shops ({shops.length})</Text>
+          <Text style={styles.headerSub}>
+            {selectedRoute ? `Route City: ${selectedRoute.code}` : "Showing All Available Cities"}
+          </Text>
         </View>
-      </Modal>
-    </View>
+
+        {loading ? (
+          <ShopLoader />
+        ) : (
+          <FlatList
+            data={shopsWithSummary}
+            keyExtractor={(item, idx) => item.code?.toString() || idx.toString()}
+            contentContainerStyle={styles.listContent}
+            renderItem={renderItem}
+            initialNumToRender={8}
+            maxToRenderPerBatch={10}
+            windowSize={10}
+            removeClippedSubviews={Platform.OS === 'android'}
+            getItemLayout={(data, index) => ({ length: 175, offset: 175 * index, index })}
+            ListEmptyComponent={
+              <View style={styles.emptyBox}>
+                <MaterialCommunityIcons name="store-off-outline" size={48} color="#cbd5e1" />
+                <Text style={styles.emptyTitle}>No shops found</Text>
+                <Text style={styles.emptySub}>Try selecting a different city route from the selector.</Text>
+              </View>
+            }
+          />
+        )}
+
+        {/* Route Selection Modal */}
+        <Modal visible={routeModal} transparent animationType="slide">
+          <View style={styles.modalOverlay}>
+            <View style={styles.modalCard}>
+              <View style={styles.modalHeader}>
+                <Text style={styles.modalTitle}>Select Route City</Text>
+                <TouchableOpacity onPress={() => setRouteModal(false)}>
+                  <MaterialCommunityIcons name="close" size={24} color="#64748b" />
+                </TouchableOpacity>
+              </View>
+              
+              <TextInput
+                style={styles.modalInput}
+                placeholder="Search by name or code..."
+                placeholderTextColor="#94a3b8"
+                value={routeSearch}
+                onChangeText={setRouteSearch}
+              />
+
+              <FlatList
+                data={[{ code: null, description: "All Cities" }, ...filteredRoutes]}
+                keyExtractor={(item, idx) => item.code || "all"}
+                renderItem={({ item }) => (
+                  <TouchableOpacity
+                    style={[
+                      styles.modalItem,
+                      ((!item.code && !selectedRoute) || item.code === selectedRoute?.code) && {
+                        backgroundColor: "#f0fdf4",
+                      },
+                    ]}
+                    onPress={() => {
+                      setSelectedRoute(item.code ? item : null);
+                      setRouteModal(false);
+                      setRouteSearch("");
+                    }}
+                  >
+                    <Text style={[styles.modalItemText, !item.code && { color: "#30a830" }]}>
+                      {item.code || "SHOW ALL CITIES"}
+                    </Text>
+                    {((!item.code && !selectedRoute) || item.code === selectedRoute?.code) && (
+                       <MaterialCommunityIcons name="check" size={20} color="#30a830" />
+                    )}
+                  </TouchableOpacity>
+                )}
+              />
+            </View>
+          </View>
+        </Modal>
+      </View>
+    </SafeAreaView>
   );
 }
 
@@ -327,17 +327,17 @@ const loaderStyles = StyleSheet.create({
 });
 
 const styles = StyleSheet.create({
+  safeArea: { flex: 1, backgroundColor: "#000000" },
   container: { flex: 1, backgroundColor: "#f1f5f9" },
   header: {
     backgroundColor: "#30a830",
     paddingHorizontal: 20,
-    paddingTop: 60,
+    paddingTop: 10,
     paddingBottom: 35,
     borderBottomLeftRadius: 35,
     borderBottomRightRadius: 35,
-    flexDirection: "row",
-    alignItems: "center",
   },
+  headerTopRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 15 },
   headerTitle: { color: "white", fontSize: 24, fontWeight: "800" },
   headerSub: { color: "rgba(255,255,255,0.8)", fontSize: 13, marginTop: 2 },
   routeBtn: {
@@ -349,6 +349,7 @@ const styles = StyleSheet.create({
     borderRadius: 14,
   },
   routeBtnText: { color: "white", fontWeight: "700", marginLeft: 6, fontSize: 12 },
+  listContent: { padding: 15, paddingBottom: 40 },
   shopCard: {
     backgroundColor: "white",
     borderRadius: 24,
@@ -358,7 +359,7 @@ const styles = StyleSheet.create({
     shadowColor: "#000",
     shadowOpacity: 0.05,
     shadowRadius: 10,
-    height: 160, // Fixed height helps with FlatList optimization
+    height: 160, 
     justifyContent: 'center'
   },
   shopTop: { flexDirection: "row", alignItems: "center" },
@@ -388,7 +389,8 @@ const styles = StyleSheet.create({
     padding: 25,
     maxHeight: "85%",
   },
-  modalTitle: { fontSize: 20, fontWeight: "800", color: "#1e293b", marginBottom: 20 },
+  modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 },
+  modalTitle: { fontSize: 20, fontWeight: "800", color: "#1e293b" },
   modalInput: {
     backgroundColor: "#f1f5f9",
     borderRadius: 15,
@@ -397,15 +399,6 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: "#1e293b",
   },
-  modalItem: { paddingVertical: 16, paddingHorizontal: 15, borderRadius: 12, marginBottom: 5 },
+  modalItem: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 16, paddingHorizontal: 15, borderRadius: 12, marginBottom: 5 },
   modalItemText: { fontWeight: "700", fontSize: 15, color: "#334155" },
-  modalClose: {
-    marginTop: 15,
-    alignItems: "center",
-    padding: 16,
-    backgroundColor: "#f1f5f9",
-    borderRadius: 18,
-    marginBottom: 10,
-  },
-  modalCloseText: { fontWeight: "800", color: "#64748b", fontSize: 15 },
 });

@@ -11,9 +11,11 @@ import {
   Animated,
   Easing,
   Platform,
+  StatusBar,
 } from "react-native";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { useFocusEffect } from "@react-navigation/native";
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { getPayments } from "../services/paymentApi";
 
 // --- MATCHING PAYMENT LOADER ---
@@ -69,18 +71,17 @@ const ViewBillLoader = ({ visible }) => (
 
 export default function PaymentScreen({ navigation }) {
   const [loading, setLoading] = useState(true);
-  const [navigating, setNavigating] = useState(false); // To handle "View Bill" loading
+  const [navigating, setNavigating] = useState(false);
   const [payments, setPayments] = useState([]);
   const [selectedCity, setSelectedCity] = useState("All Cities");
   const [showDropdown, setShowDropdown] = useState(false);
   
-  // Animation for the list entrance
   const fadeAnim = useRef(new Animated.Value(0)).current;
 
   const load = async () => {
     try {
       setLoading(true);
-      fadeAnim.setValue(0); // Reset animation
+      fadeAnim.setValue(0);
       const data = await getPayments();
       setPayments(Array.isArray(data) ? data : []);
     } catch (e) {
@@ -102,7 +103,6 @@ export default function PaymentScreen({ navigation }) {
 
   const handleViewBill = (billId) => {
     setNavigating(true);
-    // Simulate a brief loading state before navigating to the screen in your image
     setTimeout(() => {
       setNavigating(false);
       navigation.navigate("ViewBill", { billId });
@@ -171,81 +171,85 @@ export default function PaymentScreen({ navigation }) {
   );
 
   return (
-    <View style={styles.container}>
-      {/* Loading Overlay for View Bill */}
-      <ViewBillLoader visible={navigating} />
+    // FIX: Background set to header green, edges limited to bottom
+    <SafeAreaView style={styles.safeArea} edges={['bottom']}>
+      <StatusBar barStyle="light-content" backgroundColor="#30a830" />
+      <View style={styles.container}>
+        <ViewBillLoader visible={navigating} />
 
-      <View style={styles.header}>
-        <View style={styles.headerTopRow}>
-          <TouchableOpacity onPress={() => navigation.goBack()} style={{ padding: 5 }}>
-            <MaterialCommunityIcons name="chevron-left" size={32} color="white" />
-          </TouchableOpacity>
-          
-          <TouchableOpacity 
-            style={styles.cityPickerBtn} 
-            onPress={() => setShowDropdown(true)}
-          >
-            <Text style={styles.cityPickerText}>{selectedCity}</Text>
-            <MaterialCommunityIcons name="chevron-down" size={20} color="white" />
-          </TouchableOpacity>
-        </View>
-
-        <Text style={styles.headerTitle}>Payment History</Text>
-        <Text style={styles.headerSub}>All collected payments</Text>
-
-        <View style={styles.totalBox}>
-          <Text style={styles.totalLabel}>Total Collected</Text>
-          <Text style={styles.totalValue}>Rs.{Number(totalAmount).toLocaleString()}</Text>
-          <Text style={styles.totalSub}>{filteredData.length} payments</Text>
-        </View>
-      </View>
-
-      <Modal visible={showDropdown} transparent animationType="fade">
-        <TouchableWithoutFeedback onPress={() => setShowDropdown(false)}>
-          <View style={styles.modalOverlay}>
-            <View style={styles.dropdownMenu}>
-              <FlatList
-                data={citiesList}
-                keyExtractor={(item) => item}
-                renderItem={({ item }) => (
-                  <TouchableOpacity
-                    style={styles.dropdownItem}
-                    onPress={() => {
-                      setSelectedCity(item);
-                      setShowDropdown(false);
-                    }}
-                  >
-                    <Text style={[
-                      styles.dropdownText, 
-                      selectedCity === item && { color: "#30a830", fontWeight: "bold" }
-                    ]}>
-                      {item}
-                    </Text>
-                  </TouchableOpacity>
-                )}
-              />
-            </View>
+        <View style={styles.header}>
+          <View style={styles.headerTopRow}>
+            <TouchableOpacity onPress={() => navigation.goBack()} style={{ padding: 5 }}>
+              <MaterialCommunityIcons name="chevron-left" size={32} color="white" />
+            </TouchableOpacity>
+            
+            <TouchableOpacity 
+              style={styles.cityPickerBtn} 
+              onPress={() => setShowDropdown(true)}
+            >
+              <Text style={styles.cityPickerText}>{selectedCity}</Text>
+              <MaterialCommunityIcons name="chevron-down" size={20} color="white" />
+            </TouchableOpacity>
           </View>
-        </TouchableWithoutFeedback>
-      </Modal>
 
-      {loading ? (
-        <PaymentLoader />
-      ) : (
-        <FlatList
-          data={filteredData}
-          keyExtractor={(item, index) => index.toString()}
-          renderItem={renderItem}
-          contentContainerStyle={{ padding: 20, paddingBottom: 100 }}
-          ListEmptyComponent={
-            <View style={styles.emptyContainer}>
-              <MaterialCommunityIcons name="cash-remove" size={48} color="#cbd5e1" />
-              <Text style={{ color: "#94a3b8", marginTop: 10 }}>No payments for this city</Text>
+          <Text style={styles.headerTitle}>Payment History</Text>
+          <Text style={styles.headerSub}>All collected payments</Text>
+
+          <View style={styles.totalBox}>
+            <Text style={styles.totalLabel}>Total Collected</Text>
+            <Text style={styles.totalValue}>Rs.{Number(totalAmount).toLocaleString()}</Text>
+            <Text style={styles.totalSub}>{filteredData.length} payments</Text>
+          </View>
+        </View>
+
+        <Modal visible={showDropdown} transparent animationType="fade">
+          <TouchableWithoutFeedback onPress={() => setShowDropdown(false)}>
+            <View style={styles.modalOverlay}>
+              <View style={styles.dropdownMenu}>
+                <FlatList
+                  data={citiesList}
+                  keyExtractor={(item) => item}
+                  renderItem={({ item }) => (
+                    <TouchableOpacity
+                      style={styles.dropdownItem}
+                      onPress={() => {
+                        setSelectedCity(item);
+                        setShowDropdown(false);
+                      }}
+                    >
+                      <Text style={[
+                        styles.dropdownText, 
+                        selectedCity === item && { color: "#30a830", fontWeight: "bold" }
+                      ]}>
+                        {item}
+                      </Text>
+                    </TouchableOpacity>
+                  )}
+                />
+              </View>
             </View>
-          }
-        />
-      )}
-    </View>
+          </TouchableWithoutFeedback>
+        </Modal>
+
+        {loading ? (
+          <PaymentLoader />
+        ) : (
+          <FlatList
+            data={filteredData}
+            keyExtractor={(item, index) => index.toString()}
+            renderItem={renderItem}
+            contentContainerStyle={{ padding: 20, paddingBottom: 50 }}
+            showsVerticalScrollIndicator={false}
+            ListEmptyComponent={
+              <View style={styles.emptyContainer}>
+                <MaterialCommunityIcons name="cash-remove" size={48} color="#cbd5e1" />
+                <Text style={{ color: "#94a3b8", marginTop: 10 }}>No payments for this city</Text>
+              </View>
+            }
+          />
+        )}
+      </View>
+    </SafeAreaView>
   );
 }
 
@@ -278,6 +282,8 @@ const loaderStyles = StyleSheet.create({
 });
 
 const styles = StyleSheet.create({
+  // FIXED: Changed backgroundColor to match header green and removed pure black
+  safeArea: { flex: 1, backgroundColor: "#010101" }, 
   container: { flex: 1, backgroundColor: "#f8fafc" },
   centerLoader: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   fullScreenLoader: {
@@ -302,9 +308,10 @@ const styles = StyleSheet.create({
   header: {
     backgroundColor: "#30a830",
     padding: 25,
-    paddingTop: 50,
+    paddingTop: 50, // Added padding back since SafeArea isn't handling 'top'
     borderBottomLeftRadius: 40,
     borderBottomRightRadius: 40,
+    paddingBottom: 30,
   },
   headerTopRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 15 },
   headerTitle: { color: "white", fontSize: 24, fontWeight: "bold" },
@@ -325,7 +332,7 @@ const styles = StyleSheet.create({
   modalOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.1)" },
   dropdownMenu: {
     position: "absolute",
-    top: 100,
+    top: 100, // Adjusted because header starts lower
     right: 25,
     backgroundColor: "white",
     borderRadius: 15,

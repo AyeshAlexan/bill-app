@@ -20,6 +20,7 @@ import logo from "../assets/bill-logo.png";
 
 import { getBillById } from "../services/billApi";
 import { setAuthToken } from "../services/Api";
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 export default function ViewBillScreen({ route, navigation }) {
   const { billId } = route.params;
@@ -255,6 +256,7 @@ export default function ViewBillScreen({ route, navigation }) {
   }
 
   return (
+    <SafeAreaView style={{ flex: 1 }} edges={['bottom']}>
     <View style={styles.container}>
       <View style={styles.headerContainer}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
@@ -346,6 +348,7 @@ export default function ViewBillScreen({ route, navigation }) {
         </TouchableOpacity>
       </ScrollView>
     </View>
+    </SafeAreaView>
   );
 }
 

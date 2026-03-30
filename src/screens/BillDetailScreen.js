@@ -10,9 +10,11 @@ import {
   TextInput,
   TouchableOpacity,
   View,
-  Platform
+  Platform,
+  StatusBar,
 } from "react-native";
 import { useFocusEffect } from "@react-navigation/native";
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { getBillById, addPayment } from "../services/billApi";
 
 // --- PRINTING IMPORTS ---
@@ -50,11 +52,9 @@ export default function BillDetailScreen({ route, navigation }) {
   const [printing, setPrinting] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
 
-  // 1️⃣ ADDED STATES FOR CHANGE CALCULATION
   const [paidAmount, setPaidAmount] = useState("");
   const [changeAmount, setChangeAmount] = useState(0);
 
-  // NEW: States to preserve values for the success modal
   const [lastPaid, setLastPaid] = useState(0);
   const [lastChange, setLastChange] = useState(0);
 
@@ -87,10 +87,8 @@ export default function BillDetailScreen({ route, navigation }) {
     return Math.max(combined - itemDiscountTotal, 0);
   }, [bill, itemDiscountTotal]);
 
-  // 1️⃣ AUTO CALCULATE CHANGE MONEY LOGIC
   const handlePaidAmountChange = (value) => {
     setPaidAmount(value);
-
     const paidVal = parseFloat(value || 0);
     const billTotal = parseFloat(due || 0); 
 
@@ -99,7 +97,6 @@ export default function BillDetailScreen({ route, navigation }) {
     } else {
       setChangeAmount(0);
     }
-
     setAmount(value); 
   };
 
@@ -180,32 +177,28 @@ export default function BillDetailScreen({ route, navigation }) {
   };
 
   const handlePrint = async () => {
-  try {
-    setPrinting(true);
-    const asset = Asset.fromModule(logo);
-    await asset.downloadAsync();
-    const logoUri = asset.localUri || asset.uri;
-    const finalHtml = buildThermalHtml(logoUri);
+    try {
+      setPrinting(true);
+      const asset = Asset.fromModule(logo);
+      await asset.downloadAsync();
+      const logoUri = asset.localUri || asset.uri;
+      const finalHtml = buildThermalHtml(logoUri);
+      const jobName = `BUDDIKA DISTRIBUTORS - Invoice (${invoiceNo})`; 
 
-    // --- UPDATE THIS LINE BELOW ---
-    const jobName = `BUDDIKA DISTRIBUTORS - Invoice (${invoiceNo})`; 
-    // ------------------------------
-
-    if (Platform.OS === "web") {
-      const w = window.open(""); 
-      w.document.write(finalHtml); 
-      w.document.close(); 
-      // Note: On web, the filename is usually handled by the browser's print dialog
-      w.print();
-    } else {
-      await Print.printAsync({ html: finalHtml, jobName: jobName });
+      if (Platform.OS === "web") {
+        const w = window.open(""); 
+        w.document.write(finalHtml); 
+        w.document.close(); 
+        w.print();
+      } else {
+        await Print.printAsync({ html: finalHtml, jobName: jobName });
+      }
+    } catch (e) { 
+      Alert.alert("Print Error", "Could not generate print."); 
+    } finally { 
+      setPrinting(false); 
     }
-  } catch (e) { 
-    Alert.alert("Print Error", "Could not generate print."); 
-  } finally { 
-    setPrinting(false); 
-  }
-};
+  };
 
   const submitPayment = async () => {
     const amt = Number(amount || 0);
@@ -214,8 +207,6 @@ export default function BillDetailScreen({ route, navigation }) {
 
     try {
       setSubmitting(true);
-      
-      // Store current payment data for the success modal display
       setLastPaid(amt);
       setLastChange(Number(changeAmount || 0));
 
@@ -248,256 +239,255 @@ export default function BillDetailScreen({ route, navigation }) {
   }
 
   return (
-    <View style={styles.container}>
-      <View style={styles.header}>
-        <View style={styles.headerTopRow}>
-            <TouchableOpacity onPress={() => navigation.goBack()}>
-                <MaterialCommunityIcons name="chevron-left" size={32} color="white" />
-            </TouchableOpacity>
-            <TouchableOpacity 
-                style={styles.headerPrintBtn} 
-                onPress={handlePrint} 
-                disabled={printing}
-            >
-                {printing ? (
-                    <ActivityIndicator size="small" color="#30a830" />
-                ) : (
-                    <MaterialCommunityIcons name="printer" size={22} color="#30a830" />
-                )}
-            </TouchableOpacity>
+    <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
+      <StatusBar barStyle="light-content" backgroundColor="#30a830" />
+      <View style={styles.container}>
+        <View style={styles.header}>
+          <View style={styles.headerTopRow}>
+              <TouchableOpacity onPress={() => navigation.goBack()}>
+                  <MaterialCommunityIcons name="chevron-left" size={32} color="white" />
+              </TouchableOpacity>
+              <TouchableOpacity 
+                  style={styles.headerPrintBtn} 
+                  onPress={handlePrint} 
+                  disabled={printing}
+              >
+                  {printing ? (
+                      <ActivityIndicator size="small" color="#30a830" />
+                  ) : (
+                      <MaterialCommunityIcons name="printer" size={22} color="#30a830" />
+                  )}
+              </TouchableOpacity>
+          </View>
+          <Text style={styles.headerTitle}>Invoice Detail</Text>
+          <Text style={styles.headerSub}>Transaction ID: {invoiceNo}</Text>
+          <Text style={styles.headerSub1}>
+            Salesman: {bill?.Salesmen || bill?.salesman || "—"}
+          </Text>
         </View>
-        <Text style={styles.headerTitle}>Invoice Detail</Text>
-        <Text style={styles.headerSub}>Transaction ID: {invoiceNo}</Text>
-        <Text style={styles.headerSub1}>
-          Salesman: {bill?.Salesmen || bill?.salesman || "—"}
-        </Text>
-      </View>
 
-      <ScrollView contentContainerStyle={styles.content}>
-        <View style={styles.card}>
-          <View style={styles.billTop}>
-            <View style={styles.iconBox}>
-              <MaterialCommunityIcons name="file-document-outline" size={24} color="#334155" />
+        <ScrollView contentContainerStyle={styles.content}>
+          <View style={styles.card}>
+            <View style={styles.billTop}>
+              <View style={styles.iconBox}>
+                <MaterialCommunityIcons name="file-document-outline" size={24} color="#334155" />
+              </View>
+              <View style={{ flex: 1, marginLeft: 12 }}>
+                <Text style={styles.billNo}>Invoice: {bill?.Invoice_no || bill?.invoice_no}</Text>
+                <Text style={styles.date}>{bill?.Invoice_date || bill?.date || "—"}</Text>
+              </View>
+              <View style={[styles.badge, { backgroundColor: due <= 0.5 ? '#dcfce7' : '#fee2e2' }]}>
+                <Text style={[styles.badgeText, { color: due <= 0.5 ? '#166534' : '#991b1b' }]}>
+                  {due <= 0.5 ? 'PAID' : 'PENDING'}
+                </Text>
+              </View>
             </View>
-            <View style={{ flex: 1, marginLeft: 12 }}>
-              <Text style={styles.billNo}>Invoice: {bill?.Invoice_no || bill?.invoice_no}</Text>
-              <Text style={styles.date}>{bill?.Invoice_date || bill?.date || "—"}</Text>
+
+            <View style={styles.divider} />
+
+            <View style={styles.totalRow}>
+              <Text style={styles.totalLabel}>Gross Subtotal</Text>
+              <Text style={styles.totalValue}>Rs. {subtotal.toFixed(2)}</Text>
             </View>
-            <View style={[styles.badge, { backgroundColor: due <= 0.5 ? '#dcfce7' : '#fee2e2' }]}>
-              <Text style={[styles.badgeText, { color: due <= 0.5 ? '#166534' : '#991b1b' }]}>
-                {due <= 0.5 ? 'PAID' : 'PENDING'}
+
+            {itemDiscountTotal > 0 && (
+              <View style={styles.totalRow}>
+                <Text style={styles.totalLabel}>Item Discount</Text>
+                <Text style={[styles.totalValue, { color: "#be123c" }]}>- {itemDiscountTotal.toFixed(2)}</Text>
+              </View>
+            )}
+
+            {discountAmount > 0 && (
+              <View style={styles.totalRow}>
+                <Text style={styles.totalLabel}>Bill Discount</Text>
+                <Text style={[styles.totalValue, { color: "#be123c" }]}>- {discountAmount.toFixed(2)}</Text>
+              </View>
+            )}
+
+            {additionalAmount !== 0 && (
+              <View style={styles.totalRow}>
+                <Text style={styles.totalLabel}>Additional</Text>
+                <Text style={styles.totalValue}>+ {additionalAmount.toFixed(2)}</Text>
+              </View>
+            )}
+
+            {vatAmount !== 0 && (
+              <View style={styles.totalRow}>
+                <Text style={styles.totalLabel}>VAT ({bill?.vat_percent || 18}%)</Text>
+                <Text style={styles.totalValue}>+ {vatAmount.toFixed(2)}</Text>
+              </View>
+            )}
+
+            <View style={[styles.divider, { marginVertical: 10 }]} />
+
+            <View style={styles.totalRow}>
+              <Text style={[styles.totalLabel, { color: "#0f172a", fontWeight: '700' }]}>Net Amount</Text>
+              <Text style={[styles.totalValue, { fontSize: 18, color: "#0f172a" }]}>
+                Rs. {total.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+              </Text>
+            </View>
+
+            {due <= 0.5 && (
+              <>
+                <View style={styles.totalRow}>
+                  <Text style={styles.totalLabel}>Amount Paid</Text>
+                  <Text style={styles.totalValue}>
+                    Rs. {paid.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                  </Text>
+                </View>
+                
+                <View style={styles.totalRow}>
+                  <Text style={styles.totalLabel}>Change</Text>
+                  <Text style={[styles.totalValue, { color: "#059669" }]}>
+                    Rs. {(lastChange > 0 ? lastChange : 0).toFixed(2)}
+                  </Text>
+                </View>
+                <View style={[styles.divider, { marginVertical: 5 }]} />
+              </>
+            )}
+
+            <View style={styles.totalRow}>
+              <Text style={[styles.totalLabel, { color: due <= 0.5 ? "#059669" : '#e11d48', fontWeight: '700' }]}>
+                Balance Due
+              </Text>
+              <Text style={[styles.totalValue, { color: due <= 0.5 ? "#059669" : "#e11d48", fontSize: 20 }]}>
+                Rs. {due.toLocaleString(undefined, { minimumFractionDigits: 2 })}
               </Text>
             </View>
           </View>
 
-          <View style={styles.divider} />
-
-          <View style={styles.totalRow}>
-            <Text style={styles.totalLabel}>Gross Subtotal</Text>
-            <Text style={styles.totalValue}>Rs. {subtotal.toFixed(2)}</Text>
-          </View>
-
-          {itemDiscountTotal > 0 && (
-            <View style={styles.totalRow}>
-              <Text style={styles.totalLabel}>Item Discount</Text>
-              <Text style={[styles.totalValue, { color: "#be123c" }]}>- {itemDiscountTotal.toFixed(2)}</Text>
-            </View>
-          )}
-
-          {discountAmount > 0 && (
-            <View style={styles.totalRow}>
-              <Text style={styles.totalLabel}>Bill Discount</Text>
-              <Text style={[styles.totalValue, { color: "#be123c" }]}>- {discountAmount.toFixed(2)}</Text>
-            </View>
-          )}
-
-          {additionalAmount !== 0 && (
-            <View style={styles.totalRow}>
-              <Text style={styles.totalLabel}>Additional</Text>
-              <Text style={styles.totalValue}>+ {additionalAmount.toFixed(2)}</Text>
-            </View>
-          )}
-
-          {vatAmount !== 0 && (
-            <View style={styles.totalRow}>
-              <Text style={styles.totalLabel}>VAT ({bill?.vat_percent || 18}%)</Text>
-              <Text style={styles.totalValue}>+ {vatAmount.toFixed(2)}</Text>
-            </View>
-          )}
-
-          <View style={[styles.divider, { marginVertical: 10 }]} />
-
-          {/* NET AMOUNT */}
-          <View style={styles.totalRow}>
-            <Text style={[styles.totalLabel, { color: "#0f172a", fontWeight: '700' }]}>Net Amount</Text>
-            <Text style={[styles.totalValue, { fontSize: 18, color: "#0f172a" }]}>
-              Rs. {total.toLocaleString(undefined, { minimumFractionDigits: 2 })}
-            </Text>
-          </View>
-
-          {/* 1️⃣ INTEGRATED: AMOUNT PAID & CHANGE RETURNED (Only when Paid) */}
-          {due <= 0.5 && (
-            <>
-              <View style={styles.totalRow}>
-                <Text style={styles.totalLabel}>Amount Paid</Text>
-                <Text style={styles.totalValue}>
-                  Rs. {paid.toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                </Text>
+          {due > 0.5 && (
+            <View style={styles.card}>
+              <Text style={styles.cardTitle}>Record Payment</Text>
+              <View style={styles.methodRow}>
+                {["Cash", "Card", "Cheque", "Bank"].map((m) => (
+                  <TouchableOpacity
+                    key={m}
+                    style={[styles.methodBtn, method === m && styles.methodBtnActive]}
+                    onPress={() => setMethod(m)}
+                  >
+                    <Text style={[styles.methodText, method === m && { color: "white" }]}>{m}</Text>
+                  </TouchableOpacity>
+                ))}
               </View>
-              
-              <View style={styles.totalRow}>
-                <Text style={styles.totalLabel}>Change</Text>
-                <Text style={[styles.totalValue, { color: "#059669" }]}>
-                  Rs. {(lastChange > 0 ? lastChange : 0).toFixed(2)}
-                </Text>
+
+              <View style={styles.paymentInputsRow}>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.inputLabel}>Paid Amount</Text>
+                  <TextInput
+                    style={[styles.input, { marginBottom: 0 }]}
+                    value={paidAmount}
+                    onChangeText={handlePaidAmountChange}
+                    keyboardType="decimal-pad"
+                    placeholder="0.00"
+                    placeholderTextColor="#94a3b8"
+                  />
+                </View>
+
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.inputLabel}>Change</Text>
+                  <TextInput
+                    style={[
+                      styles.input, 
+                      { 
+                        marginBottom: 0, 
+                        backgroundColor: "#f1f5f9", 
+                        color: '#059669', 
+                        fontWeight: '700' 
+                      }
+                    ]}
+                    value={String(changeAmount)}
+                    editable={false}
+                    placeholder="0.00"
+                  />
+                </View>
               </View>
-              <View style={[styles.divider, { marginVertical: 5 }]} />
-            </>
+
+              <TextInput
+                style={[styles.input, {marginTop: 10}]}
+                value={note}
+                onChangeText={setNote}
+                placeholder="Reference Note (Optional)"
+                placeholderTextColor="#94a3b8"
+              />
+
+              <TouchableOpacity
+                style={[styles.submitBtn, submitting && { backgroundColor: "#94a3b8" }]}
+                onPress={submitPayment}
+                disabled={submitting}
+              >
+                {submitting ? <ActivityIndicator color="white" /> : <Text style={styles.submitText}>CONFIRM PAYMENT</Text>}
+              </TouchableOpacity>
+            </View>
           )}
 
-          {/* BALANCE DUE */}
-          <View style={styles.totalRow}>
-            <Text style={[styles.totalLabel, { color: due <= 0.5 ? "#059669" : '#e11d48', fontWeight: '700' }]}>
-              Balance Due
-            </Text>
-            <Text style={[styles.totalValue, { color: due <= 0.5 ? "#059669" : "#e11d48", fontSize: 20 }]}>
-              Rs. {due.toLocaleString(undefined, { minimumFractionDigits: 2 })}
-            </Text>
-          </View>
-        </View>
-
-        {due > 0.5 && (
           <View style={styles.card}>
-            <Text style={styles.cardTitle}>Record Payment</Text>
-            <View style={styles.methodRow}>
-              {["Cash", "Card", "Cheque", "Bank"].map((m) => (
-                <TouchableOpacity
-                  key={m}
-                  style={[styles.methodBtn, method === m && styles.methodBtnActive]}
-                  onPress={() => setMethod(m)}
-                >
-                  <Text style={[styles.methodText, method === m && { color: "white" }]}>{m}</Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-
-            <View style={styles.paymentInputsRow}>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.inputLabel}>Paid Amount</Text>
-                <TextInput
-                  style={[styles.input, { marginBottom: 0 }]}
-                  value={paidAmount}
-                  onChangeText={handlePaidAmountChange}
-                  keyboardType="decimal-pad"
-                  placeholder="0.00"
-                  placeholderTextColor="#94a3b8"
-                />
-              </View>
-
-              <View style={{ flex: 1 }}>
-                <Text style={styles.inputLabel}>Change</Text>
-                <TextInput
-                  style={[
-                    styles.input, 
-                    { 
-                      marginBottom: 0, 
-                      backgroundColor: "#f1f5f9", 
-                      color: '#059669', 
-                      fontWeight: '700' 
-                    }
-                  ]}
-                  value={String(changeAmount)}
-                  editable={false}
-                  placeholder="0.00"
-                />
-              </View>
-            </View>
-
-            <TextInput
-              style={[styles.input, {marginTop: 10}]}
-              value={note}
-              onChangeText={setNote}
-              placeholder="Reference Note (Optional)"
-              placeholderTextColor="#94a3b8"
-            />
-
-            <TouchableOpacity
-              style={[styles.submitBtn, submitting && { backgroundColor: "#94a3b8" }]}
-              onPress={submitPayment}
-              disabled={submitting}
-            >
-              {submitting ? <ActivityIndicator color="white" /> : <Text style={styles.submitText}>CONFIRM PAYMENT</Text>}
-            </TouchableOpacity>
-          </View>
-        )}
-
-        {/* Inventory Items Section */}
-        <View style={styles.card}>
-          <Text style={styles.sectionLabel}>Inventory Items</Text>
-          {items.length > 0 ? items.map((it, idx) => {
-            const itemDisc = Number(it.Discount ?? it.discount ?? it.disc_amount ?? it.Discount_Amount ?? 0);
-            return (
-              <View key={idx} style={styles.itemCard}>
-                <View style={styles.itemHeaderRow}>
-                  <Text style={styles.itemName} numberOfLines={1}>{it.Item_description || it.item_desc || "Item"}</Text>
-                  <Text style={styles.itemPrice}>Rs. {Number(it.Net_value || it.total || 0).toFixed(2)}</Text>
+            <Text style={styles.sectionLabel}>Inventory Items</Text>
+            {items.length > 0 ? items.map((it, idx) => {
+              const itemDisc = Number(it.Discount ?? it.discount ?? it.disc_amount ?? it.Discount_Amount ?? 0);
+              return (
+                <View key={idx} style={styles.itemCard}>
+                  <View style={styles.itemHeaderRow}>
+                    <Text style={styles.itemName} numberOfLines={1}>{it.Item_description || it.item_desc || "Item"}</Text>
+                    <Text style={styles.itemPrice}>Rs. {Number(it.Net_value || it.total || 0).toFixed(2)}</Text>
+                  </View>
+                  <View style={styles.itemMetaRow}>
+                    <View style={styles.itemBadge}><Text style={styles.badgeText}>Qty: {it.QTY || it.qty}</Text></View>
+                    {(it.Free_Issues > 0 || it.free_issues > 0) && (
+                      <View style={[styles.itemBadge, { backgroundColor: '#f0f9ff' }]}>
+                        <Text style={[styles.badgeText, { color: '#0369a1' }]}>Free: {it.Free_Issues ?? it.free_issues ?? 0}</Text>
+                      </View>
+                    )}
+                    {itemDisc > 0 && (
+                      <View style={[styles.itemBadge, { backgroundColor: '#fff1f2' }]}>
+                        <Text style={[styles.badgeText, { color: '#be123c' }]}>Disc: {itemDisc.toFixed(2)}</Text>
+                      </View>
+                    )}
+                    <Text style={styles.metaPrice}>@ {Number(it.Unit_price || it.unit_price || 0).toFixed(2)}</Text>
+                  </View>
                 </View>
-                <View style={styles.itemMetaRow}>
-                  <View style={styles.badge}><Text style={styles.badgeText}>Qty: {it.QTY || it.qty}</Text></View>
-                  {(it.Free_Issues > 0 || it.free_issues > 0) && (
-                    <View style={[styles.badge, { backgroundColor: '#f0f9ff' }]}>
-                      <Text style={[styles.badgeText, { color: '#0369a1' }]}>Free: {it.Free_Issues ?? it.free_issues ?? 0}</Text>
-                    </View>
-                  )}
-                  {itemDisc > 0 && (
-                    <View style={[styles.badge, { backgroundColor: '#fff1f2' }]}>
-                      <Text style={[styles.badgeText, { color: '#be123c' }]}>Disc: {itemDisc.toFixed(2)}</Text>
-                    </View>
-                  )}
-                  <Text style={styles.metaPrice}>@ {Number(it.Unit_price || it.unit_price || 0).toFixed(2)}</Text>
+              );
+            }) : <Text style={{textAlign: 'center', color: '#64748b'}}>No items found</Text>}
+          </View>
+        </ScrollView>
+
+        <Modal visible={showSuccess} transparent animationType="fade">
+          <View style={styles.modalOverlay}>
+            <View style={styles.modernCard}>
+              <MaterialCommunityIcons name="check-decagram" size={70} color="#059669" />
+              <Text style={styles.modernTitle}>Payment Success</Text>
+              
+              <View style={styles.modalSummaryBox}>
+                <View style={styles.modalSummaryRow}>
+                  <Text style={styles.modalSummaryLabel}>Amount Paid:</Text>
+                  <Text style={styles.modalSummaryValue}>Rs. {lastPaid.toFixed(2)}</Text>
+                </View>
+                <View style={styles.modalSummaryRow}>
+                  <Text style={styles.modalSummaryLabel}>Change Returned:</Text>
+                  <Text style={[styles.modalSummaryValue, {color: '#059669'}]}>Rs. {lastChange.toFixed(2)}</Text>
                 </View>
               </View>
-            );
-          }) : <Text style={{textAlign: 'center', color: '#64748b'}}>No items found</Text>}
-        </View>
-      </ScrollView>
 
-      {/* SUCCESS MODAL */}
-      <Modal visible={showSuccess} transparent animationType="fade">
-        <View style={styles.modalOverlay}>
-          <View style={styles.modernCard}>
-            <MaterialCommunityIcons name="check-decagram" size={70} color="#059669" />
-            <Text style={styles.modernTitle}>Payment Success</Text>
-            
-            <View style={styles.modalSummaryBox}>
-              <View style={styles.modalSummaryRow}>
-                <Text style={styles.modalSummaryLabel}>Amount Paid:</Text>
-                <Text style={styles.modalSummaryValue}>Rs. {lastPaid.toFixed(2)}</Text>
-              </View>
-              <View style={styles.modalSummaryRow}>
-                <Text style={styles.modalSummaryLabel}>Change Returned:</Text>
-                <Text style={[styles.modalSummaryValue, {color: '#059669'}]}>Rs. {lastChange.toFixed(2)}</Text>
-              </View>
+              <Text style={styles.modernMessage}>The payment for invoice #{invoiceNo} has been recorded.</Text>
+              
+              <TouchableOpacity style={styles.modernDoneBtn} onPress={() => setShowSuccess(false)}>
+                <Text style={styles.modernDoneText}>Continue</Text>
+              </TouchableOpacity>
             </View>
-
-            <Text style={styles.modernMessage}>The payment for invoice #{invoiceNo} has been recorded and the balance updated.</Text>
-            
-            <TouchableOpacity style={styles.modernDoneBtn} onPress={() => setShowSuccess(false)}>
-              <Text style={styles.modernDoneText}>Continue</Text>
-            </TouchableOpacity>
           </View>
-        </View>
-      </Modal>
-    </View>
+        </Modal>
+      </View>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
+  safeArea: { flex: 1, backgroundColor: "#000000" }, 
   container: { flex: 1, backgroundColor: "#f1f5f9" },
   header: { 
     backgroundColor: "#30a830", 
     paddingHorizontal: 25, 
-    paddingTop: 50, 
+    paddingTop: 10,
     paddingBottom: 25,
     borderBottomLeftRadius: 30, 
     borderBottomRightRadius: 30 
@@ -523,7 +513,8 @@ const styles = StyleSheet.create({
   billNo: { fontSize: 15, fontWeight: "700", color: "#334155" },
   date: { color: "#64748b", fontSize: 12, marginTop: 2 },
   badge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8 },
-  badgeText: { fontSize: 10, fontWeight: '500' },
+  itemBadge: { paddingHorizontal: 8, paddingVertical: 2, borderRadius: 6, backgroundColor: '#f1f5f9', marginRight: 5 },
+  badgeText: { fontSize: 10, fontWeight: '600' },
   sectionLabel: { fontSize: 14, fontWeight: "700", color: "#475569", marginBottom: 15, textTransform: 'uppercase', letterSpacing: 0.5 },
   itemCard: { paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: "#f1f5f9" },
   itemHeaderRow: { flexDirection: "row", justifyContent: "space-between", alignItems: 'center' },
