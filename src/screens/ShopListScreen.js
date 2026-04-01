@@ -9,9 +9,8 @@ import {
   TextInput,
   Animated,
   Easing,
-  Platform,
-  StatusBar,
   ScrollView,
+  StatusBar,
   ActivityIndicator,
   Alert
 } from "react-native";
@@ -32,7 +31,7 @@ const AnimatedShopCard = ({ item, index, onPress, type }) => {
     Animated.timing(animatedValue, {
       toValue: 1,
       duration: 400,
-      delay: (index % 15) * 60, 
+      delay: (index % 15) * 60,
       easing: Easing.out(Easing.back(1)),
       useNativeDriver: true,
     }).start();
@@ -41,21 +40,22 @@ const AnimatedShopCard = ({ item, index, onPress, type }) => {
   const getStatusColor = () => {
     if (type === 'completed') return "#30a830";
     if (type === 'extra') return "#6366f1";
+    if (type === 'remaining') return "#f59e0b";
     return "#30a830";
   };
 
   return (
-    <Animated.View style={{ 
-      opacity: animatedValue, 
-      transform: [{ translateY: animatedValue.interpolate({ inputRange: [0, 1], outputRange: [25, 0] }) }] 
+    <Animated.View style={{
+      opacity: animatedValue,
+      transform: [{ translateY: animatedValue.interpolate({ inputRange: [0, 1], outputRange: [25, 0] }) }]
     }}>
       <TouchableOpacity style={styles.shopCard} onPress={onPress}>
         <View style={styles.shopTop}>
           <View style={[styles.iconBox, (type === 'completed' || type === 'extra') && { backgroundColor: '#f0fdf4' }]}>
-            <MaterialCommunityIcons 
-              name={type === 'completed' || type === 'extra' ? "check-decagram" : "storefront-outline"} 
-              size={24} 
-              color={getStatusColor()} 
+            <MaterialCommunityIcons
+              name={type === 'completed' ? "check-decagram" : type === 'extra' ? "star-plus" : "storefront-outline"}
+              size={24}
+              color={getStatusColor()}
             />
           </View>
           <View style={{ flex: 1, marginLeft: 12 }}>
@@ -99,18 +99,8 @@ const ShopLoader = () => {
 
     Animated.loop(
       Animated.sequence([
-        Animated.timing(bounceAnim, {
-          toValue: -15,
-          duration: 600,
-          easing: Easing.out(Easing.quad),
-          useNativeDriver: true,
-        }),
-        Animated.timing(bounceAnim, {
-          toValue: 0,
-          duration: 600,
-          easing: Easing.in(Easing.quad),
-          useNativeDriver: true,
-        }),
+        Animated.timing(bounceAnim, { toValue: -15, duration: 600, easing: Easing.out(Easing.quad), useNativeDriver: true }),
+        Animated.timing(bounceAnim, { toValue: 0, duration: 600, easing: Easing.in(Easing.quad), useNativeDriver: true }),
       ])
     ).start();
   }, []);
@@ -134,26 +124,18 @@ const ShopLoader = () => {
 
 // --- COLLAPSIBLE SECTION HEADER ---
 const Section = ({ title, count, icon, color, isOpen, onToggle }) => (
-  <TouchableOpacity 
-    style={styles.sectionHeader} 
-    onPress={onToggle} 
-    activeOpacity={0.7}
-  >
+  <TouchableOpacity style={styles.sectionHeader} onPress={onToggle} activeOpacity={0.7}>
     <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}>
       <MaterialCommunityIcons name={icon} size={20} color={color} />
       <Text style={[styles.sectionTitle, { color }]}>{title} ({count})</Text>
     </View>
-    <MaterialCommunityIcons 
-      name={isOpen ? "chevron-down" : "chevron-right"} 
-      size={24} 
-      color={color} 
-    />
+    <MaterialCommunityIcons name={isOpen ? "chevron-down" : "chevron-right"} size={24} color={color} />
   </TouchableOpacity>
 );
 
 export default function ShopListScreen({ navigation }) {
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState("list"); 
+  const [activeTab, setActiveTab] = useState("list");
   const [routes, setRoutes] = useState([]);
   const [routeModal, setRouteModal] = useState(false);
   const [routeSearch, setRouteSearch] = useState("");
@@ -171,8 +153,8 @@ export default function ShopListScreen({ navigation }) {
   const filteredRoutes = useMemo(() => {
     const q = routeSearch.trim().toLowerCase();
     if (!q) return routes;
-    return routes.filter(r => 
-      String(r.code || "").toLowerCase().includes(q) || 
+    return routes.filter(r =>
+      String(r.code || "").toLowerCase().includes(q) ||
       String(r.description || "").toLowerCase().includes(q)
     );
   }, [routes, routeSearch]);
@@ -211,8 +193,8 @@ export default function ShopListScreen({ navigation }) {
       ...s,
       pendingCount: byCustomer.get(s.code)?.pendingCount || 0,
       dueTotal: byCustomer.get(s.code)?.due || 0,
-      isVisited: s.visited_this_month == 1 || s.visited_this_month == true, 
-      isAssigned: true 
+      isVisited: Number(s.visit_count) > 0,
+      isAssigned: s.is_assigned == 1// Corrected key based on typical API responses
     }));
   }, [shops, bills]);
 
@@ -220,35 +202,36 @@ export default function ShopListScreen({ navigation }) {
     const remaining = shopsWithSummary.filter(s => !s.isVisited && s.isAssigned);
     const completed = shopsWithSummary.filter(s => s.isVisited && s.isAssigned);
     const extra = shopsWithSummary.filter(s => s.isVisited && !s.isAssigned);
-    return { remaining, completed, extra, total: remaining.length + completed.length };
+    return { 
+        remaining, 
+        completed, 
+        extra, 
+        totalAssigned: remaining.length + completed.length 
+    };
   }, [shopsWithSummary]);
 
   const handleVisit = async () => {
     setIsSubmitting(true);
     try {
-      let { status } = await Location.requestForegroundPermissionsAsync();
+      const { status } = await Location.requestForegroundPermissionsAsync();
       if (status !== 'granted') return Alert.alert("Error", "Location permission is required.");
 
-      let loc = await Location.getCurrentPositionAsync({});
-
-      // Verified keys: customer_id, latitude, longitude
-      const res = await recordShopVisit({ 
-        customer_id: selectedShop.id, 
-        latitude: loc.coords.latitude, 
+      const loc = await Location.getCurrentPositionAsync({});
+      const res = await recordShopVisit({
+        customer_id: selectedShop.id,
+        latitude: loc.coords.latitude,
         longitude: loc.coords.longitude,
-        remarks: "Logged via Mobile App" 
+        remarks: "Logged via Mobile App"
       });
 
-      // Handle response based on storeVisit return structure
       Alert.alert(res.is_verified ? "Success" : "Out of Range", res.message);
-      
       setActionModal(false);
-      load(selectedRoute?.code || null); // Reload to update checkmarks
-    } catch (e) { 
+      load(selectedRoute?.code || null);
+    } catch (e) {
       console.log(e);
-      Alert.alert("Error", "Check-in failed."); 
-    } finally { 
-      setIsSubmitting(false); 
+      Alert.alert("Error", "Check-in failed.");
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -256,7 +239,6 @@ export default function ShopListScreen({ navigation }) {
     <SafeAreaView style={styles.safeArea} edges={['top']}>
       <StatusBar barStyle="light-content" backgroundColor="#30a830" />
       <View style={styles.container}>
-        
         <View style={styles.header}>
           <View style={styles.headerTopRow}>
             <TouchableOpacity onPress={() => navigation.goBack()}>
@@ -267,9 +249,8 @@ export default function ShopListScreen({ navigation }) {
               <Text style={styles.routeBtnText}>{selectedRoute?.code || "Cities"}</Text>
             </TouchableOpacity>
           </View>
-          
           <Text style={styles.headerTitle}>
-            {activeTab === 'list' ? `Shops (${shops.length})` : `My Visits (${visitData.completed.length}/${visitData.total})`}
+            {activeTab === 'list' ? `Shop List` : `My Visits (${visitData.completed.length}/${visitData.totalAssigned})`}
           </Text>
           <Text style={styles.headerSub}>{selectedRoute?.code ? `Route: ${selectedRoute.code}` : "All Available Routes"}</Text>
 
@@ -295,38 +276,17 @@ export default function ShopListScreen({ navigation }) {
             />
           ) : (
             <ScrollView contentContainerStyle={styles.listContent}>
-              <Section 
-                title="Remaining to Visit" 
-                count={visitData.remaining.length} 
-                icon="clock-outline" 
-                color="#f59e0b" 
-                isOpen={showRemaining}
-                onToggle={() => setShowRemaining(!showRemaining)}
-              />
+              <Section title="Remaining to Visit" count={visitData.remaining.length} icon="clock-outline" color="#f59e0b" isOpen={showRemaining} onToggle={() => setShowRemaining(!showRemaining)} />
               {showRemaining && visitData.remaining.map((item, i) => (
                 <AnimatedShopCard key={item.id} item={item} index={i} type="remaining" onPress={() => { setSelectedShop(item); setActionModal(true); }} />
               ))}
-              
-              <Section 
-                title="Completed Visits" 
-                count={visitData.completed.length} 
-                icon="check-circle" 
-                color="#30a830" 
-                isOpen={showCompleted}
-                onToggle={() => setShowCompleted(!showCompleted)}
-              />
+
+              <Section title="Completed Visits" count={visitData.completed.length} icon="check-circle" color="#30a830" isOpen={showCompleted} onToggle={() => setShowCompleted(!showCompleted)} />
               {showCompleted && visitData.completed.map((item, i) => (
                 <AnimatedShopCard key={item.id} item={item} index={i} type="completed" onPress={() => { setSelectedShop(item); setActionModal(true); }} />
               ))}
 
-              <Section 
-                title="Extra Shop Visits" 
-                count={visitData.extra.length} 
-                icon="star-plus" 
-                color="#6366f1" 
-                isOpen={showExtra}
-                onToggle={() => setShowExtra(!showExtra)}
-              />
+              <Section title="Extra Shop Visits" count={visitData.extra.length} icon="star-plus" color="#6366f1" isOpen={showExtra} onToggle={() => setShowExtra(!showExtra)} />
               {showExtra && visitData.extra.map((item, i) => (
                 <AnimatedShopCard key={item.id} item={item} index={i} type="extra" onPress={() => { setSelectedShop(item); setActionModal(true); }} />
               ))}
@@ -339,7 +299,7 @@ export default function ShopListScreen({ navigation }) {
             <View style={styles.actionCard}>
               <View style={styles.indicator} />
               <Text style={styles.actionTitle}>{selectedShop?.name}</Text>
-              
+
               <TouchableOpacity style={styles.actionBtn} onPress={handleVisit} disabled={isSubmitting}>
                 <View style={[styles.actionIcon, { backgroundColor: '#f0fdf4' }]}>
                   {isSubmitting ? <ActivityIndicator size="small" color="#30a830" /> : <MaterialCommunityIcons name="map-marker-check" size={26} color="#30a830" />}
@@ -372,14 +332,8 @@ export default function ShopListScreen({ navigation }) {
                   <MaterialCommunityIcons name="close" size={24} color="#64748b" />
                 </TouchableOpacity>
               </View>
-              
-              <TextInput
-                style={styles.modalInput}
-                placeholder="Search city..."
-                placeholderTextColor="#94a3b8"
-                value={routeSearch}
-                onChangeText={setRouteSearch}
-              />
+
+              <TextInput style={styles.modalInput} placeholder="Search city..." placeholderTextColor="#94a3b8" value={routeSearch} onChangeText={setRouteSearch} />
 
               <FlatList
                 data={[{ code: null, description: "All Cities" }, ...filteredRoutes]}
@@ -401,7 +355,6 @@ export default function ShopListScreen({ navigation }) {
             </View>
           </View>
         </Modal>
-
       </View>
     </SafeAreaView>
   );
