@@ -1,6 +1,6 @@
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { useFocusEffect } from "@react-navigation/native";
+import { useFocusEffect, useNavigation } from "@react-navigation/native";
 import { useCallback, useState } from "react";
 import {
   ActivityIndicator,
@@ -25,6 +25,9 @@ export default function DashboardScreen({ navigation }) {
   const [activeStat, setActiveStat] = useState("pending");
   const [userName, setUserName] = useState("");
   const [loading, setLoading] = useState(false);
+  
+  // Navigation Hook for deep linking through the Progress Bar
+  const navigationHook = useNavigation();
 
   const [stats, setStats] = useState({
     shops: 0,
@@ -73,7 +76,6 @@ export default function DashboardScreen({ navigation }) {
         fetchRecentActivity(),
       ]);
 
-      // Map the backend keys to frontend state
       setStats({
         shops: Number(statsData?.shops_count || 0),
         pending: Number(statsData?.pending_bills || 0),
@@ -114,32 +116,51 @@ export default function DashboardScreen({ navigation }) {
     if (!target.target_amount || target.target_amount === 0) return null;
 
     return (
-      <View style={styles.targetWrapper}>
-        <View style={styles.targetHeader}>
-          <Text style={styles.targetTitle}>{target.month_label} Bills Collection Target</Text>
-          <Text style={styles.targetPercent}>{target.progress_percentage}%</Text>
-        </View>
-        
-        <View style={styles.barBackground}>
-          <LinearGradient
-            colors={['#22c55e', '#4ade80']}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 0 }}
-            style={[styles.barFill, { width: `${Math.min(target.progress_percentage, 100)}%` }]}
-          />
-        </View>
+      <TouchableOpacity
+        activeOpacity={0.9}
+        onPress={() => navigationHook.navigate("Summary", { tab: "targets" })}
+      >
+        <View style={styles.targetWrapper}>
+          <View style={styles.targetHeader}>
+            <Text style={styles.targetTitle}>
+              {target.month_label} Bills Collection Target
+            </Text>
+            <Text style={styles.targetPercent}>
+              {target.progress_percentage}%
+            </Text>
+          </View>
 
-        <View style={styles.targetFooter}>
-          <View>
-            <Text style={styles.footerLabel}>Collected</Text>
-            <Text style={styles.footerValue}>{formatMoney(target.monthly_collected)}</Text>
+          <View style={styles.barBackground}>
+            <LinearGradient
+              colors={["#22c55e", "#4ade80"]}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 0 }}
+              style={[
+                styles.barFill,
+                { width: `${Math.min(target.progress_percentage, 100)}%` },
+              ]}
+            />
           </View>
-          <View style={{ alignItems: 'flex-end' }}>
-            <Text style={[styles.footerLabel, { color: '#ef4444' }]}>Remaining</Text>
-            <Text style={[styles.footerValue, { color: '#ef4444' }]}>{formatMoney(target.needs_to_collect)}</Text>
+
+          <View style={styles.targetFooter}>
+            <View>
+              <Text style={styles.footerLabel}>Collected</Text>
+              <Text style={styles.footerValue}>
+                {formatMoney(target.monthly_collected)}
+              </Text>
+            </View>
+
+            <View style={{ alignItems: "flex-end" }}>
+              <Text style={[styles.footerLabel, { color: "#ef4444" }]}>
+                Remaining
+              </Text>
+              <Text style={[styles.footerValue, { color: "#ef4444" }]}>
+                {formatMoney(target.needs_to_collect)}
+              </Text>
+            </View>
           </View>
         </View>
-      </View>
+      </TouchableOpacity>
     );
   };
 

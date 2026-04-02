@@ -12,6 +12,7 @@ import AddBillScreen from "../screens/AddBillScreen";
 import AddShopScreen from "../screens/AddShopScreen";
 import PaymentScreen from "../screens/PaymentScreen";
 import PendingBillsScreen from "../screens/PendingBillsScreen";
+import SummaryScreen from "../screens/SummaryScreen";
 
 const Stack = createStackNavigator();
 
@@ -27,6 +28,7 @@ export default function AppNavigator() {
       {/* --- Auth & Main Screens --- */}
       <Stack.Screen name="Login" component={LoginScreen} />
       <Stack.Screen name="Dashboard" component={DashboardScreen} />
+      <Stack.Screen name ="Summary" component={SummaryScreen}/>
       <Stack.Screen name="ShopList" component={ShopListScreen} />
       <Stack.Screen name="BillList" component={BillListScreen} />
       <Stack.Screen name="BillDetail" component={BillDetailScreen} />
