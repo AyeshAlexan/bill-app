@@ -194,7 +194,7 @@ export default function ShopListScreen({ navigation }) {
       pendingCount: byCustomer.get(s.code)?.pendingCount || 0,
       dueTotal: byCustomer.get(s.code)?.due || 0,
       isVisited: Number(s.visit_count) > 0,
-      isAssigned: s.is_assigned == 1// Corrected key based on typical API responses
+      isAssigned: s.is_assigned == 1
     }));
   }, [shops, bills]);
 
@@ -236,8 +236,12 @@ export default function ShopListScreen({ navigation }) {
   };
 
   return (
-    <SafeAreaView style={styles.safeArea} edges={['top']}>
+    <React.Fragment>
+      {/* 1. TOP SAFE AREA - GREEN */}
+      <SafeAreaView style={{ flex: 0, backgroundColor: "#30a830" }} edges={['top']} />
       <StatusBar barStyle="light-content" backgroundColor="#30a830" />
+      
+      {/* 2. MAIN CONTAINER */}
       <View style={styles.container}>
         <View style={styles.header}>
           <View style={styles.headerTopRow}>
@@ -294,6 +298,7 @@ export default function ShopListScreen({ navigation }) {
           )
         )}
 
+        {/* MODALS */}
         <Modal visible={actionModal} transparent animationType="slide">
           <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={() => setActionModal(false)}>
             <View style={styles.actionCard}>
@@ -332,9 +337,7 @@ export default function ShopListScreen({ navigation }) {
                   <MaterialCommunityIcons name="close" size={24} color="#64748b" />
                 </TouchableOpacity>
               </View>
-
               <TextInput style={styles.modalInput} placeholder="Search city..." placeholderTextColor="#94a3b8" value={routeSearch} onChangeText={setRouteSearch} />
-
               <FlatList
                 data={[{ code: null, description: "All Cities" }, ...filteredRoutes]}
                 keyExtractor={(item, idx) => item.code || idx.toString()}
@@ -356,7 +359,10 @@ export default function ShopListScreen({ navigation }) {
           </View>
         </Modal>
       </View>
-    </SafeAreaView>
+
+      {/* 3. BOTTOM SAFE AREA - BLACK */}
+      <SafeAreaView style={{ flex: 0, backgroundColor: "#000" }} edges={['bottom']} />
+    </React.Fragment>
   );
 }
 
@@ -370,7 +376,6 @@ const loaderStyles = StyleSheet.create({
 });
 
 const styles = StyleSheet.create({
-  safeArea: { flex: 1, backgroundColor: "#30a830" },
   container: { flex: 1, backgroundColor: "#f1f5f9" },
   header: {
     backgroundColor: "#30a830",

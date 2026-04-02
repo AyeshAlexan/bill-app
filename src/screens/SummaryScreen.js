@@ -5,8 +5,6 @@ import {
   TouchableOpacity,
   ScrollView,
   StyleSheet,
-  ActivityIndicator,
-  LayoutAnimation,
   Platform,
   UIManager,
   Dimensions,
@@ -14,7 +12,16 @@ import {
 } from "react-native";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { fetchSummary } from "../services/dashboardApi";
-import Animated, { FadeInUp, FadeIn } from "react-native-reanimated";
+import Animated, { 
+  FadeInUp, 
+  FadeIn, 
+  useAnimatedStyle, 
+  withTiming, 
+  withRepeat, 
+  withSequence,
+  useSharedValue,
+  withDelay
+} from "react-native-reanimated";
 import { useNavigation } from "@react-navigation/native";
 
 const { width } = Dimensions.get("window");
@@ -24,11 +31,48 @@ if (Platform.OS === "android") {
     UIManager.setLayoutAnimationEnabledExperimental(true);
 }
 
+// --- Internal Component: Animated Progress Bar ---
+const AnimatedBar = ({ width: targetWidth, color = "#3b82f6", delay = 0 }) => {
+  const widthShared = useSharedValue(0);
+
+  useEffect(() => {
+    widthShared.value = withDelay(delay, withTiming(targetWidth, { duration: 1000 }));
+  }, [targetWidth]);
+
+  const animatedStyle = useAnimatedStyle(() => ({
+    width: `${widthShared.value}%`,
+  }));
+
+  return (
+    <View style={styles.chartBarBg}>
+      <Animated.View style={[styles.chartBarFill, { backgroundColor: color }, animatedStyle]} />
+    </View>
+  );
+};
+
+// --- Internal Component: Summary Skeleton Loader ---
+const SkeletonLoader = () => {
+  const opacity = useSharedValue(0.3);
+  useEffect(() => {
+    opacity.value = withRepeat(withSequence(withTiming(0.7, { duration: 800 }), withTiming(0.3, { duration: 800 })), -1);
+  }, []);
+
+  const animStyle = useAnimatedStyle(() => ({ opacity: opacity.value }));
+
+  return (
+    <View style={styles.content}>
+      {[1, 2, 3].map((i) => (
+        <Animated.View key={i} style={[styles.summaryCard, animStyle, { height: 150, backgroundColor: '#e2e8f0' }]} />
+      ))}
+    </View>
+  );
+};
+
 export default function SummaryScreen() {
   const navigation = useNavigation();
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState("targets");
-  const [mode, setMode] = useState("monthly"); // For Performance Chart
+  const [mode, setMode] = useState("monthly");
   const [showAllMonths, setShowAllMonths] = useState(false);
   const [data, setData] = useState(null);
 
@@ -52,16 +96,10 @@ export default function SummaryScreen() {
       minimumFractionDigits: 2,
     })}`;
 
-  if (loading) return <ActivityIndicator style={{ flex: 1, justifyContent: 'center' }} color="#22c55e" />;
-  if (!data) return <View style={styles.center}><Text>No data available</Text></View>;
-
-  const { targets, visits } = data;
-
   return (
     <View style={styles.mainContainer}>
       <StatusBar barStyle="light-content" />
       
-      {/* GREEN HEADER */}
       <View style={styles.greenHeader}>
         <View style={styles.headerTopRow}>
           <TouchableOpacity onPress={() => navigation.goBack()}>
@@ -88,162 +126,155 @@ export default function SummaryScreen() {
         </View>
       </View>
 
-      <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-        
-        {/* ================= TARGETS TAB ================= */}
-        {activeTab === "targets" && (
-          <Animated.View entering={FadeIn}>
-            {/* CURRENT MONTH CARD */}
-            <View style={styles.summaryCard}>
-              <Text style={styles.cardMonthTitle}>{targets.current.month_label}</Text>
-              <Text style={styles.cardBigAmount}>{formatMoney(targets.current.collected)}</Text>
-              <Text style={styles.cardTargetLabel}>Target: {formatMoney(targets.current.target_amount)}</Text>
-              
-              <View style={styles.progressBg}>
-                <View style={[styles.progressFill, { width: `${Math.min(targets.current.progress_percentage, 100)}%` }]} />
+      {loading ? (
+        <SkeletonLoader />
+      ) : !data ? (
+        <View style={styles.center}><Text>No data available</Text></View>
+      ) : (
+        <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+          
+          {/* ================= TARGETS TAB ================= */}
+          {activeTab === "targets" && (
+            <Animated.View entering={FadeIn.duration(600)}>
+              <View style={styles.summaryCard}>
+                <Text style={styles.cardMonthTitle}>{data.targets.current.month_label}</Text>
+                <Text style={styles.cardBigAmount}>{formatMoney(data.targets.current.collected)}</Text>
+                <Text style={styles.cardTargetLabel}>Target: {formatMoney(data.targets.current.target_amount)}</Text>
+                
+                <AnimatedBar width={Math.min(data.targets.current.progress_percentage, 100)} color="#3b82f6" />
+                <Text style={styles.percentText}>{data.targets.current.progress_percentage}%</Text>
+
+                <View style={styles.cardFooter}>
+                   <View>
+                      <Text style={styles.footerLabel}>Collected</Text>
+                      <Text style={styles.footerVal}>{formatMoney(data.targets.current.collected)}</Text>
+                   </View>
+                   <View style={{ alignItems: 'flex-end' }}>
+                      <Text style={styles.footerLabel}>Target</Text>
+                      <Text style={styles.footerVal}>{formatMoney(data.targets.current.target_amount)}</Text>
+                   </View>
+                </View>
+
+                <TouchableOpacity style={styles.allMonthsBtn} onPress={() => setShowAllMonths(!showAllMonths)}>
+                  <Text style={styles.allMonthsText}>All months</Text>
+                  <MaterialCommunityIcons name={showAllMonths ? "chevron-up" : "chevron-down"} size={20} color="#2563eb" />
+                </TouchableOpacity>
               </View>
-              <Text style={styles.percentText}>{targets.current.progress_percentage}%</Text>
 
-              <View style={styles.cardFooter}>
-                 <View>
-                    <Text style={styles.footerLabel}>Collected</Text>
-                    <Text style={styles.footerVal}>{formatMoney(targets.current.collected)}</Text>
-                 </View>
-                 <View style={{ alignItems: 'flex-end' }}>
-                    <Text style={styles.footerLabel}>Target</Text>
-                    <Text style={styles.footerVal}>{formatMoney(targets.current.target_amount)}</Text>
+              {showAllMonths && data.targets.all_months.map((m, i) => (
+                 <Animated.View entering={FadeInUp.delay(i * 100)} key={i} style={styles.summaryCard}>
+                    <Text style={styles.cardMonthTitle}>{m.label}</Text>
+                    <Text style={styles.cardBigAmount}>{formatMoney(m.collected || 0)}</Text>
+                    <Text style={styles.cardTargetLabel}>Target: {formatMoney(m.target_amount)}</Text>
+                    <AnimatedBar 
+                        width={Math.min((m.collected/(m.target_amount || 1))*100, 100)} 
+                        color="#22c55e" 
+                        delay={200}
+                    />
+                    <Text style={styles.percentText}>{Math.round((m.collected/(m.target_amount || 1))*100)}%</Text>
+                 </Animated.View>
+              ))}
+
+              <View style={styles.sectionHeaderRow}>
+                 <Text style={styles.sectionTitle}>Performance Chart</Text>
+                 <View style={styles.miniToggle}>
+                    <TouchableOpacity onPress={() => setMode('monthly')} style={[styles.miniBtn, mode === 'monthly' && styles.miniBtnActive]}>
+                      <Text style={[styles.miniText, mode === 'monthly' && styles.miniTextActive]}>Monthly</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity onPress={() => setMode('daily')} style={[styles.miniBtn, mode === 'daily' && styles.miniBtnActive]}>
+                      <Text style={[styles.miniText, mode === 'daily' && styles.miniTextActive]}>Daily</Text>
+                    </TouchableOpacity>
                  </View>
               </View>
 
-              <TouchableOpacity style={styles.allMonthsBtn} onPress={() => {
-                  LayoutAnimation.easeInEaseOut();
-                  setShowAllMonths(!showAllMonths);
-              }}>
-                <Text style={styles.allMonthsText}>All months</Text>
-                <MaterialCommunityIcons name={showAllMonths ? "chevron-up" : "chevron-down"} size={20} color="#2563eb" />
-              </TouchableOpacity>
-            </View>
-
-            {/* HISTORICAL MONTHS (Shown when toggled) */}
-            {showAllMonths && targets.all_months.map((m, i) => (
-               <Animated.View entering={FadeInUp.delay(i * 100)} key={i} style={styles.summaryCard}>
-                  <Text style={styles.cardMonthTitle}>{m.label}</Text>
-                  <Text style={styles.cardBigAmount}>{formatMoney(m.collected || 0)}</Text>
-                  <Text style={styles.cardTargetLabel}>Target: {formatMoney(m.target_amount)}</Text>
-                  <View style={styles.progressBg}>
-                    <View style={[styles.progressFill, { width: `${Math.min((m.collected/(m.target_amount || 1))*100, 100)}%`, backgroundColor: '#22c55e' }]} />
-                  </View>
-                  <Text style={styles.percentText}>{Math.round((m.collected/(m.target_amount || 1))*100)}%</Text>
-               </Animated.View>
-            ))}
-
-            {/* PERFORMANCE CHART SECTION */}
-            <View style={styles.sectionHeaderRow}>
-               <Text style={styles.sectionTitle}>Performance Chart</Text>
-               <View style={styles.miniToggle}>
-                  <TouchableOpacity onPress={() => setMode('monthly')} style={[styles.miniBtn, mode === 'monthly' && styles.miniBtnActive]}>
-                    <Text style={[styles.miniText, mode === 'monthly' && styles.miniTextActive]}>Monthly</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity onPress={() => setMode('daily')} style={[styles.miniBtn, mode === 'daily' && styles.miniBtnActive]}>
-                    <Text style={[styles.miniText, mode === 'daily' && styles.miniTextActive]}>Daily</Text>
-                  </TouchableOpacity>
-               </View>
-            </View>
-
-            <View style={styles.chartCard}>
-              {mode === 'monthly' ? (
-                // --- MONTHLY VIEW ---
-                targets.all_months.map((m, i) => (
-                  <View key={`month-${i}`} style={styles.chartRow}>
-                    <View style={styles.chartLabelRow}>
-                      <Text style={styles.chartMonthLabel}>{m.label.substring(0,3)}</Text>
-                      <Text style={styles.chartValueLabel}>{formatMoney(m.collected || 0)}</Text>
-                    </View>
-                    <View style={styles.chartBarBg}>
-                       <View style={[styles.chartBarFill, { width: `${Math.min((m.collected/(m.target_amount || 1))*100, 100)}%` }]} />
-                    </View>
-                  </View>
-                ))
-              ) : (
-                // --- DAILY VIEW ---
-                targets.daily && targets.daily.length > 0 ? (
-                  targets.daily.map((d, i) => {
-                    const maxDaily = Math.max(...targets.daily.map(o => parseFloat(o.total)), 1);
-                    const barWidth = (parseFloat(d.total) / maxDaily) * 100;
-                    return (
-                      <View key={`daily-${i}`} style={styles.chartRow}>
-                        <View style={styles.chartLabelRow}>
-                          <Text style={styles.chartMonthLabel}>{d.date.split('-')[2]}</Text>
-                          <Text style={styles.chartValueLabel}>{formatMoney(d.total)}</Text>
-                        </View>
-                        <View style={styles.chartBarBg}>
-                           <View style={[styles.chartBarFill, { width: `${barWidth}%`, backgroundColor: '#10b981' }]} />
-                        </View>
+              <View style={styles.chartCard}>
+                {mode === 'monthly' ? (
+                  data.targets.all_months.map((m, i) => (
+                    <Animated.View entering={FadeInUp.delay(i * 50)} key={`month-${i}`} style={styles.chartRow}>
+                      <View style={styles.chartLabelRow}>
+                        <Text style={styles.chartMonthLabel}>{m.label.substring(0,3)}</Text>
+                        <Text style={styles.chartValueLabel}>{formatMoney(m.collected || 0)}</Text>
                       </View>
-                    );
-                  })
+                      <AnimatedBar width={Math.min((m.collected/(m.target_amount || 1))*100, 100)} delay={i * 100} />
+                    </Animated.View>
+                  ))
                 ) : (
-                  <Text style={{ textAlign: 'center', color: '#64748b', padding: 20 }}>No daily data available</Text>
-                )
-              )}
-            </View>
+                  data.targets.daily && data.targets.daily.length > 0 ? (
+                    data.targets.daily.map((d, i) => {
+                      const maxDaily = Math.max(...data.targets.daily.map(o => parseFloat(o.total)), 1);
+                      const barWidth = (parseFloat(d.total) / maxDaily) * 100;
+                      return (
+                        <Animated.View entering={FadeInUp.delay(i * 30)} key={`daily-${i}`} style={styles.chartRow}>
+                          <View style={styles.chartLabelRow}>
+                            <Text style={styles.chartMonthLabel}>{d.date.split('-')[2]}</Text>
+                            <Text style={styles.chartValueLabel}>{formatMoney(d.total)}</Text>
+                          </View>
+                          <AnimatedBar width={barWidth} color="#10b981" delay={i * 50} />
+                        </Animated.View>
+                      );
+                    })
+                  ) : (
+                    <Text style={{ textAlign: 'center', color: '#64748b', padding: 20 }}>No daily data available</Text>
+                  )
+                )}
+              </View>
 
-            {/* SMART INSIGHT */}
-            <Text style={styles.sectionTitle}>Smart Insight</Text>
-            <View style={styles.chartCard}>
-               <View style={styles.insightRow}>
-                  <Text style={styles.insightLabel}>Target Achievement</Text>
-                  <Text style={styles.insightValue}>{targets.insight.current_progress}%</Text>
-               </View>
-               <View style={styles.insightRow}>
-                  <Text style={styles.insightLabel}>Growth Status</Text>
-                  <Text style={[styles.insightValue, { color: targets.insight.status === 'on_track' ? '#22c55e' : '#ef4444' }]}>
-                    {targets.insight.status === 'on_track' ? 'On Track' : 'Behind Schedule'}
-                  </Text>
-               </View>
-            </View>
-          </Animated.View>
-        )}
+              <Text style={styles.sectionTitle}>Smart Insight</Text>
+              <Animated.View entering={FadeInUp} style={styles.chartCard}>
+                 <View style={styles.insightRow}>
+                    <Text style={styles.insightLabel}>Target Achievement</Text>
+                    <Text style={styles.insightValue}>{data.targets.insight.current_progress}%</Text>
+                 </View>
+                 <View style={styles.insightRow}>
+                    <Text style={styles.insightLabel}>Growth Status</Text>
+                    <Text style={[styles.insightValue, { color: data.targets.insight.status === 'on_track' ? '#22c55e' : '#ef4444' }]}>
+                      {data.targets.insight.status === 'on_track' ? 'On Track' : 'Behind Schedule'}
+                    </Text>
+                 </View>
+              </Animated.View>
+            </Animated.View>
+          )}
 
-        {/* ================= VISITS TAB ================= */}
-        {activeTab === "visits" && (
-          <Animated.View entering={FadeIn}>
-            <View style={styles.summaryCard}>
-              <Text style={styles.visitLabel}>Monthly Visits</Text>
-              <Text style={styles.visitBigCount}>{visits.monthly_total}</Text>
-            </View>
+          {/* ================= VISITS TAB ================= */}
+          {activeTab === "visits" && (
+            <Animated.View entering={FadeIn.duration(600)}>
+              <Animated.View entering={FadeInUp.delay(100)} style={styles.summaryCard}>
+                <Text style={styles.visitLabel}>Monthly Visits</Text>
+                <Text style={styles.visitBigCount}>{data.visits.monthly_total}</Text>
+              </Animated.View>
 
-            <View style={styles.summaryCard}>
-              <Text style={styles.visitLabel}>Visit Efficiency</Text>
-              <Text style={styles.visitBigAmount}>{formatMoney(visits.efficiency)}<Text style={styles.perVisit}>/visit</Text></Text>
-            </View>
+              <Animated.View entering={FadeInUp.delay(200)} style={styles.summaryCard}>
+                <Text style={styles.visitLabel}>Visit Efficiency</Text>
+                <Text style={styles.visitBigAmount}>{formatMoney(data.visits.efficiency)}<Text style={styles.perVisit}>/visit</Text></Text>
+              </Animated.View>
 
-            <Text style={styles.sectionTitle}>Daily Visit History</Text>
-            <View style={styles.chartCard}>
-               {visits.daily.length > 0 ? (
-                 visits.daily.map((d, i) => (
-                  <View key={i} style={styles.dailyVisitRow}>
-                    <View style={{ flex: 1 }}>
-                      <View style={styles.shopNameRow}>
-                        <MaterialCommunityIcons name="storefront-outline" size={16} color="#22c55e" style={{ marginRight: 6 }} />
-                        <Text style={styles.dailyShopName}>{d.shop_name || "General Visit"}</Text>
+              <Text style={styles.sectionTitle}>Daily Visit History</Text>
+              <View style={styles.chartCard}>
+                 {data.visits.daily.length > 0 ? (
+                   data.visits.daily.map((d, i) => (
+                    <Animated.View entering={FadeInUp.delay(i * 100)} key={i} style={styles.dailyVisitRow}>
+                      <View style={{ flex: 1 }}>
+                        <View style={styles.shopNameRow}>
+                          <MaterialCommunityIcons name="storefront-outline" size={16} color="#22c55e" style={{ marginRight: 6 }} />
+                          <Text style={styles.dailyShopName}>{d.shop_name || "General Visit"}</Text>
+                        </View>
+                        <Text style={styles.dailyDate}>{d.date}</Text>
                       </View>
-                      <Text style={styles.dailyDate}>{d.date}</Text>
-                    </View>
-                    <View style={styles.visitBadge}>
-                      <Text style={styles.visitBadgeText}>{d.visits} {d.visits > 1 ? 'Shops' : 'Shop'}</Text>
-                    </View>
-                  </View>
-                ))
-               ) : (
-                 <Text style={{textAlign: 'center', color: '#64748b', paddingVertical: 20}}>No visits recorded</Text>
-               )}
-            </View>
-          </Animated.View>
-        )}
+                      <View style={styles.visitBadge}>
+                        <Text style={styles.visitBadgeText}>{d.visits} {d.visits > 1 ? 'Shops' : 'Shop'}</Text>
+                      </View>
+                    </Animated.View>
+                  ))
+                 ) : (
+                   <Text style={{textAlign: 'center', color: '#64748b', paddingVertical: 20}}>No visits recorded</Text>
+                 )}
+              </View>
+            </Animated.View>
+          )}
 
-        <View style={{ height: 50 }} />
-      </ScrollView>
+          <View style={{ height: 50 }} />
+        </ScrollView>
+      )}
     </View>
   );
 }
@@ -288,8 +319,6 @@ const styles = StyleSheet.create({
   cardBigAmount: { fontSize: 32, fontWeight: '800', color: '#0f172a' },
   cardTargetLabel: { fontSize: 14, color: '#3b82f6', marginTop: 5, marginBottom: 15 },
   
-  progressBg: { height: 8, backgroundColor: '#f1f5f9', borderRadius: 4, overflow: 'hidden' },
-  progressFill: { height: '100%', backgroundColor: '#3b82f6' },
   percentText: { textAlign: 'right', fontSize: 12, fontWeight: 'bold', color: '#22c55e', marginTop: 5 },
   
   cardFooter: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 20, borderTopWidth: 1, borderTopColor: '#f1f5f9', paddingTop: 15 },
@@ -314,7 +343,7 @@ const styles = StyleSheet.create({
   chartMonthLabel: { fontSize: 14, color: '#64748b' },
   chartValueLabel: { fontSize: 14, fontWeight: 'bold', color: '#0f172a' },
   chartBarBg: { height: 12, backgroundColor: '#f1f5f9', borderRadius: 6, overflow: 'hidden' },
-  chartBarFill: { height: '100%', backgroundColor: '#3b82f6' },
+  chartBarFill: { height: '100%', borderRadius: 6 },
 
   insightRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 10 },
   insightLabel: { color: '#64748b', fontSize: 14 },
