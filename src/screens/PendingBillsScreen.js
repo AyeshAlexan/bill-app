@@ -11,12 +11,17 @@ import {
   Easing,
   Platform,
   TextInput,
+  StatusBar,
 } from "react-native";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { useFocusEffect } from "@react-navigation/native";
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { getPendingBills } from "../services/billApi";
 import { fetchRoutes } from "../services/shopApi";
+
+const totalOf = (b) => Number(b?.after_vat_amount ?? b?.Net_Amount ?? b?.Gross_Amount ?? 0);
+const paidOf = (b) => Number(b?.Paid_Amount ?? 0);
 
 // --- ANIMATED BILL CARD COMPONENT ---
 const AnimatedBillCard = ({ item, index, navigation, filterKey }) => {
@@ -27,11 +32,11 @@ const AnimatedBillCard = ({ item, index, navigation, filterKey }) => {
     Animated.timing(animatedValue, {
       toValue: 1,
       duration: 400,
-      delay: (index % 10) * 60, // Reduced delay for snappier feel
+      delay: (index % 10) * 60,
       easing: Easing.out(Easing.back(1)),
       useNativeDriver: true,
     }).start();
-  }, [item.Invoice_no, filterKey]); // Re-animate when filter changes
+  }, [item.Invoice_no, filterKey]);
 
   const translateY = animatedValue.interpolate({
     inputRange: [0, 1],
@@ -146,9 +151,6 @@ const BillLoadingView = () => {
   );
 };
 
-const totalOf = (b) => Number(b?.after_vat_amount ?? b?.Net_Amount ?? b?.Gross_Amount ?? 0);
-const paidOf = (b) => Number(b?.Paid_Amount ?? 0);
-
 export default function PendingBillsScreen({ navigation }) {
   const [loading, setLoading] = useState(true);
   const [bills, setBills] = useState([]);
@@ -172,14 +174,12 @@ export default function PendingBillsScreen({ navigation }) {
 
   useFocusEffect(useCallback(() => { loadData(); }, []));
 
-  // FILTERED ROUTES FOR DROPDOWN
   const filteredRoutes = useMemo(() => {
     const q = routeSearch.toLowerCase().trim();
     if (!q) return routes;
     return routes.filter(r => (r.code || "").toLowerCase().includes(q));
   }, [routes, routeSearch]);
 
-  // FILTERED BILLS FOR MAIN LIST
   const filteredBills = useMemo(() => {
     if (!selectedRoute) return bills;
     return bills.filter((item) => item.Route === selectedRoute || item.City_1 === selectedRoute);
@@ -198,97 +198,95 @@ export default function PendingBillsScreen({ navigation }) {
   );
 
   return (
-    <View style={styles.container}>
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
-          <MaterialCommunityIcons name="chevron-left" size={32} color="white" />
-        </TouchableOpacity>
+    <View style={styles.outerWrapper}>
+      <StatusBar barStyle="light-content" backgroundColor="#ff3d00" />
+      
+      <SafeAreaView style={styles.safeAreaBottom} edges={['bottom']}>
+        <View style={styles.container}>
+          <View style={styles.header}>
+            {/* Added gap here via header paddingTop */}
+            <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
+              <MaterialCommunityIcons name="chevron-left" size={32} color="white" />
+            </TouchableOpacity>
 
-        <View style={styles.headerRow}>
-          <View>
-            <Text style={styles.headerTitle}>Pending Bills</Text>
-            <Text style={styles.headerSub}>Bills awaiting collection</Text>
-          </View>
-          <TouchableOpacity style={styles.filterDropdown} onPress={() => setRouteModal(true)}>
-            <Text style={styles.filterText} numberOfLines={1}>
-              {selectedRoute || "All Cities"}
-            </Text>
-            <MaterialCommunityIcons name="chevron-down" size={20} color="white" />
-          </TouchableOpacity>
-        </View>
-
-        <View style={styles.statsBox}>
-          <Text style={styles.statsLabel}>Total Pending</Text>
-          <Text style={styles.statsValue}>{filteredBills.length}</Text>
-        </View>
-      </View>
-
-      {loading ? (
-        <BillLoadingView />
-      ) : (
-        <FlatList
-          data={filteredBills}
-          renderItem={renderItem}
-          keyExtractor={(item, idx) => String(item.Invoice_no ?? idx)}
-          contentContainerStyle={{ padding: 20, paddingBottom: 100 }}
-          initialNumToRender={8}
-          maxToRenderPerBatch={10}
-          windowSize={10}
-          removeClippedSubviews={Platform.OS === 'android'}
-          getItemLayout={(data, index) => ({ length: 180, offset: 180 * index, index })}
-        />
-      )}
-
-      {/* Route Modal with Search */}
-      <Modal visible={routeModal} transparent animationType="slide">
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalCard}>
-            <Text style={styles.modalTitle}>Select Route/City</Text>
-            
-            {/* SEARCH BAR INSIDE MODAL */}
-            <View style={styles.modalSearchBox}>
-              <MaterialCommunityIcons name="magnify" size={20} color="#94a3b8" />
-              <TextInput 
-                style={styles.modalSearchInput}
-                placeholder="Search route..."
-                value={routeSearch}
-                onChangeText={setRouteSearch}
-              />
+            <View style={styles.headerRow}>
+              <View>
+                <Text style={styles.headerTitle}>Pending Bills</Text>
+                <Text style={styles.headerSub}>Bills awaiting collection</Text>
+              </View>
+              <TouchableOpacity style={styles.filterDropdown} onPress={() => setRouteModal(true)}>
+                <Text style={styles.filterText} numberOfLines={1}>
+                  {selectedRoute || "All Cities"}
+                </Text>
+                <MaterialCommunityIcons name="chevron-down" size={20} color="white" />
+              </TouchableOpacity>
             </View>
 
-            <FlatList
-              data={[{ code: null }, ...filteredRoutes]}
-              keyExtractor={(item, index) => item.code || "all"}
-              renderItem={({ item }) => (
-                <TouchableOpacity
-                  style={styles.modalItem}
-                  onPress={() => {
-                    setRouteModal(false);
-                    setRouteSearch(""); // Clear search on select
-                    // Small delay to prevent animation stuttering while modal closes
-                    setTimeout(() => setSelectedRoute(item.code), 300);
-                  }}
-                >
-                  <Text style={[styles.modalItemText, selectedRoute === item.code && styles.selectedText]}>
-                    {item.code || "All Cities"}
-                  </Text>
-                  {selectedRoute === item.code && (
-                    <MaterialCommunityIcons name="check" size={20} color="#ff3d00" />
-                  )}
-                </TouchableOpacity>
-              )}
-            />
-            <TouchableOpacity style={styles.modalClose} onPress={() => { setRouteModal(false); setRouteSearch(""); }}>
-              <Text style={styles.closeBtnText}>Close</Text>
-            </TouchableOpacity>
+            <View style={styles.statsBox}>
+              <Text style={styles.statsLabel}>Total Pending</Text>
+              <Text style={styles.statsValue}>{filteredBills.length}</Text>
+            </View>
           </View>
+
+          {loading ? (
+            <BillLoadingView />
+          ) : (
+            <FlatList
+              data={filteredBills}
+              renderItem={renderItem}
+              keyExtractor={(item, idx) => String(item.Invoice_no ?? idx)}
+              contentContainerStyle={{ padding: 20, paddingBottom: 50 }}
+              initialNumToRender={8}
+            />
+          )}
+
+          {/* Route Modal */}
+          <Modal visible={routeModal} transparent animationType="slide">
+            <View style={styles.modalOverlay}>
+              <View style={styles.modalCard}>
+                <Text style={styles.modalTitle}>Select Route/City</Text>
+                <View style={styles.modalSearchBox}>
+                  <MaterialCommunityIcons name="magnify" size={20} color="#94a3b8" />
+                  <TextInput 
+                    style={styles.modalSearchInput}
+                    placeholder="Search route..."
+                    value={routeSearch}
+                    onChangeText={setRouteSearch}
+                  />
+                </View>
+                <FlatList
+                  data={[{ code: null }, ...filteredRoutes]}
+                  keyExtractor={(item, index) => item.code || "all"}
+                  renderItem={({ item }) => (
+                    <TouchableOpacity
+                      style={styles.modalItem}
+                      onPress={() => {
+                        setRouteModal(false);
+                        setRouteSearch("");
+                        setTimeout(() => setSelectedRoute(item.code), 300);
+                      }}
+                    >
+                      <Text style={[styles.modalItemText, selectedRoute === item.code && styles.selectedText]}>
+                        {item.code || "All Cities"}
+                      </Text>
+                      {selectedRoute === item.code && (
+                        <MaterialCommunityIcons name="check" size={20} color="#ff3d00" />
+                      )}
+                    </TouchableOpacity>
+                  )}
+                />
+                <TouchableOpacity style={styles.modalClose} onPress={() => { setRouteModal(false); setRouteSearch(""); }}>
+                  <Text style={styles.closeBtnText}>Close</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </Modal>
         </View>
-      </Modal>
+      </SafeAreaView>
     </View>
   );
 }
 
-// --- STYLES ---
 const loaderStyles = StyleSheet.create({
   iconContainer: { width: 100, height: 100, backgroundColor: "#fff", borderRadius: 50, justifyContent: "center", alignItems: "center", elevation: 5, shadowColor: "#000", shadowOpacity: 0.1, shadowRadius: 10 },
   text: { marginTop: 20, fontSize: 16, fontWeight: "700", color: "#475569" },
@@ -296,9 +294,20 @@ const loaderStyles = StyleSheet.create({
 });
 
 const styles = StyleSheet.create({
+  outerWrapper: { flex: 1, backgroundColor: "#000000" },
+  safeAreaBottom: { flex: 1, backgroundColor: "#000000" },
   container: { flex: 1, backgroundColor: "#f8fafc" },
   center: { flex: 1, justifyContent: "center", alignItems: "center" },
-  header: { backgroundColor: "#ff3d00", padding: 25, paddingTop: 50, borderBottomLeftRadius: 40, borderBottomRightRadius: 40 },
+  
+  // Adjusted paddingTop from 20 to 50 for the status bar gap
+  header: { 
+    backgroundColor: "#ff3d00", 
+    padding: 25, 
+    paddingTop: 50, 
+    borderBottomLeftRadius: 40, 
+    borderBottomRightRadius: 40 
+  },
+  
   headerRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
   headerTitle: { color: "white", fontSize: 24, fontWeight: "bold" },
   headerSub: { color: "white", opacity: 0.9, fontSize: 13 },

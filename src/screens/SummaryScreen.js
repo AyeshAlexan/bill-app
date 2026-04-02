@@ -206,7 +206,8 @@ export default function SummaryScreen() {
                       return (
                         <Animated.View entering={FadeInUp.delay(i * 30)} key={`daily-${i}`} style={styles.chartRow}>
                           <View style={styles.chartLabelRow}>
-                            <Text style={styles.chartMonthLabel}>{d.date.split('-')[2]}</Text>
+                            {/* UPDATED: Now using formatted_date from API */}
+                            <Text style={styles.chartMonthLabel}>{d.formatted_date}</Text>
                             <Text style={styles.chartValueLabel}>{formatMoney(d.total)}</Text>
                           </View>
                           <AnimatedBar width={barWidth} color="#10b981" delay={i * 50} />
@@ -258,7 +259,8 @@ export default function SummaryScreen() {
                           <MaterialCommunityIcons name="storefront-outline" size={16} color="#22c55e" style={{ marginRight: 6 }} />
                           <Text style={styles.dailyShopName}>{d.shop_name || "General Visit"}</Text>
                         </View>
-                        <Text style={styles.dailyDate}>{d.date}</Text>
+                        {/* UPDATED: Now using formatted_date from API */}
+                        <Text style={styles.dailyDate}>{d.formatted_date}</Text>
                       </View>
                       <View style={styles.visitBadge}>
                         <Text style={styles.visitBadgeText}>{d.visits} {d.visits > 1 ? 'Shops' : 'Shop'}</Text>

@@ -345,7 +345,7 @@ export default function AddBillScreen({ navigation }) {
         qty: qty,
         free_issues: free,
         unit_price: unit,
-        discount: toNum(r.discount_percent),
+        discount_percent: toNum(r.discount_percent),
       };
     }).filter(x => x.item_code && (x.qty > 0 || x.free_issues > 0));
 

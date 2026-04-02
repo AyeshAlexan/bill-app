@@ -239,7 +239,7 @@ export default function BillDetailScreen({ route, navigation }) {
   }
 
   return (
-    <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
+    <SafeAreaView style={styles.safeArea}>
       <StatusBar barStyle="light-content" backgroundColor="#30a830" />
       <View style={styles.container}>
         <View style={styles.header}>
@@ -456,7 +456,6 @@ export default function BillDetailScreen({ route, navigation }) {
             <View style={styles.modernCard}>
               <MaterialCommunityIcons name="check-decagram" size={70} color="#059669" />
               <Text style={styles.modernTitle}>Payment Success</Text>
-              
               <View style={styles.modalSummaryBox}>
                 <View style={styles.modalSummaryRow}>
                   <Text style={styles.modalSummaryLabel}>Amount Paid:</Text>
@@ -467,9 +466,7 @@ export default function BillDetailScreen({ route, navigation }) {
                   <Text style={[styles.modalSummaryValue, {color: '#059669'}]}>Rs. {lastChange.toFixed(2)}</Text>
                 </View>
               </View>
-
               <Text style={styles.modernMessage}>The payment for invoice #{invoiceNo} has been recorded.</Text>
-              
               <TouchableOpacity style={styles.modernDoneBtn} onPress={() => setShowSuccess(false)}>
                 <Text style={styles.modernDoneText}>Continue</Text>
               </TouchableOpacity>
@@ -482,7 +479,8 @@ export default function BillDetailScreen({ route, navigation }) {
 }
 
 const styles = StyleSheet.create({
-  safeArea: { flex: 1, backgroundColor: "#000000" }, 
+  // CHANGED: Match the safeArea background to the main UI color to prevent white/black flickers
+  safeArea: { flex: 1, backgroundColor: "#30a830" }, 
   container: { flex: 1, backgroundColor: "#f1f5f9" },
   header: { 
     backgroundColor: "#30a830", 
