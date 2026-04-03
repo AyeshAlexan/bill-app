@@ -284,10 +284,11 @@ export default function SummaryScreen() {
 const styles = StyleSheet.create({
   mainContainer: { flex: 1, backgroundColor: "#f1f5f9" },
   greenHeader: {
-    backgroundColor: "#22c55e",
+    backgroundColor: "#19ab2f",
     paddingTop: Platform.OS === 'ios' ? 50 : 30,
     paddingHorizontal: 20,
     paddingBottom: 25,
+    borderRadius: 40,
     borderBottomLeftRadius: 35,
     borderBottomRightRadius: 35,
   },
@@ -297,7 +298,7 @@ const styles = StyleSheet.create({
   tabContainer: {
     flexDirection: "row",
     backgroundColor: "rgba(0,0,0,0.1)",
-    borderRadius: 15,
+    borderRadius: 10,
     padding: 5,
   },
   tabBtn: { flex: 1, paddingVertical: 12, alignItems: "center", borderRadius: 12 },
