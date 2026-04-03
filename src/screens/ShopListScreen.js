@@ -315,7 +315,9 @@ export default function ShopListScreen({ navigation }) {
                 </View>
               </TouchableOpacity>
 
-              <TouchableOpacity style={styles.actionBtn} onPress={() => { setActionModal(false); navigation.navigate("BillList", { shopCode: selectedShop.code, shopName: selectedShop.name }); }}>
+              <TouchableOpacity style={styles.actionBtn} onPress={() => { setActionModal(false); navigation.navigate("BillList", { 
+                shopCode: selectedShop.code, 
+                shopName: selectedShop.name, routeCode: selectedRoute?.code || selectedShop?.route_code || "N/A" }); }}>
                 <View style={[styles.actionIcon, { backgroundColor: '#eff6ff' }]}>
                   <MaterialCommunityIcons name="currency-usd" size={26} color="#3b82f6" />
                 </View>
