@@ -237,11 +237,9 @@ export default function ShopListScreen({ navigation }) {
 
   return (
     <React.Fragment>
-      {/* 1. TOP SAFE AREA - GREEN */}
       <SafeAreaView style={{ flex: 0, backgroundColor: "#30a830" }} edges={['top']} />
       <StatusBar barStyle="light-content" backgroundColor="#30a830" />
       
-      {/* 2. MAIN CONTAINER */}
       <View style={styles.container}>
         <View style={styles.header}>
           <View style={styles.headerTopRow}>
@@ -268,35 +266,48 @@ export default function ShopListScreen({ navigation }) {
           </View>
         </View>
 
-        {loading ? <ShopLoader /> : (
-          activeTab === 'list' ? (
-            <FlatList
-              data={shopsWithSummary}
-              keyExtractor={(item) => item.id.toString()}
-              contentContainerStyle={styles.listContent}
-              renderItem={({ item, index }) => (
-                <AnimatedShopCard item={item} index={index} onPress={() => { setSelectedShop(item); setActionModal(true); }} />
-              )}
-            />
-          ) : (
-            <ScrollView contentContainerStyle={styles.listContent}>
-              <Section title="Remaining to Visit" count={visitData.remaining.length} icon="clock-outline" color="#f59e0b" isOpen={showRemaining} onToggle={() => setShowRemaining(!showRemaining)} />
-              {showRemaining && visitData.remaining.map((item, i) => (
-                <AnimatedShopCard key={item.id} item={item} index={i} type="remaining" onPress={() => { setSelectedShop(item); setActionModal(true); }} />
-              ))}
+        <View style={{ flex: 1 }}>
+            {loading ? (
+                <ShopLoader />
+            ) : (
+                activeTab === 'list' ? (
+                <FlatList
+                    data={shopsWithSummary}
+                    keyExtractor={(item) => item.id.toString()}
+                    contentContainerStyle={styles.listContent}
+                    renderItem={({ item, index }) => (
+                    <AnimatedShopCard item={item} index={index} onPress={() => { setSelectedShop(item); setActionModal(true); }} />
+                    )}
+                />
+                ) : (
+                <ScrollView contentContainerStyle={styles.listContent}>
+                    <Section title="Remaining to Visit" count={visitData.remaining.length} icon="clock-outline" color="#f59e0b" isOpen={showRemaining} onToggle={() => setShowRemaining(!showRemaining)} />
+                    {showRemaining && visitData.remaining.map((item, i) => (
+                    <AnimatedShopCard key={item.id} item={item} index={i} type="remaining" onPress={() => { setSelectedShop(item); setActionModal(true); }} />
+                    ))}
 
-              <Section title="Completed Visits" count={visitData.completed.length} icon="check-circle" color="#30a830" isOpen={showCompleted} onToggle={() => setShowCompleted(!showCompleted)} />
-              {showCompleted && visitData.completed.map((item, i) => (
-                <AnimatedShopCard key={item.id} item={item} index={i} type="completed" onPress={() => { setSelectedShop(item); setActionModal(true); }} />
-              ))}
+                    <Section title="Completed Visits" count={visitData.completed.length} icon="check-circle" color="#30a830" isOpen={showCompleted} onToggle={() => setShowCompleted(!showCompleted)} />
+                    {showCompleted && visitData.completed.map((item, i) => (
+                    <AnimatedShopCard key={item.id} item={item} index={i} type="completed" onPress={() => { setSelectedShop(item); setActionModal(true); }} />
+                    ))}
 
-              <Section title="Extra Shop Visits" count={visitData.extra.length} icon="star-plus" color="#6366f1" isOpen={showExtra} onToggle={() => setShowExtra(!showExtra)} />
-              {showExtra && visitData.extra.map((item, i) => (
-                <AnimatedShopCard key={item.id} item={item} index={i} type="extra" onPress={() => { setSelectedShop(item); setActionModal(true); }} />
-              ))}
-            </ScrollView>
-          )
-        )}
+                    <Section title="Extra Shop Visits" count={visitData.extra.length} icon="star-plus" color="#6366f1" isOpen={showExtra} onToggle={() => setShowExtra(!showExtra)} />
+                    {showExtra && visitData.extra.map((item, i) => (
+                    <AnimatedShopCard key={item.id} item={item} index={i} type="extra" onPress={() => { setSelectedShop(item); setActionModal(true); }} />
+                    ))}
+                </ScrollView>
+                )
+            )}
+
+            {/* --- FAB (Ensured Visibility) --- */}
+            <TouchableOpacity 
+                style={styles.fab} 
+                activeOpacity={0.8} 
+                onPress={() => navigation.navigate("AddShop")}
+            >
+                <MaterialCommunityIcons name="plus" size={32} color="white" />
+            </TouchableOpacity>
+        </View>
 
         {/* MODALS */}
         <Modal visible={actionModal} transparent animationType="slide">
@@ -304,7 +315,6 @@ export default function ShopListScreen({ navigation }) {
             <View style={styles.actionCard}>
               <View style={styles.indicator} />
               <Text style={styles.actionTitle}>{selectedShop?.name}</Text>
-
               <TouchableOpacity style={styles.actionBtn} onPress={handleVisit} disabled={isSubmitting}>
                 <View style={[styles.actionIcon, { backgroundColor: '#f0fdf4' }]}>
                   {isSubmitting ? <ActivityIndicator size="small" color="#30a830" /> : <MaterialCommunityIcons name="map-marker-check" size={26} color="#30a830" />}
@@ -314,7 +324,6 @@ export default function ShopListScreen({ navigation }) {
                   <Text style={styles.actionBtnSub}>Verify location at shop entrance</Text>
                 </View>
               </TouchableOpacity>
-
               <TouchableOpacity style={styles.actionBtn} onPress={() => { setActionModal(false); navigation.navigate("BillList", { 
                 shopCode: selectedShop.code, 
                 shopName: selectedShop.name, routeCode: selectedRoute?.code || selectedShop?.route_code || "N/A" }); }}>
@@ -362,7 +371,6 @@ export default function ShopListScreen({ navigation }) {
         </Modal>
       </View>
 
-      {/* 3. BOTTOM SAFE AREA - BLACK */}
       <SafeAreaView style={{ flex: 0, backgroundColor: "#000" }} edges={['bottom']} />
     </React.Fragment>
   );
@@ -399,7 +407,7 @@ const styles = StyleSheet.create({
   tabText: { color: 'rgba(255,255,255,0.6)', fontWeight: '700', fontSize: 13 },
   tabTextActive: { color: '#30a830' },
 
-  listContent: { padding: 15, paddingBottom: 40 },
+  listContent: { padding: 15, paddingBottom: 100 }, 
   shopCard: { backgroundColor: "white", borderRadius: 24, padding: 18, marginBottom: 15, elevation: 3 },
   shopTop: { flexDirection: "row", alignItems: "center" },
   iconBox: { backgroundColor: "#f0fdf4", padding: 10, borderRadius: 14 },
@@ -421,10 +429,6 @@ const styles = StyleSheet.create({
     backgroundColor: 'white',
     borderRadius: 16,
     elevation: 2,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
   },
   sectionTitle: { fontSize: 14, fontWeight: '800', marginLeft: 8 },
 
@@ -444,4 +448,22 @@ const styles = StyleSheet.create({
   modalInput: { backgroundColor: "#f1f5f9", borderRadius: 15, padding: 15, marginBottom: 15, fontSize: 16, color: "#1e293b" },
   modalItem: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 16, paddingHorizontal: 15, borderRadius: 12, marginBottom: 5 },
   modalItemText: { fontWeight: "700", fontSize: 15, color: "#334155" },
+
+  fab: {
+    position: 'absolute',
+    bottom: 30,
+    right: 20,
+    backgroundColor: "#30a830",
+    width: 65,
+    height: 65,
+    borderRadius: 32.5,
+    justifyContent: 'center',
+    alignItems: 'center',
+    elevation: 10,        // Ensures shadow/depth on Android
+    zIndex: 9999,         // Ensures it sits on top of all Scroll/FlatList content on iOS
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+  },
 });
