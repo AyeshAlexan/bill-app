@@ -1,6 +1,6 @@
 import Api from "./Api";
 
-// GET ROUTES (Now returning City_1 list)
+// GET ROUTES (Now returning m_route list)
 export const fetchRoutes = async () => {
   const res = await Api.get("/routes");
   return res.data.routes || [];
