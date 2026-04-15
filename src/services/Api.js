@@ -2,7 +2,7 @@ import axios from "axios";
 
 const Api = axios.create({
   // ✅ ADDED /api to the end of the URL
-  baseURL: "https://cerebrovisceral-mystically-shirlene.ngrok-free.dev/api", 
+  baseURL: "http://127.0.0.1:8000/api", 
   headers: {
     "Accept": "application/json",
     "Content-Type": "application/json",

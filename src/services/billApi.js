@@ -43,3 +43,9 @@ export const addPayment = async (paymentData) => {
     throw error;
   }
 };
+
+export const processReturn = async (returnData) => {
+  // returnData: { invoice_no, items: [{item_code, qty, unit_price, reason}] }
+  const res = await Api.post("/bills/return", returnData);
+  return res.data;
+};
