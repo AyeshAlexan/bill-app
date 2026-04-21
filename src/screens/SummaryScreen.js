@@ -12,6 +12,7 @@ import {
 } from "react-native";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { fetchSummary } from "../services/dashboardApi";
+import { LinearGradient } from "expo-linear-gradient";
 import Animated, { 
   FadeInUp, 
   FadeIn, 
@@ -31,8 +32,15 @@ if (Platform.OS === "android") {
     UIManager.setLayoutAnimationEnabledExperimental(true);
 }
 
-// --- Internal Component: Animated Progress Bar ---
-const AnimatedBar = ({ width: targetWidth, color = "#3b82f6", delay = 0 }) => {
+// 🎯 Function to get gradient colors based on progress
+const getProgressGradient = (percent) => {
+  if (percent < 40) return ["#ef4444", "#f87171"]; // red
+  if (percent < 80) return ["#facc15", "#fde047"]; // yellow
+  return ["#22c55e", "#4ade80"]; // green
+};
+
+// --- Updated AnimatedBar with LinearGradient ---
+const AnimatedBar = ({ width: targetWidth, delay = 0 }) => {
   const widthShared = useSharedValue(0);
 
   useEffect(() => {
@@ -43,9 +51,18 @@ const AnimatedBar = ({ width: targetWidth, color = "#3b82f6", delay = 0 }) => {
     width: `${widthShared.value}%`,
   }));
 
+  const gradientColors = getProgressGradient(targetWidth);
+
   return (
     <View style={styles.chartBarBg}>
-      <Animated.View style={[styles.chartBarFill, { backgroundColor: color }, animatedStyle]} />
+      <Animated.View style={[styles.chartBarFill, animatedStyle]}>
+        <LinearGradient
+          colors={gradientColors}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 0 }}
+          style={{ flex: 1, borderRadius: 6 }}
+        />
+      </Animated.View>
     </View>
   );
 };
@@ -141,8 +158,20 @@ export default function SummaryScreen() {
                 <Text style={styles.cardBigAmount}>{formatMoney(data.targets.current.collected)}</Text>
                 <Text style={styles.cardTargetLabel}>Target: {formatMoney(data.targets.current.target_amount)}</Text>
                 
-                <AnimatedBar width={Math.min(data.targets.current.progress_percentage, 100)} color="#3b82f6" />
-                <Text style={styles.percentText}>{data.targets.current.progress_percentage}%</Text>
+                {/* PROGRESS BAR WITH AUTO-GRADIENT COLOR */}
+                <AnimatedBar 
+                  width={Math.min(data.targets.current.progress_percentage, 100)} 
+                />
+
+                <Text style={styles.percentText}>
+                  {Math.min(data.targets.current.progress_percentage, 100)}%
+                </Text>
+
+                {data.targets.current.is_target_reached && (
+                  <Text style={styles.reachedMessage}>
+                    🎉 You have reached your target!
+                  </Text>
+                )}
 
                 <View style={styles.cardFooter}>
                    <View>
@@ -168,10 +197,9 @@ export default function SummaryScreen() {
                     <Text style={styles.cardTargetLabel}>Target: {formatMoney(m.target_amount)}</Text>
                     <AnimatedBar 
                         width={Math.min((m.collected/(m.target_amount || 1))*100, 100)} 
-                        color="#22c55e" 
                         delay={200}
                     />
-                    <Text style={styles.percentText}>{Math.round((m.collected/(m.target_amount || 1))*100)}%</Text>
+                    <Text style={styles.percentText}>{Math.round(Math.min((m.collected/(m.target_amount || 1))*100, 100))}%</Text>
                  </Animated.View>
               ))}
 
@@ -206,11 +234,10 @@ export default function SummaryScreen() {
                       return (
                         <Animated.View entering={FadeInUp.delay(i * 30)} key={`daily-${i}`} style={styles.chartRow}>
                           <View style={styles.chartLabelRow}>
-                            {/* UPDATED: Now using formatted_date from API */}
                             <Text style={styles.chartMonthLabel}>{d.formatted_date}</Text>
                             <Text style={styles.chartValueLabel}>{formatMoney(d.total)}</Text>
                           </View>
-                          <AnimatedBar width={barWidth} color="#10b981" delay={i * 50} />
+                          <AnimatedBar width={barWidth} delay={i * 50} />
                         </Animated.View>
                       );
                     })
@@ -259,7 +286,6 @@ export default function SummaryScreen() {
                           <MaterialCommunityIcons name="storefront-outline" size={16} color="#22c55e" style={{ marginRight: 6 }} />
                           <Text style={styles.dailyShopName}>{d.shop_name || "General Visit"}</Text>
                         </View>
-                        {/* UPDATED: Now using formatted_date from API */}
                         <Text style={styles.dailyDate}>{d.formatted_date}</Text>
                       </View>
                       <View style={styles.visitBadge}>
@@ -321,6 +347,7 @@ const styles = StyleSheet.create({
   cardMonthTitle: { fontSize: 18, fontWeight: 'bold', color: '#0f172a', marginBottom: 15 },
   cardBigAmount: { fontSize: 32, fontWeight: '800', color: '#0f172a' },
   cardTargetLabel: { fontSize: 14, color: '#3b82f6', marginTop: 5, marginBottom: 15 },
+  reachedMessage: { color: "#16a34a", fontWeight: "bold", marginTop: 8, textAlign: "center" },
   
   percentText: { textAlign: 'right', fontSize: 12, fontWeight: 'bold', color: '#22c55e', marginTop: 5 },
   
