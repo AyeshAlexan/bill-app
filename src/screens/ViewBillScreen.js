@@ -211,6 +211,7 @@ export default function ViewBillScreen({ route, navigation }) {
         <td style="border:1px solid #000;padding:5px;text-align:right;">${Number(it.Unit_price || 0).toFixed(2)}</td>
         <td style="border:1px solid #000;padding:5px;text-align:center;">${it.Free_Issues || "0"}</td>
         <td style="border:1px solid #000;padding:5px;text-align:center;">${it.QTY || 0}</td>
+        <td style="border:1px solid #000;padding:5px;text-align:center;">${returnedQtyOf(it)}</td>
         <td style="border:1px solid #000;padding:5px;text-align:right;">${Number(it.Discount || 0).toFixed(2)}</td>
         <td style="border:1px solid #000;padding:5px;text-align:right;">${Number(it.Net_value || 0).toFixed(2)}</td>
       </tr>`,
@@ -256,7 +257,7 @@ export default function ViewBillScreen({ route, navigation }) {
       </div>
       <div class="tax-invoice-bar">TAX INVOICE</div>
       <table class="items-table">
-        <thead><tr><th>Code</th><th>Product Name</th><th>Price</th><th>Free</th><th>Qty</th><th>Disc</th><th>Amount</th></tr></thead>
+        <thead><tr><th>Code</th><th>Product Name</th><th>Price</th><th>Free</th><th>Qty</th><th>Return</th><th>Disc</th><th>Amount</th></tr></thead>
         <tbody>${itemsHtml}</tbody>
       </table>
       <div class="totals-area">
