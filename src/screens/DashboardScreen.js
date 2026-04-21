@@ -125,8 +125,11 @@ export default function DashboardScreen({ navigation }) {
             <Text style={styles.targetTitle}>
               {target.month_label} Bills Collection Target
             </Text>
+
             <Text style={styles.targetPercent}>
-              {target.progress_percentage}%
+            {target.progress_percentage >= 100 
+              ? "100%" 
+               : `${target.progress_percentage}%`}
             </Text>
           </View>
 
@@ -140,6 +143,16 @@ export default function DashboardScreen({ navigation }) {
                 { width: `${Math.min(target.progress_percentage, 100)}%` },
               ]}
             />
+            {target.progress_percentage >= 100 && (
+  <Text style={{ 
+    color: "#16a34a", 
+    fontWeight: "bold", 
+    marginTop: 8,
+    textAlign: "center"
+  }}>
+    🎉 You have reached your target!
+  </Text>
+)}
           </View>
 
           <View style={styles.targetFooter}>
