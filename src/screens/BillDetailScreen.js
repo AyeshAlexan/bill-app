@@ -272,6 +272,8 @@ export default function BillDetailScreen({ route, navigation }) {
             it.Discount_Amount ??
             0,
         );
+        const returnedQty = returnedQtyOf(it);
+        const returnedAmount = returnedAmountOf(it);
         return `
         <div style="margin-bottom:8px; font-size: 12px;">
           <div style="font-weight:bold; text-transform: uppercase;">${escapeHtml(it.Item_description || it.item_desc)}</div>
@@ -281,6 +283,7 @@ export default function BillDetailScreen({ route, navigation }) {
           </div>
           ${freeQty > 0 ? `<div style="font-size: 11px; color: #444;">(Free Issues: ${freeQty})</div>` : ""}
           ${itmDisc > 0 ? `<div style="font-size: 11px; color: #444;">(Item Disc: -${itmDisc.toFixed(2)})</div>` : ""}
+          ${returnedQty > 0 ? `<div style="font-size: 11px; color: #c2410c;">(Returned: ${returnedQty} | -${returnedAmount.toFixed(2)})</div>` : ""}
         </div>`;
       })
       .join("");
@@ -303,13 +306,25 @@ export default function BillDetailScreen({ route, navigation }) {
         <div>${itemsHtml}</div>
         <div style="border-top: 1px dashed #000; margin: 10px 0;"></div>
         <div style="font-size: 12px;">
+            ${(() => {
+              const finalTotal =
+                subtotal -
+                itemDiscountTotal -
+                discountAmount +
+                vatAmount +
+                additionalAmount -
+                totalReturnAmount;
+              return `
             <div style="display: flex; justify-content: space-between;"><span>Sub Total</span><span>${subtotal.toFixed(2)}</span></div>
             ${itemDiscountTotal > 0 ? `<div style="display: flex; justify-content: space-between;"><span>Item Discount</span><span>-${itemDiscountTotal.toFixed(2)}</span></div>` : ""}
             ${discountAmount > 0 ? `<div style="display: flex; justify-content: space-between;"><span>Bill Discount</span><span>-${discountAmount.toFixed(2)}</span></div>` : ""}
             ${vatAmount !== 0 ? `<div style="display: flex; justify-content: space-between;"><span>VAT</span><span>${vatAmount.toFixed(2)}</span></div>` : ""}
+            ${additionalAmount !== 0 ? `<div style="display: flex; justify-content: space-between;"><span>Additional</span><span>+${additionalAmount.toFixed(2)}</span></div>` : ""}
+            ${totalReturnAmount > 0 ? `<div style="display: flex; justify-content: space-between;"><span>Total Returns</span><span>-${totalReturnAmount.toFixed(2)}</span></div>` : ""}
             <div style="display: flex; justify-content: space-between; font-weight: bold; font-size: 14px; border-top: 1px solid #000; margin-top: 5px; padding-top: 5px;">
-                <span>NET TOTAL</span><span>Rs.${total.toFixed(2)}</span>
-            </div>
+                <span>NET TOTAL</span><span>Rs.${finalTotal.toFixed(2)}</span>
+            </div>`;
+            })()}
         </div>
         <div style="text-align: center; margin-top: 20px; font-size: 12px;">Thank You!</div>
       </body>
