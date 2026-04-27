@@ -97,3 +97,13 @@ export const rejectShop = async (id) => {
     throw error;
   }
 };
+// ✅ UPDATE SHOP DETAILS
+export const updateShop = async (id, shopData) => {
+  try {
+    const res = await Api.post(`/shops/update/${id}`, shopData);
+    return res.data;
+  } catch (error) {
+    console.error("Update Shop Error:", error.response?.data || error.message);
+    throw error;
+  }
+};
