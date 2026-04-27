@@ -696,60 +696,189 @@ export default function ShopListScreen({ navigation }) {
         </Modal>
 
         <Modal visible={editModal} transparent animationType="slide">
-          <View style={styles.modalOverlay}>
+          <TouchableOpacity
+            style={styles.modalOverlay}
+            activeOpacity={1}
+            onPress={() => setEditModal(false)}
+          >
             <View style={styles.editCard}>
-              <Text style={styles.editTitle}>Edit Shop</Text>
+              {/* Header */}
+              <View style={styles.editHeader}>
+                <View>
+                  <Text style={styles.editTitle}>Edit Shop</Text>
+                  <Text style={styles.editSubtitle}>
+                    Update shop information
+                  </Text>
+                </View>
+                <TouchableOpacity onPress={() => setEditModal(false)}>
+                  <MaterialCommunityIcons
+                    name="close-circle"
+                    size={36}
+                    color="#94a3b8"
+                  />
+                </TouchableOpacity>
+              </View>
 
-              <TextInput
-                style={styles.input}
-                placeholder="Shop Name"
-                value={form.First_name}
-                onChangeText={(t) => setForm({ ...form, First_name: t })}
-              />
+              {/* Shop Info Preview */}
+              <View style={styles.shopInfoPreview}>
+                <View style={styles.infoRow}>
+                  <MaterialCommunityIcons
+                    name="storefront"
+                    size={18}
+                    color="#30a830"
+                  />
+                  <Text style={styles.infoText}>{form.First_name || "—"}</Text>
+                </View>
+                <View style={styles.infoRow}>
+                  <MaterialCommunityIcons
+                    name="map-marker"
+                    size={18}
+                    color="#30a830"
+                  />
+                  <Text style={styles.infoText}>{form.Address_1 || "—"}</Text>
+                </View>
+                <View style={styles.infoRow}>
+                  <MaterialCommunityIcons
+                    name="phone"
+                    size={18}
+                    color="#30a830"
+                  />
+                  <Text style={styles.infoText}>{form.Contact_1 || "—"}</Text>
+                </View>
+              </View>
 
-              <TextInput
-                style={styles.input}
-                placeholder="Address"
-                value={form.Address_1}
-                onChangeText={(t) => setForm({ ...form, Address_1: t })}
-              />
+              <ScrollView showsVerticalScrollIndicator={false}>
+                {/* Shop Name */}
+                <View style={styles.fieldGroup}>
+                  <Text style={styles.fieldLabel}>
+                    <MaterialCommunityIcons
+                      name="storefront"
+                      size={14}
+                      color="#30a830"
+                    />{" "}
+                    Shop Name
+                  </Text>
+                  <TextInput
+                    style={styles.inputModern}
+                    placeholder="Enter shop name"
+                    placeholderTextColor="#cbd5e1"
+                    value={form.First_name}
+                    onChangeText={(t) => setForm({ ...form, First_name: t })}
+                  />
+                </View>
 
-              <TextInput
-                style={styles.input}
-                placeholder="Contact"
-                value={form.Contact_1}
-                onChangeText={(t) => setForm({ ...form, Contact_1: t })}
-              />
+                {/* Address */}
+                <View style={styles.fieldGroup}>
+                  <Text style={styles.fieldLabel}>
+                    <MaterialCommunityIcons
+                      name="map-marker"
+                      size={14}
+                      color="#30a830"
+                    />{" "}
+                    Address
+                  </Text>
+                  <TextInput
+                    style={styles.inputModern}
+                    placeholder="Enter shop address"
+                    placeholderTextColor="#cbd5e1"
+                    value={form.Address_1}
+                    onChangeText={(t) => setForm({ ...form, Address_1: t })}
+                  />
+                </View>
 
-              <TextInput
-                style={styles.input}
-                placeholder="Latitude"
-                value={String(form.latitude)}
-                onChangeText={(t) => setForm({ ...form, latitude: t })}
-              />
+                {/* Contact */}
+                <View style={styles.fieldGroup}>
+                  <Text style={styles.fieldLabel}>
+                    <MaterialCommunityIcons
+                      name="phone"
+                      size={14}
+                      color="#30a830"
+                    />{" "}
+                    Contact Number
+                  </Text>
+                  <TextInput
+                    style={styles.inputModern}
+                    placeholder="Enter contact number"
+                    placeholderTextColor="#cbd5e1"
+                    keyboardType="phone-pad"
+                    value={form.Contact_1}
+                    onChangeText={(t) => setForm({ ...form, Contact_1: t })}
+                  />
+                </View>
 
-              <TextInput
-                style={styles.input}
-                placeholder="Longitude"
-                value={String(form.longitude)}
-                onChangeText={(t) => setForm({ ...form, longitude: t })}
-              />
+                {/* Latitude & Longitude - Side by side */}
+                <View style={styles.twoColumnRow}>
+                  <View style={[styles.fieldGroup, { flex: 1 }]}>
+                    <Text style={styles.fieldLabel}>
+                      <MaterialCommunityIcons
+                        name="latitude"
+                        size={14}
+                        color="#30a830"
+                      />{" "}
+                      Latitude
+                    </Text>
+                    <TextInput
+                      style={styles.inputModern}
+                      placeholder="0.0000"
+                      placeholderTextColor="#cbd5e1"
+                      keyboardType="decimal-pad"
+                      value={String(form.latitude)}
+                      onChangeText={(t) => setForm({ ...form, latitude: t })}
+                    />
+                  </View>
+                  <View
+                    style={[styles.fieldGroup, { flex: 1, marginLeft: 10 }]}
+                  >
+                    <Text style={styles.fieldLabel}>
+                      <MaterialCommunityIcons
+                        name="longitude"
+                        size={14}
+                        color="#30a830"
+                      />{" "}
+                      Longitude
+                    </Text>
+                    <TextInput
+                      style={styles.inputModern}
+                      placeholder="0.0000"
+                      placeholderTextColor="#cbd5e1"
+                      keyboardType="decimal-pad"
+                      value={String(form.longitude)}
+                      onChangeText={(t) => setForm({ ...form, longitude: t })}
+                    />
+                  </View>
+                </View>
 
-              <TouchableOpacity style={styles.saveBtn} onPress={handleUpdate}>
-                {isSubmitting ? (
-                  <ActivityIndicator color="#fff" />
-                ) : (
-                  <Text style={styles.saveText}>Save Changes</Text>
-                )}
-              </TouchableOpacity>
+                {/* Buttons */}
+                <View style={styles.buttonGroup}>
+                  <TouchableOpacity
+                    style={styles.saveBtnModern}
+                    onPress={handleUpdate}
+                    disabled={isSubmitting}
+                  >
+                    {isSubmitting ? (
+                      <ActivityIndicator color="#fff" />
+                    ) : (
+                      <>
+                        <MaterialCommunityIcons
+                          name="check-circle"
+                          size={20}
+                          color="#fff"
+                        />
+                        <Text style={styles.saveBtnText}>Save Changes</Text>
+                      </>
+                    )}
+                  </TouchableOpacity>
 
-              <TouchableOpacity onPress={() => setEditModal(false)}>
-                <Text style={{ textAlign: "center", marginTop: 10 }}>
-                  Cancel
-                </Text>
-              </TouchableOpacity>
+                  <TouchableOpacity
+                    style={styles.cancelBtnModern}
+                    onPress={() => setEditModal(false)}
+                  >
+                    <Text style={styles.cancelBtnText}>Cancel</Text>
+                  </TouchableOpacity>
+                </View>
+              </ScrollView>
             </View>
-          </View>
+          </TouchableOpacity>
         </Modal>
       </View>
 
@@ -964,31 +1093,115 @@ const styles = StyleSheet.create({
 
   editCard: {
     backgroundColor: "white",
-    margin: 20,
-    borderRadius: 20,
-    padding: 20,
+    margin: 15,
+    borderRadius: 28,
+    padding: 0,
+    maxHeight: "90%",
+    overflow: "hidden",
+  },
+  editHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
+    paddingHorizontal: 24,
+    paddingVertical: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: "#f1f5f9",
   },
   editTitle: {
-    fontSize: 18,
+    fontSize: 22,
     fontWeight: "800",
-    marginBottom: 15,
+    color: "#1e293b",
   },
-  input: {
-    backgroundColor: "#f1f5f9",
-    borderRadius: 12,
-    padding: 12,
-    marginBottom: 10,
+  editSubtitle: {
+    fontSize: 13,
+    color: "#64748b",
+    marginTop: 4,
   },
-  saveBtn: {
-    backgroundColor: "#30a830",
+  shopInfoPreview: {
+    backgroundColor: "#f0fdf4",
+    marginHorizontal: 20,
+    marginTop: 16,
+    borderRadius: 16,
     padding: 14,
-    borderRadius: 12,
-    marginTop: 10,
+    borderWidth: 1,
+    borderColor: "#dcfce7",
   },
-  saveText: {
-    color: "white",
-    textAlign: "center",
+  infoRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginVertical: 6,
+  },
+  infoText: {
+    marginLeft: 10,
+    fontSize: 13,
+    color: "#1e293b",
+    fontWeight: "600",
+  },
+  fieldGroup: {
+    marginHorizontal: 20,
+    marginTop: 18,
+  },
+  fieldLabel: {
+    fontSize: 13,
     fontWeight: "700",
+    color: "#475569",
+    marginBottom: 8,
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+  },
+  inputModern: {
+    backgroundColor: "#f8fafc",
+    borderWidth: 1.5,
+    borderColor: "#e2e8f0",
+    borderRadius: 14,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    fontSize: 15,
+    color: "#1e293b",
+    fontWeight: "500",
+  },
+  twoColumnRow: {
+    flexDirection: "row",
+    marginHorizontal: 20,
+    marginTop: 0,
+  },
+  buttonGroup: {
+    marginHorizontal: 20,
+    marginTop: 18,
+    marginBottom: 20,
+    gap: 10,
+  },
+  saveBtnModern: {
+    backgroundColor: "#30a830",
+    paddingVertical: 12,
+    borderRadius: 14,
+    flexDirection: "row",
+    justifyContent: "center",
+    alignItems: "center",
+    elevation: 4,
+    shadowColor: "#30a830",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 8,
+  },
+  saveBtnText: {
+    color: "white",
+    fontSize: 15,
+    fontWeight: "700",
+    marginLeft: 8,
+  },
+  cancelBtnModern: {
+    paddingVertical: 10,
+    borderRadius: 12,
+    borderWidth: 2,
+    borderColor: "#e2e8f0",
+  },
+  cancelBtnText: {
+    color: "#64748b",
+    fontSize: 15,
+    fontWeight: "700",
+    textAlign: "center",
   },
 
   fab: {
