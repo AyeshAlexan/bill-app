@@ -133,17 +133,17 @@ export default function ViewBillScreen({ route, navigation }) {
         const returnedQty = returnedQtyOf(it);
         const returnedAmount = returnedAmountOf(it);
         return `
-      <div style="margin-bottom: 12px;"> 
-        <div style="font-weight: bold; text-transform: uppercase; font-size: 12px;">${escapeHtml(it.Item_description || it.item_name)}</div>
-         <div style="display: flex; justify-content: space-between; font-family: monospace; font-size: 11px;">
+      <div style="margin-bottom: 14px;"> 
+        <div style="font-weight: bold; text-transform: uppercase; font-size: 14px;">${escapeHtml(it.Item_description || it.item_name)}</div>
+         <div style="display: flex; justify-content: space-between; font-family: monospace; font-size: 13px;">
            <span>
               ${it.QTY} x ${Number(it.Unit_price).toFixed(2)}
               ${Number(it.Free_Issues) > 0 ? `<br/>Free issues: ${it.Free_Issues}` : ""}
             </span>
               <span>${Number(it.Net_value).toFixed(2)}</span>
           </div>
-        ${it.Discount > 0 ? `<div style="font-size: 10px; color: #555;">Item Disc: -${Number(it.Discount).toFixed(2)}</div>` : ""}
-        ${returnedQty > 0 ? `<div style="font-size: 10px; color: #c2410c;">Returned: ${returnedQty} | -${returnedAmount.toFixed(2)}</div>` : ""}
+        ${it.Discount > 0 ? `<div style="font-size: 12px; color: #555;">Item Disc: -${Number(it.Discount).toFixed(2)}</div>` : ""}
+        ${returnedQty > 0 ? `<div style="font-size: 12px; color: #c2410c;">Returned: ${returnedQty} | -${returnedAmount.toFixed(2)}</div>` : ""}
       </div>`;
       })
       .join("");
@@ -155,21 +155,21 @@ export default function ViewBillScreen({ route, navigation }) {
         <style>
           body { font-family: sans-serif; width: 280px; margin: 0 auto; padding: 5px; color: #000; }
           .center { text-align: center; }
-          .logo { width: 70px; height: 70px; object-fit: contain; margin-bottom: 5px; }
-          .comp-name { font-size: 16px; font-weight: bold; margin-bottom: 2px; }
+          .logo { width: 100px; height: 100px; object-fit: contain; margin-bottom: 8px; }
+          .comp-name { font-size: 18px; font-weight: bold; margin-bottom: 3px; }
           .divider { border-top: 1px dashed #000; margin: 8px 0; }
-          .total-row { display: flex; justify-content: space-between; padding: 2px 0; font-size: 11px; }
-          .grand-total { font-size: 14px; font-weight: bold; border-top: 1px solid #000; margin-top: 5px; padding-top: 5px; }
+          .total-row { display: flex; justify-content: space-between; padding: 3px 0; font-size: 13px; }
+          .grand-total { font-size: 16px; font-weight: bold; border-top: 1px solid #000; margin-top: 8px; padding-top: 8px; }
         </style>
       </head>
       <body>
         <div class="center">
-          ${logoUri ? `<img src="${logoUri}" class="logo" />` : ""}
+          ${logoUri ? `<img src="${logoUri}" class="logo" style="max-width:100%; height:auto;" />` : ""}
           <div class="comp-name">${escapeHtml(company?.name || "BUDDIKA DISTRIBUTORS")}</div>
-          <div style="font-size: 10px;">Tel: ${escapeHtml(company?.co_number || "0772957067")}</div>
-          <div style="font-weight: bold; border: 1px solid #000; display: inline-block; padding: 2px 8px; margin: 5px 0; font-size: 12px;">CASH RECEIPT</div>
+          <div style="font-size: 12px;">Tel: ${escapeHtml(company?.co_number || "0772957067")}</div>
+          <div style="font-weight: bold; border: 1px solid #000; display: inline-block; padding: 3px 10px; margin: 5px 0; font-size: 14px;">CASH RECEIPT</div>
         </div>
-        <div style="font-size: 10px; margin-top: 5px;">
+        <div style="font-size: 12px; margin-top: 5px;">
           <div style="display: flex; justify-content: space-between;"><span>Date: ${bill?.Invoice_date}</span><span>Inv: ${invoiceNo}</span></div>
           <div style="display: flex; justify-content: space-between;">
              <span>Customer: ${escapeHtml(shopName)}</span>
@@ -185,7 +185,7 @@ export default function ViewBillScreen({ route, navigation }) {
         <div class="total-row"><span>VAT (${bill?.vat_presentage || 0}%)</span><span>${vatAmount.toFixed(2)}</span></div>
         ${totalReturnAmount > 0 ? `<div class="total-row"><span>Total Returns</span><span>-${totalReturnAmount.toFixed(2)}</span></div>` : ""}
         <div class="total-row grand-total"><span>NET TOTAL</span><span>Rs.${(subtotal - totalItemDiscount - billDiscount + vatAmount - totalReturnAmount).toFixed(2)}</span></div>
-        <div class="center" style="margin-top: 15px; font-size: 10px;">Thank You!</div>
+        <div class="center" style="margin-top: 15px; font-size: 12px;">Thank You!</div>
       </body>
     </html>`;
   };
