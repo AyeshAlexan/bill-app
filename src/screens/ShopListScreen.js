@@ -69,7 +69,7 @@ const AnimatedShopCard = ({ item, index, onPress, type }) => {
         ],
       }}
     >
-      <TouchableOpacity style={styles.shopCard} onPress={onPress}>
+      <TouchableOpacity style={styles.shopCard} onPress={() => onPress(item)}>
         <View style={styles.shopTop}>
           <View
             style={[
@@ -226,6 +226,7 @@ export default function ShopListScreen({ navigation }) {
   const [routeModal, setRouteModal] = useState(false);
   const [routeSearch, setRouteSearch] = useState("");
   const [selectedRoute, setSelectedRoute] = useState(null);
+  const [activeRouteCode, setActiveRouteCode] = useState(null);
   const [shops, setShops] = useState([]);
   const [bills, setBills] = useState([]);
   const [actionModal, setActionModal] = useState(false);
@@ -243,6 +244,7 @@ export default function ShopListScreen({ navigation }) {
   const [showRemaining, setShowRemaining] = useState(true);
   const [showCompleted, setShowCompleted] = useState(false);
   const [showExtra, setShowExtra] = useState(false);
+  const [shopSearch, setShopSearch] = useState("");
 
   const filteredRoutes = useMemo(() => {
     const q = routeSearch.trim().toLowerCase();
@@ -266,6 +268,7 @@ export default function ShopListScreen({ navigation }) {
       setBills(Array.isArray(allBills) ? allBills : []);
       const sh = await fetchShopsByRoute(routeCode);
       setShops(sh || []);
+      setActiveRouteCode(routeCode);
     } catch (e) {
       console.log("Load Error:", e);
     } finally {
@@ -293,30 +296,45 @@ export default function ShopListScreen({ navigation }) {
 
   const shopsWithSummary = useMemo(() => {
     const byCustomer = new Map();
+
     for (const b of bills || []) {
-      const code = b?.Customer_NIC;
+      const code = b?.Customer_code || b?.customer_code || b?.Customer_NIC;
+
       if (!code) continue;
+
       const due = Math.max(
         Number(b?.after_vat_amount ?? b?.Net_Amount ?? 0) -
-          Number(b?.Paid_Amount ?? 0),
+          Number(b?.Paid_Amount ?? b?.paid_amount ?? 0),
         0,
       );
+
       if (!byCustomer.has(code))
         byCustomer.set(code, { pendingCount: 0, due: 0 });
+
       if (due > 0.5) {
         const cur = byCustomer.get(code);
         cur.pendingCount += 1;
         cur.due += due;
       }
     }
-    return (shops || []).map((s) => ({
-      ...s,
-      pendingCount: byCustomer.get(s.code)?.pendingCount || 0,
-      dueTotal: byCustomer.get(s.code)?.due || 0,
-      isVisited: Number(s.visit_count) > 0,
-      isAssigned: s.is_assigned == 1,
-    }));
-  }, [shops, bills]);
+
+    // Filter and Map the shops
+    return (shops || [])
+      .filter((s) => {
+        const query = shopSearch.toLowerCase();
+        return (
+          s.name?.toLowerCase().includes(query) ||
+          s.code?.toLowerCase().includes(query)
+        );
+      })
+      .map((s) => ({
+        ...s,
+        pendingCount: byCustomer.get(s.code)?.pendingCount || 0,
+        dueTotal: byCustomer.get(s.code)?.due || 0,
+        isVisited: Number(s.visit_count) > 0,
+        isAssigned: s.is_assigned == 1,
+      }));
+  }, [shops, bills, shopSearch]);
 
   const visitData = useMemo(() => {
     const remaining = shopsWithSummary.filter(
@@ -451,25 +469,52 @@ export default function ShopListScreen({ navigation }) {
           {loading ? (
             <ShopLoader />
           ) : activeTab === "list" ? (
-            <FlatList
-              data={shopsWithSummary}
-              keyExtractor={(item) => item.id.toString()}
-              contentContainerStyle={styles.listContent}
-              renderItem={({ item, index }) => (
-                <AnimatedShopCard
-                  item={item}
-                  index={index}
-                  onPress={(shop, type) => {
-                    setSelectedShop(shop);
-                    if (type === "edit") {
-                      setEditModal(true);
-                    } else {
-                      setActionModal(true);
-                    }
-                  }}
-                />
-              )}
-            />
+            <>
+              <View style={styles.searchContainer}>
+                <View style={styles.searchBar}>
+                  <MaterialCommunityIcons
+                    name="magnify"
+                    size={20}
+                    color="#94a3b8"
+                  />
+                  <TextInput
+                    style={styles.searchInput}
+                    placeholder="Search shop name or ID..."
+                    placeholderTextColor="#94a3b8"
+                    value={shopSearch}
+                    onChangeText={setShopSearch}
+                  />
+                  {shopSearch.length > 0 && (
+                    <TouchableOpacity onPress={() => setShopSearch("")}>
+                      <MaterialCommunityIcons
+                        name="close-circle"
+                        size={18}
+                        color="#94a3b8"
+                      />
+                    </TouchableOpacity>
+                  )}
+                </View>
+              </View>
+              <FlatList
+                data={shopsWithSummary}
+                keyExtractor={(item) => item.id.toString()}
+                contentContainerStyle={styles.listContent}
+                renderItem={({ item, index }) => (
+                  <AnimatedShopCard
+                    item={item}
+                    index={index}
+                    onPress={(shop, type) => {
+                      setSelectedShop(shop);
+                      if (type === "edit") {
+                        setEditModal(true);
+                      } else {
+                        setActionModal(true);
+                      }
+                    }}
+                  />
+                )}
+              />
+            </>
           ) : (
             <ScrollView contentContainerStyle={styles.listContent}>
               <Section
@@ -572,6 +617,8 @@ export default function ShopListScreen({ navigation }) {
             <View style={styles.actionCard}>
               <View style={styles.indicator} />
               <Text style={styles.actionTitle}>{selectedShop?.name}</Text>
+
+              {/* 1. Record Physical Visit */}
               <TouchableOpacity
                 style={styles.actionBtn}
                 onPress={handleVisit}
@@ -595,35 +642,35 @@ export default function ShopListScreen({ navigation }) {
                     Record Physical Visit
                   </Text>
                   <Text style={styles.actionBtnSub}>
-                    Verify location at shop entrance
+                    Check-in at this location
                   </Text>
                 </View>
               </TouchableOpacity>
+
+              {/* 2. View & Collect Bills (THE FIX) */}
               <TouchableOpacity
                 style={styles.actionBtn}
                 onPress={() => {
                   setActionModal(false);
                   navigation.navigate("BillList", {
-                    shopCode: selectedShop.code,
-                    shopName: selectedShop.name,
-                    routeCode:
-                      selectedRoute?.code || selectedShop?.route_code || "N/A",
+                    shopCode: selectedShop?.code,
+                    shopName: selectedShop?.name,
                   });
                 }}
               >
                 <View
-                  style={[styles.actionIcon, { backgroundColor: "#eff6ff" }]}
+                  style={[styles.actionIcon, { backgroundColor: "#fff7ed" }]}
                 >
                   <MaterialCommunityIcons
-                    name="currency-usd"
+                    name="file-document-outline"
                     size={26}
-                    color="#3b82f6"
+                    color="#f59e0b"
                   />
                 </View>
                 <View>
                   <Text style={styles.actionBtnText}>View & Collect Bills</Text>
                   <Text style={styles.actionBtnSub}>
-                    Handle payments and balance
+                    Check outstanding invoices
                   </Text>
                 </View>
               </TouchableOpacity>
@@ -631,11 +678,11 @@ export default function ShopListScreen({ navigation }) {
           </TouchableOpacity>
         </Modal>
 
-        <Modal visible={routeModal} transparent animationType="slide">
+        <Modal visible={routeModal} transparent animationType="fade">
           <View style={styles.modalOverlayAlt}>
-            <View style={styles.modalCard}>
+            <View style={styles.routeModalContent}>
               <View style={styles.modalHeader}>
-                <Text style={styles.modalTitle}>Select Route City</Text>
+                <Text style={styles.modalTitle}>Select Route / City</Text>
                 <TouchableOpacity onPress={() => setRouteModal(false)}>
                   <MaterialCommunityIcons
                     name="close"
@@ -702,7 +749,6 @@ export default function ShopListScreen({ navigation }) {
             onPress={() => setEditModal(false)}
           >
             <View style={styles.editCard}>
-              {/* Header */}
               <View style={styles.editHeader}>
                 <View>
                   <Text style={styles.editTitle}>Edit Shop</Text>
@@ -719,136 +765,35 @@ export default function ShopListScreen({ navigation }) {
                 </TouchableOpacity>
               </View>
 
-              {/* Shop Info Preview */}
-              <View style={styles.shopInfoPreview}>
-                <View style={styles.infoRow}>
-                  <MaterialCommunityIcons
-                    name="storefront"
-                    size={18}
-                    color="#30a830"
-                  />
-                  <Text style={styles.infoText}>{form.First_name || "—"}</Text>
-                </View>
-                <View style={styles.infoRow}>
-                  <MaterialCommunityIcons
-                    name="map-marker"
-                    size={18}
-                    color="#30a830"
-                  />
-                  <Text style={styles.infoText}>{form.Address_1 || "—"}</Text>
-                </View>
-                <View style={styles.infoRow}>
-                  <MaterialCommunityIcons
-                    name="phone"
-                    size={18}
-                    color="#30a830"
-                  />
-                  <Text style={styles.infoText}>{form.Contact_1 || "—"}</Text>
-                </View>
-              </View>
-
               <ScrollView showsVerticalScrollIndicator={false}>
-                {/* Shop Name */}
                 <View style={styles.fieldGroup}>
-                  <Text style={styles.fieldLabel}>
-                    <MaterialCommunityIcons
-                      name="storefront"
-                      size={14}
-                      color="#30a830"
-                    />{" "}
-                    Shop Name
-                  </Text>
+                  <Text style={styles.fieldLabel}>Shop Name</Text>
                   <TextInput
                     style={styles.inputModern}
-                    placeholder="Enter shop name"
-                    placeholderTextColor="#cbd5e1"
                     value={form.First_name}
                     onChangeText={(t) => setForm({ ...form, First_name: t })}
                   />
                 </View>
 
-                {/* Address */}
                 <View style={styles.fieldGroup}>
-                  <Text style={styles.fieldLabel}>
-                    <MaterialCommunityIcons
-                      name="map-marker"
-                      size={14}
-                      color="#30a830"
-                    />{" "}
-                    Address
-                  </Text>
+                  <Text style={styles.fieldLabel}>Address</Text>
                   <TextInput
                     style={styles.inputModern}
-                    placeholder="Enter shop address"
-                    placeholderTextColor="#cbd5e1"
                     value={form.Address_1}
                     onChangeText={(t) => setForm({ ...form, Address_1: t })}
                   />
                 </View>
 
-                {/* Contact */}
                 <View style={styles.fieldGroup}>
-                  <Text style={styles.fieldLabel}>
-                    <MaterialCommunityIcons
-                      name="phone"
-                      size={14}
-                      color="#30a830"
-                    />{" "}
-                    Contact Number
-                  </Text>
+                  <Text style={styles.fieldLabel}>Contact Number</Text>
                   <TextInput
                     style={styles.inputModern}
-                    placeholder="Enter contact number"
-                    placeholderTextColor="#cbd5e1"
-                    keyboardType="phone-pad"
                     value={form.Contact_1}
+                    keyboardType="phone-pad"
                     onChangeText={(t) => setForm({ ...form, Contact_1: t })}
                   />
                 </View>
 
-                {/* Latitude & Longitude - Side by side */}
-                <View style={styles.twoColumnRow}>
-                  <View style={[styles.fieldGroup, { flex: 1 }]}>
-                    <Text style={styles.fieldLabel}>
-                      <MaterialCommunityIcons
-                        name="latitude"
-                        size={14}
-                        color="#30a830"
-                      />{" "}
-                      Latitude
-                    </Text>
-                    <TextInput
-                      style={styles.inputModern}
-                      placeholder="0.0000"
-                      placeholderTextColor="#cbd5e1"
-                      keyboardType="decimal-pad"
-                      value={String(form.latitude)}
-                      onChangeText={(t) => setForm({ ...form, latitude: t })}
-                    />
-                  </View>
-                  <View
-                    style={[styles.fieldGroup, { flex: 1, marginLeft: 10 }]}
-                  >
-                    <Text style={styles.fieldLabel}>
-                      <MaterialCommunityIcons
-                        name="longitude"
-                        size={14}
-                        color="#30a830"
-                      />{" "}
-                      Longitude
-                    </Text>
-                    <TextInput
-                      style={styles.inputModern}
-                      placeholder="0.0000"
-                      placeholderTextColor="#cbd5e1"
-                      keyboardType="decimal-pad"
-                      value={String(form.longitude)}
-                      onChangeText={(t) => setForm({ ...form, longitude: t })}
-                    />
-                  </View>
-                </View>
-
-                {/* Buttons */}
                 <View style={styles.buttonGroup}>
                   <TouchableOpacity
                     style={styles.saveBtnModern}
@@ -868,7 +813,6 @@ export default function ShopListScreen({ navigation }) {
                       </>
                     )}
                   </TouchableOpacity>
-
                   <TouchableOpacity
                     style={styles.cancelBtnModern}
                     onPress={() => setEditModal(false)}
@@ -881,7 +825,6 @@ export default function ShopListScreen({ navigation }) {
           </TouchableOpacity>
         </Modal>
       </View>
-
       <SafeAreaView
         style={{ flex: 0, backgroundColor: "#000" }}
         edges={["bottom"]}
@@ -947,54 +890,59 @@ const styles = StyleSheet.create({
     marginLeft: 6,
     fontSize: 12,
   },
-
   tabBar: {
     flexDirection: "row",
     backgroundColor: "rgba(0,0,0,0.1)",
-    borderRadius: 14,
-    padding: 4,
+    padding: 5,
+    borderRadius: 16,
     marginTop: 20,
   },
-  tab: { flex: 1, paddingVertical: 10, alignItems: "center", borderRadius: 10 },
+  tab: { flex: 1, paddingVertical: 10, alignItems: "center", borderRadius: 12 },
   tabActive: { backgroundColor: "white" },
-  tabText: { color: "rgba(255,255,255,0.6)", fontWeight: "700", fontSize: 13 },
+  tabText: { color: "white", fontWeight: "700", fontSize: 14 },
   tabTextActive: { color: "#30a830" },
-
-  listContent: { padding: 15, paddingBottom: 100 },
+  listContent: { padding: 20, paddingBottom: 100 },
   shopCard: {
     backgroundColor: "white",
     borderRadius: 24,
-    padding: 18,
-    marginBottom: 15,
+    padding: 16,
+    marginBottom: 16,
     elevation: 3,
+    shadowColor: "#000",
+    shadowOpacity: 0.1,
+    shadowRadius: 10,
   },
   shopTop: { flexDirection: "row", alignItems: "center" },
-  iconBox: { backgroundColor: "#f0fdf4", padding: 10, borderRadius: 14 },
-  shopName: { fontWeight: "700", fontSize: 17, color: "#1e293b" },
-  shopMeta: { color: "#64748b", fontSize: 12, marginTop: 3 },
+  iconBox: {
+    width: 48,
+    height: 48,
+    borderRadius: 16,
+    backgroundColor: "#f8fafc",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  shopName: { fontSize: 16, fontWeight: "800", color: "#1e293b" },
+  shopMeta: { fontSize: 12, color: "#64748b", marginTop: 2 },
   divider: { height: 1, backgroundColor: "#f1f5f9", marginVertical: 15 },
   summaryRow: { flexDirection: "row", gap: 10 },
   summaryChip: {
     flex: 1,
+    padding: 10,
     backgroundColor: "#f8fafc",
-    borderRadius: 16,
-    padding: 12,
-    borderWidth: 1,
-    borderColor: "#f1f5f9",
+    borderRadius: 12,
   },
   summaryLabel: {
+    fontSize: 10,
     color: "#94a3b8",
-    fontSize: 11,
     fontWeight: "700",
     textTransform: "uppercase",
   },
   summaryValue: {
-    color: "#1e293b",
+    fontSize: 13,
     fontWeight: "800",
-    marginTop: 4,
-    fontSize: 14,
+    color: "#1e293b",
+    marginTop: 2,
   },
-
   sectionHeader: {
     flexDirection: "row",
     alignItems: "center",
@@ -1007,7 +955,6 @@ const styles = StyleSheet.create({
     elevation: 2,
   },
   sectionTitle: { fontSize: 14, fontWeight: "800", marginLeft: 8 },
-
   modalOverlay: {
     flex: 1,
     backgroundColor: "rgba(0,0,0,0.5)",
@@ -1016,7 +963,8 @@ const styles = StyleSheet.create({
   modalOverlayAlt: {
     flex: 1,
     backgroundColor: "rgba(15, 23, 42, 0.6)",
-    justifyContent: "flex-end",
+    justifyContent: "center",
+    padding: 20,
   },
   actionCard: {
     backgroundColor: "white",
@@ -1057,13 +1005,23 @@ const styles = StyleSheet.create({
   },
   actionBtnText: { fontSize: 16, fontWeight: "700", color: "#1e293b" },
   actionBtnSub: { fontSize: 12, color: "#64748b", marginTop: 2 },
-
-  modalCard: {
+  fab: {
+    position: "absolute",
+    bottom: 30,
+    right: 20,
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: "#30a830",
+    justifyContent: "center",
+    alignItems: "center",
+    elevation: 8,
+  },
+  routeModalContent: {
     backgroundColor: "white",
-    borderTopLeftRadius: 35,
-    borderTopRightRadius: 35,
-    padding: 25,
-    maxHeight: "85%",
+    borderRadius: 25,
+    padding: 20,
+    maxHeight: "80%",
   },
   modalHeader: {
     flexDirection: "row",
@@ -1071,154 +1029,102 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginBottom: 20,
   },
-  modalTitle: { fontSize: 20, fontWeight: "800", color: "#1e293b" },
+  modalTitle: { fontSize: 18, fontWeight: "800", color: "#1e293b" },
   modalInput: {
     backgroundColor: "#f1f5f9",
-    borderRadius: 15,
-    padding: 15,
+    borderRadius: 12,
+    padding: 12,
     marginBottom: 15,
-    fontSize: 16,
     color: "#1e293b",
   },
   modalItem: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    paddingVertical: 16,
-    paddingHorizontal: 15,
-    borderRadius: 12,
-    marginBottom: 5,
+    padding: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: "#f1f5f9",
   },
-  modalItemText: { fontWeight: "700", fontSize: 15, color: "#334155" },
-
+  modalItemText: { fontSize: 15, fontWeight: "600", color: "#475569" },
   editCard: {
     backgroundColor: "white",
-    margin: 15,
-    borderRadius: 28,
-    padding: 0,
-    maxHeight: "90%",
-    overflow: "hidden",
+    borderTopLeftRadius: 35,
+    borderTopRightRadius: 35,
+    padding: 25,
+    height: "90%",
   },
   editHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
-    alignItems: "flex-start",
-    paddingHorizontal: 24,
-    paddingVertical: 20,
-    borderBottomWidth: 1,
-    borderBottomColor: "#f1f5f9",
-  },
-  editTitle: {
-    fontSize: 22,
-    fontWeight: "800",
-    color: "#1e293b",
-  },
-  editSubtitle: {
-    fontSize: 13,
-    color: "#64748b",
-    marginTop: 4,
-  },
-  shopInfoPreview: {
-    backgroundColor: "#f0fdf4",
-    marginHorizontal: 20,
-    marginTop: 16,
-    borderRadius: 16,
-    padding: 14,
-    borderWidth: 1,
-    borderColor: "#dcfce7",
-  },
-  infoRow: {
-    flexDirection: "row",
     alignItems: "center",
-    marginVertical: 6,
+    marginBottom: 25,
   },
-  infoText: {
-    marginLeft: 10,
-    fontSize: 13,
-    color: "#1e293b",
-    fontWeight: "600",
-  },
-  fieldGroup: {
-    marginHorizontal: 20,
-    marginTop: 18,
-  },
+  editTitle: { fontSize: 24, fontWeight: "800", color: "#1e293b" },
+  editSubtitle: { fontSize: 13, color: "#64748b", marginTop: 2 },
+  fieldGroup: { marginBottom: 20 },
   fieldLabel: {
     fontSize: 13,
     fontWeight: "700",
-    color: "#475569",
+    color: "#64748b",
     marginBottom: 8,
-    textTransform: "uppercase",
-    letterSpacing: 0.5,
+    marginLeft: 4,
   },
   inputModern: {
     backgroundColor: "#f8fafc",
-    borderWidth: 1.5,
-    borderColor: "#e2e8f0",
-    borderRadius: 14,
+    borderRadius: 16,
     paddingHorizontal: 16,
     paddingVertical: 14,
     fontSize: 15,
     color: "#1e293b",
     fontWeight: "500",
+    borderWidth: 1,
+    borderColor: "#e2e8f0",
   },
-  twoColumnRow: {
-    flexDirection: "row",
-    marginHorizontal: 20,
-    marginTop: 0,
-  },
-  buttonGroup: {
-    marginHorizontal: 20,
-    marginTop: 18,
-    marginBottom: 20,
-    gap: 10,
-  },
+  buttonGroup: { marginTop: 10, gap: 10 },
   saveBtnModern: {
     backgroundColor: "#30a830",
-    paddingVertical: 12,
-    borderRadius: 14,
+    paddingVertical: 16,
+    borderRadius: 16,
     flexDirection: "row",
     justifyContent: "center",
     alignItems: "center",
     elevation: 4,
-    shadowColor: "#30a830",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.25,
-    shadowRadius: 8,
   },
   saveBtnText: {
     color: "white",
-    fontSize: 15,
+    fontSize: 16,
     fontWeight: "700",
     marginLeft: 8,
   },
   cancelBtnModern: {
-    paddingVertical: 10,
-    borderRadius: 12,
+    paddingVertical: 14,
+    borderRadius: 16,
     borderWidth: 2,
     borderColor: "#e2e8f0",
-  },
-  cancelBtnText: {
-    color: "#64748b",
-    fontSize: 15,
-    fontWeight: "700",
-    textAlign: "center",
-  },
-
-  fab: {
-    position: "absolute",
-    bottom: 30,
-    right: 20,
-    backgroundColor: "#30a830",
-    width: 65,
-    height: 65,
-    borderRadius: 32.5,
-    justifyContent: "center",
     alignItems: "center",
-    elevation: 10, // Ensures shadow/depth on Android
-    zIndex: 9999, // Ensures it sits on top of all Scroll/FlatList content on iOS
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 4,
+  },
+  cancelBtnText: { color: "#64748b", fontSize: 15, fontWeight: "700" },
+  searchContainer: {
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    backgroundColor: "#f8fafc",
+  },
+  searchBar: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "white",
+    borderRadius: 16,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderWidth: 1,
+    borderColor: "#e2e8f0",
+    elevation: 2,
+  },
+  searchInput: {
+    flex: 1,
+    marginHorizontal: 10,
+    fontSize: 15,
+    color: "#1e293b",
+    fontWeight: "500",
   },
 });

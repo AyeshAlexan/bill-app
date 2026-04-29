@@ -1,8 +1,19 @@
 import Api from "./Api";
 
 // Fetch all bills
-export const getBills = async () => {
-  const res = await Api.get("/bills");
+export const getBills = async (route = null, shopCode = null) => {
+  let url = "/bills";
+
+  const params = [];
+
+  if (route) params.push(`route=${encodeURIComponent(route)}`);
+  if (shopCode) params.push(`shop_code=${encodeURIComponent(shopCode)}`);
+
+  if (params.length > 0) {
+    url += `?${params.join("&")}`;
+  }
+
+  const res = await Api.get(url);
   return res.data;
 };
 

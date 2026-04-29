@@ -1,24 +1,24 @@
-import React, { useCallback, useMemo, useState, useEffect, useRef } from "react";
-import {
-  View,
-  Text,
-  StyleSheet,
-  FlatList,
-  TouchableOpacity,
-  ActivityIndicator,
-  RefreshControl,
-  StatusBar,
-  Animated,
-  Easing,
-  Platform,
-} from "react-native";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { useFocusEffect } from "@react-navigation/native";
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  ActivityIndicator,
+  Animated,
+  Easing,
+  FlatList,
+  RefreshControl,
+  StatusBar,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { getBills } from "../services/billApi";
 
-const totalOf = (b) => Number(b?.after_vat_amount ?? b?.Net_Amount ?? b?.Gross_Amount ?? 0);
-const paidOf = (b) => Number(b?.Paid_Amount ?? 0);
+const totalOf = (b) =>
+  Number(b?.after_vat_amount ?? b?.Net_Amount ?? b?.Gross_Amount ?? 0);
+const paidOf = (b) => Number(b?.Paid_Amount ?? b?.paid_amount ?? 0);
 
 // --- CUSTOM LOADING COMPONENT ---
 const BillLoadingView = () => {
@@ -39,7 +39,7 @@ const BillLoadingView = () => {
           easing: Easing.inOut(Easing.sin),
           useNativeDriver: true,
         }),
-      ])
+      ]),
     ).start();
   }, []);
 
@@ -47,7 +47,11 @@ const BillLoadingView = () => {
     <View style={styles.loadingCenter}>
       <Animated.View style={{ transform: [{ translateY: floatAnim }] }}>
         <View style={styles.loaderIconCircle}>
-          <MaterialCommunityIcons name="file-document-outline" size={50} color="#30a830" />
+          <MaterialCommunityIcons
+            name="file-document-outline"
+            size={50}
+            color="#30a830"
+          />
           <View style={styles.loaderBadge}>
             <ActivityIndicator size="small" color="white" />
           </View>
@@ -70,12 +74,10 @@ export default function BillListScreen({ route, navigation }) {
   const load = async (showLoader = true) => {
     try {
       if (showLoader) setLoading(true);
-      const data = await getBills();
-      
-      const shopBills = (Array.isArray(data) ? data : []).filter(
-        (b) => String(b?.Customer_NIC) === String(shopCode)
-      );
-      setBills(shopBills);
+
+      const data = await getBills(routeCode || null, shopCode || null);
+
+      setBills(Array.isArray(data) ? data : []);
     } catch (e) {
       console.log("Load error:", e.message);
     } finally {
@@ -87,10 +89,20 @@ export default function BillListScreen({ route, navigation }) {
     }
   };
 
+  // Extract route from bills if not provided in params
+  const displayRoute = useMemo(() => {
+    if (routeCode) return routeCode;
+    // Fallback: extract from first bill's Route field
+    if (bills.length > 0 && bills[0]?.Route) {
+      return bills[0].Route;
+    }
+    return "Not Assigned";
+  }, [routeCode, bills]);
+
   useFocusEffect(
     useCallback(() => {
       load();
-    }, [shopCode])
+    }, [shopCode, routeCode]),
   );
 
   const onRefresh = () => {
@@ -115,24 +127,35 @@ export default function BillListScreen({ route, navigation }) {
   return (
     <SafeAreaView style={styles.safeArea} edges={["top", "bottom"]}>
       <StatusBar barStyle="light-content" backgroundColor="#30a830" />
-      
+
       <View style={styles.mainContainer}>
         {loading ? (
           <BillLoadingView />
         ) : (
           <>
             <View style={styles.header}>
-              <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
-                <MaterialCommunityIcons name="chevron-left" size={32} color="white" />
+              <TouchableOpacity
+                onPress={() => navigation.goBack()}
+                style={styles.backBtn}
+              >
+                <MaterialCommunityIcons
+                  name="chevron-left"
+                  size={32}
+                  color="white"
+                />
               </TouchableOpacity>
 
-              <Text style={styles.shopNameText}>{shopName || "Shop Details"}</Text>
+              <Text style={styles.shopNameText}>
+                {shopName || "Shop Details"}
+              </Text>
 
               <View style={styles.locRow}>
-                <MaterialCommunityIcons name="map-marker-outline" size={16} color="white" />
-                <Text style={styles.shopLoc}>
-                  Route: {routeCode || "Not Assigned"}
-                </Text>
+                <MaterialCommunityIcons
+                  name="map-marker-outline"
+                  size={16}
+                  color="white"
+                />
+                <Text style={styles.shopLoc}>Route: {displayRoute}</Text>
               </View>
 
               <View style={styles.summaryRow}>
@@ -153,19 +176,35 @@ export default function BillListScreen({ route, navigation }) {
 
             <View style={styles.toggleRow}>
               <TouchableOpacity
-                style={[styles.toggleBtn, filter === "Pending" && styles.activeBtn]}
+                style={[
+                  styles.toggleBtn,
+                  filter === "Pending" && styles.activeBtn,
+                ]}
                 onPress={() => setFilter("Pending")}
               >
-                <Text style={filter === "Pending" ? styles.activeText : styles.inactiveText}>
+                <Text
+                  style={
+                    filter === "Pending"
+                      ? styles.activeText
+                      : styles.inactiveText
+                  }
+                >
                   Pending ({summary.pending})
                 </Text>
               </TouchableOpacity>
 
               <TouchableOpacity
-                style={[styles.toggleBtn, filter === "Paid" && styles.activeBtnPaid]}
+                style={[
+                  styles.toggleBtn,
+                  filter === "Paid" && styles.activeBtnPaid,
+                ]}
                 onPress={() => setFilter("Paid")}
               >
-                <Text style={filter === "Paid" ? styles.activeText : styles.inactiveText}>
+                <Text
+                  style={
+                    filter === "Paid" ? styles.activeText : styles.inactiveText
+                  }
+                >
                   Paid ({summary.paid})
                 </Text>
               </TouchableOpacity>
@@ -173,13 +212,21 @@ export default function BillListScreen({ route, navigation }) {
 
             <FlatList
               data={filteredBills}
-              keyExtractor={(item) => String(item.Invoice_no)}
+              keyExtractor={(item, index) => String(item.Invoice_no || index)}
               contentContainerStyle={{ padding: 20, paddingBottom: 40 }}
-              refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+              refreshControl={
+                <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+              }
               ListEmptyComponent={
                 <View style={styles.emptyBox}>
-                  <MaterialCommunityIcons name="file-remove-outline" size={48} color="#cbd5e1" />
-                  <Text style={styles.emptyText}>No {filter.toLowerCase()} bills found</Text>
+                  <MaterialCommunityIcons
+                    name="file-remove-outline"
+                    size={48}
+                    color="#cbd5e1"
+                  />
+                  <Text style={styles.emptyText}>
+                    No {filter.toLowerCase()} bills found
+                  </Text>
                 </View>
               }
               renderItem={({ item }) => {
@@ -191,25 +238,52 @@ export default function BillListScreen({ route, navigation }) {
                 return (
                   <TouchableOpacity
                     activeOpacity={0.85}
-                    onPress={() => navigation.navigate("BillDetail", { invoiceNo: item.Invoice_no })}
+                    onPress={() =>
+                      navigation.navigate("BillDetail", {
+                        invoiceNo: item.Invoice_no,
+                      })
+                    }
                   >
                     <View style={styles.billCard}>
                       <View style={styles.billHeader}>
-                        <View style={[styles.iconCircle, status === "Paid" && { backgroundColor: "#f0fdf4" }]}>
+                        <View
+                          style={[
+                            styles.iconCircle,
+                            status === "Paid" && { backgroundColor: "#f0fdf4" },
+                          ]}
+                        >
                           <MaterialCommunityIcons
-                            name={status === "Paid" ? "check-circle" : "clock-outline"}
+                            name={
+                              status === "Paid"
+                                ? "check-circle"
+                                : "clock-outline"
+                            }
                             size={24}
                             color={status === "Paid" ? "#30a830" : "#ef4444"}
                           />
                         </View>
 
                         <View style={{ flex: 1, marginLeft: 12 }}>
-                          <Text style={styles.billNo}>INV-{item.Invoice_no}</Text>
-                          <Text style={styles.billDate}>{item.Invoice_date}</Text>
+                          <Text style={styles.billNo}>
+                            INV-{item.Invoice_no}
+                          </Text>
+                          <Text style={styles.billDate}>
+                            {item.Invoice_date}
+                          </Text>
                         </View>
 
-                        <View style={[styles.statusBadge, status === "Paid" && { backgroundColor: "#f0fdf4" }]}>
-                          <Text style={[styles.statusText, status === "Paid" && { color: "#30a830" }]}>
+                        <View
+                          style={[
+                            styles.statusBadge,
+                            status === "Paid" && { backgroundColor: "#f0fdf4" },
+                          ]}
+                        >
+                          <Text
+                            style={[
+                              styles.statusText,
+                              status === "Paid" && { color: "#30a830" },
+                            ]}
+                          >
                             {status}
                           </Text>
                         </View>
@@ -220,13 +294,26 @@ export default function BillListScreen({ route, navigation }) {
                       <View style={styles.amountRow}>
                         <View>
                           <Text style={styles.amountLabel}>Bill Total</Text>
-                          <Text style={styles.amountVal}>Rs. {total.toLocaleString(undefined, {minimumFractionDigits: 2})}</Text>
+                          <Text style={styles.amountVal}>
+                            Rs.{" "}
+                            {total.toLocaleString(undefined, {
+                              minimumFractionDigits: 2,
+                            })}
+                          </Text>
                         </View>
 
                         <View style={{ alignItems: "flex-end" }}>
                           <Text style={styles.amountLabel}>Balance Due</Text>
-                          <Text style={[styles.amountVal, { color: due > 0.5 ? "#ef4444" : "#30a830" }]}>
-                            Rs. {due.toLocaleString(undefined, {minimumFractionDigits: 2})}
+                          <Text
+                            style={[
+                              styles.amountVal,
+                              { color: due > 0.5 ? "#ef4444" : "#30a830" },
+                            ]}
+                          >
+                            Rs.{" "}
+                            {due.toLocaleString(undefined, {
+                              minimumFractionDigits: 2,
+                            })}
                           </Text>
                         </View>
                       </View>
@@ -245,7 +332,7 @@ export default function BillListScreen({ route, navigation }) {
 const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: "#000000" },
   mainContainer: { flex: 1, backgroundColor: "#f8fafc" },
-  
+
   // Loading Styles
   loadingCenter: { flex: 1, justifyContent: "center", alignItems: "center" },
   loaderIconCircle: {
@@ -261,16 +348,21 @@ const styles = StyleSheet.create({
     shadowRadius: 10,
   },
   loaderBadge: {
-    position: 'absolute',
+    position: "absolute",
     bottom: 5,
     right: 5,
-    backgroundColor: '#1D63DC',
+    backgroundColor: "#1D63DC",
     borderRadius: 15,
     padding: 4,
     borderWidth: 3,
-    borderColor: 'white'
+    borderColor: "white",
   },
-  loadingText: { marginTop: 25, fontSize: 18, fontWeight: "bold", color: "#1e293b" },
+  loadingText: {
+    marginTop: 25,
+    fontSize: 18,
+    fontWeight: "bold",
+    color: "#1e293b",
+  },
   loadingSubText: { marginTop: 5, fontSize: 13, color: "#94a3b8" },
 
   header: {
@@ -281,15 +373,44 @@ const styles = StyleSheet.create({
     borderBottomRightRadius: 40,
     elevation: 5,
   },
-  backBtn: { width: 40, height: 40, justifyContent: 'center', marginBottom: 5 },
-  shopNameText: { color: "white", fontSize: 22, fontWeight: "bold", marginTop: 5 },
-  locRow: { flexDirection: "row", alignItems: "center", marginTop: 4, opacity: 0.9 },
-  shopLoc: { color: "white", fontSize: 14, marginLeft: 5, fontWeight: '500' },
-  summaryRow: { flexDirection: "row", justifyContent: "space-between", marginTop: 20 },
-  miniCard: { backgroundColor: "rgba(255,255,255,0.15)", padding: 12, borderRadius: 16, width: "31%" },
-  miniLabel: { color: "white", fontSize: 10, textTransform: "uppercase", opacity: 0.8 },
+  backBtn: { width: 40, height: 40, justifyContent: "center", marginBottom: 5 },
+  shopNameText: {
+    color: "white",
+    fontSize: 22,
+    fontWeight: "bold",
+    marginTop: 5,
+  },
+  locRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginTop: 4,
+    opacity: 0.9,
+  },
+  shopLoc: { color: "white", fontSize: 14, marginLeft: 5, fontWeight: "500" },
+  summaryRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginTop: 20,
+  },
+  miniCard: {
+    backgroundColor: "rgba(255,255,255,0.15)",
+    padding: 12,
+    borderRadius: 16,
+    width: "31%",
+  },
+  miniLabel: {
+    color: "white",
+    fontSize: 10,
+    textTransform: "uppercase",
+    opacity: 0.8,
+  },
   miniValue: { color: "white", fontSize: 18, fontWeight: "bold", marginTop: 2 },
-  toggleRow: { flexDirection: "row", paddingHorizontal: 20, paddingTop: 20, justifyContent: "space-between" },
+  toggleRow: {
+    flexDirection: "row",
+    paddingHorizontal: 20,
+    paddingTop: 20,
+    justifyContent: "space-between",
+  },
   toggleBtn: {
     flex: 1,
     padding: 14,
@@ -303,17 +424,41 @@ const styles = StyleSheet.create({
   activeBtnPaid: { backgroundColor: "#30a830" },
   activeText: { color: "white", fontWeight: "bold" },
   inactiveText: { color: "#94a3b8", fontWeight: "bold" },
-  billCard: { backgroundColor: "white", borderRadius: 25, padding: 20, marginBottom: 15, elevation: 2, shadowColor: '#000', shadowOpacity: 0.1, shadowRadius: 4 },
+  billCard: {
+    backgroundColor: "white",
+    borderRadius: 25,
+    padding: 20,
+    marginBottom: 15,
+    elevation: 2,
+    shadowColor: "#000",
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+  },
   billHeader: { flexDirection: "row", alignItems: "center" },
   iconCircle: { backgroundColor: "#fef2f2", padding: 10, borderRadius: 15 },
-  billNo: { fontSize: 16, fontWeight: "bold", color: '#1e293b' },
+  billNo: { fontSize: 16, fontWeight: "bold", color: "#1e293b" },
   billDate: { color: "#94a3b8", fontSize: 12, marginTop: 2 },
-  statusBadge: { backgroundColor: "#fef2f2", paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8 },
+  statusBadge: {
+    backgroundColor: "#fef2f2",
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 8,
+  },
   statusText: { color: "#ef4444", fontSize: 11, fontWeight: "bold" },
   billDivider: { height: 1, backgroundColor: "#f1f5f9", marginVertical: 15 },
   amountRow: { flexDirection: "row", justifyContent: "space-between" },
-  amountLabel: { color: "#94a3b8", fontSize: 11, textTransform: "uppercase", letterSpacing: 0.5 },
-  amountVal: { fontSize: 16, fontWeight: "bold", marginTop: 4, color: '#0f172a' },
-  emptyBox: { alignItems: 'center', marginTop: 50 },
-  emptyText: { color: '#94a3b8', marginTop: 10, fontSize: 16 }
+  amountLabel: {
+    color: "#94a3b8",
+    fontSize: 11,
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+  },
+  amountVal: {
+    fontSize: 16,
+    fontWeight: "bold",
+    marginTop: 4,
+    color: "#0f172a",
+  },
+  emptyBox: { alignItems: "center", marginTop: 50 },
+  emptyText: { color: "#94a3b8", marginTop: 10, fontSize: 16 },
 });
