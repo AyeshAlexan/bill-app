@@ -1,24 +1,24 @@
-import React from "react";
 import { createStackNavigator } from "@react-navigation/stack";
 
-import OpeningScreen from "../screens/openingscreen"; 
-import LoginScreen from "../screens/LoginScreen";
-import DashboardScreen from "../screens/DashboardScreen";
-import ShopListScreen from "../screens/ShopListScreen";
-import BillListScreen from "../screens/BillListScreen";
-import BillDetailScreen from "../screens/BillDetailScreen";
-import ViewBillScreen from "../screens/ViewBillScreen";
 import AddBillScreen from "../screens/AddBillScreen";
 import AddShopScreen from "../screens/AddShopScreen";
+import BillDetailScreen from "../screens/BillDetailScreen";
+import BillListScreen from "../screens/BillListScreen";
+import DailyReportScreen from "../screens/DailyReportScreen";
+import DashboardScreen from "../screens/DashboardScreen";
+import LoginScreen from "../screens/LoginScreen";
+import OpeningScreen from "../screens/openingscreen";
 import PaymentScreen from "../screens/PaymentScreen";
 import PendingBillsScreen from "../screens/PendingBillsScreen";
+import ShopListScreen from "../screens/ShopListScreen";
 import SummaryScreen from "../screens/SummaryScreen";
+import ViewBillScreen from "../screens/ViewBillScreen";
 
 const Stack = createStackNavigator();
 
 export default function AppNavigator() {
   return (
-    <Stack.Navigator 
+    <Stack.Navigator
       initialRouteName="Opening" // ✅ Set this as the starting point
       screenOptions={{ headerShown: false }}
     >
@@ -28,7 +28,8 @@ export default function AppNavigator() {
       {/* --- Auth & Main Screens --- */}
       <Stack.Screen name="Login" component={LoginScreen} />
       <Stack.Screen name="Dashboard" component={DashboardScreen} />
-      <Stack.Screen name ="Summary" component={SummaryScreen}/>
+      <Stack.Screen name="Summary" component={SummaryScreen} />
+      <Stack.Screen name="DailyReport" component={DailyReportScreen} />
       <Stack.Screen name="ShopList" component={ShopListScreen} />
       <Stack.Screen name="BillList" component={BillListScreen} />
       <Stack.Screen name="BillDetail" component={BillDetailScreen} />

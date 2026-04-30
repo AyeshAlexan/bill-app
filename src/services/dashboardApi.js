@@ -13,3 +13,8 @@ export const fetchSummary = async () => {
   const res = await Api.get("/summary");
   return res.data;
 };
+
+export const fetchDailyReport = async (date) => {
+  const res = await Api.get(`/daily-report?date=${date}`);
+  return res.data;
+};

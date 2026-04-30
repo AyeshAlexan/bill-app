@@ -1,31 +1,34 @@
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useFocusEffect, useNavigation } from "@react-navigation/native";
+import { LinearGradient } from "expo-linear-gradient";
 import { useCallback, useState } from "react";
 import {
   ActivityIndicator,
+  Dimensions,
   Image,
+  Platform,
   ScrollView,
   StyleSheet,
   Text,
   TouchableOpacity,
   View,
-  Platform,
-  Dimensions,
 } from "react-native";
-import { LinearGradient } from 'expo-linear-gradient';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView } from "react-native-safe-area-context";
 
-import { fetchDashboardStats, fetchRecentActivity } from "../services/dashboardApi";
 import { setAuthToken } from "../services/Api";
+import {
+  fetchDashboardStats,
+  fetchRecentActivity,
+} from "../services/dashboardApi";
 
-const { width } = Dimensions.get('window');
+const { width } = Dimensions.get("window");
 
 export default function DashboardScreen({ navigation }) {
   const [activeStat, setActiveStat] = useState("pending");
   const [userName, setUserName] = useState("");
   const [loading, setLoading] = useState(false);
-  
+
   // Navigation Hook for deep linking through the Progress Bar
   const navigationHook = useNavigation();
 
@@ -39,8 +42,8 @@ export default function DashboardScreen({ navigation }) {
       monthly_collected: 0,
       needs_to_collect: 0,
       progress_percentage: 0,
-      month_label: ""
-    }
+      month_label: "",
+    },
   });
 
   const [recent, setRecent] = useState({
@@ -86,8 +89,8 @@ export default function DashboardScreen({ navigation }) {
           monthly_collected: 0,
           needs_to_collect: 0,
           progress_percentage: 0,
-          month_label: ""
-        }
+          month_label: "",
+        },
       });
 
       setRecent({
@@ -106,10 +109,11 @@ export default function DashboardScreen({ navigation }) {
   useFocusEffect(
     useCallback(() => {
       loadDashboard();
-    }, [loadDashboard])
+    }, [loadDashboard]),
   );
 
-  const formatMoney = (n) => `Rs.${Number(n || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}`;
+  const formatMoney = (n) =>
+    `Rs.${Number(n || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}`;
 
   const TargetProgressBar = () => {
     const target = stats.target;
@@ -127,9 +131,9 @@ export default function DashboardScreen({ navigation }) {
             </Text>
 
             <Text style={styles.targetPercent}>
-            {target.progress_percentage >= 100 
-              ? "100%" 
-               : `${target.progress_percentage}%`}
+              {target.progress_percentage >= 100
+                ? "100%"
+                : `${target.progress_percentage}%`}
             </Text>
           </View>
 
@@ -144,15 +148,17 @@ export default function DashboardScreen({ navigation }) {
               ]}
             />
             {target.progress_percentage >= 100 && (
-  <Text style={{ 
-    color: "#16a34a", 
-    fontWeight: "bold", 
-    marginTop: 8,
-    textAlign: "center"
-  }}>
-    🎉 You have reached your target!
-  </Text>
-)}
+              <Text
+                style={{
+                  color: "#16a34a",
+                  fontWeight: "bold",
+                  marginTop: 8,
+                  textAlign: "center",
+                }}
+              >
+                🎉 You have reached your target!
+              </Text>
+            )}
           </View>
 
           <View style={styles.targetFooter}>
@@ -185,15 +191,26 @@ export default function DashboardScreen({ navigation }) {
     return (
       <TouchableOpacity
         key={`bill-${idx}`}
-        onPress={() => navigation.navigate("BillDetail", { invoiceNo: b.Invoice_no })}
+        onPress={() =>
+          navigation.navigate("BillDetail", { invoiceNo: b.Invoice_no })
+        }
         style={styles.activityTap}
       >
         <View style={styles.activityRow}>
-          <MaterialCommunityIcons name="file-document-outline" size={24} color="#1e293b" />
+          <MaterialCommunityIcons
+            name="file-document-outline"
+            size={24}
+            color="#1e293b"
+          />
           <View style={{ marginLeft: 12, flex: 1 }}>
-            <Text style={styles.activityItem}>INV-{b.Invoice_no} • {b.Customer_Name}</Text>
+            <Text style={styles.activityItem}>
+              INV-{b.Invoice_no} • {b.Customer_Name}
+            </Text>
             <Text style={styles.activitySub}>
-              Total: {formatMoney(total)} • Due: <Text style={{ color: due > 0 ? '#ef4444' : '#22c55e' }}>{formatMoney(due)}</Text>
+              Total: {formatMoney(total)} • Due:{" "}
+              <Text style={{ color: due > 0 ? "#ef4444" : "#22c55e" }}>
+                {formatMoney(due)}
+              </Text>
             </Text>
           </View>
         </View>
@@ -202,55 +219,90 @@ export default function DashboardScreen({ navigation }) {
   };
 
   const renderRecentActivity = () => {
-    if (loading) return <ActivityIndicator color="#2563eb" style={{ padding: 20 }} />;
+    if (loading)
+      return <ActivityIndicator color="#2563eb" style={{ padding: 20 }} />;
 
     if (activeStat === "shops") {
-      return recent.shops.length > 0 ? recent.shops.slice(0, 3).map((s, idx) => (
-        <View key={`shop-${idx}`} style={styles.activityTap}>
-          <View style={styles.activityRow}>
-            <MaterialCommunityIcons name="storefront-outline" size={24} color="#1e293b" />
-            <View style={{ marginLeft: 12 }}>
-              <Text style={styles.activityItem}>{s.Name || s.name || "Unknown Shop"}</Text>
-              <Text style={styles.activitySub}>{s.City_1 || "Location verified"}</Text>
+      return recent.shops.length > 0 ? (
+        recent.shops.slice(0, 3).map((s, idx) => (
+          <View key={`shop-${idx}`} style={styles.activityTap}>
+            <View style={styles.activityRow}>
+              <MaterialCommunityIcons
+                name="storefront-outline"
+                size={24}
+                color="#1e293b"
+              />
+              <View style={{ marginLeft: 12 }}>
+                <Text style={styles.activityItem}>
+                  {s.Name || s.name || "Unknown Shop"}
+                </Text>
+                <Text style={styles.activitySub}>
+                  {s.City_1 || "Location verified"}
+                </Text>
+              </View>
             </View>
           </View>
-        </View>
-      )) : <Text style={styles.emptyText}>No recent visits.</Text>;
+        ))
+      ) : (
+        <Text style={styles.emptyText}>No recent visits.</Text>
+      );
     }
 
-    if (activeStat === "pending") return recent.pending_bills.length > 0 ? recent.pending_bills.slice(0, 3).map((b, idx) => renderBillItem(b, idx)) : <Text style={styles.emptyText}>No pending bills.</Text>;
-    if (activeStat === "paid") return recent.paid_bills.length > 0 ? recent.paid_bills.slice(0, 3).map((b, idx) => renderBillItem(b, idx)) : <Text style={styles.emptyText}>No paid bills.</Text>;
+    if (activeStat === "pending")
+      return recent.pending_bills.length > 0 ? (
+        recent.pending_bills.slice(0, 3).map((b, idx) => renderBillItem(b, idx))
+      ) : (
+        <Text style={styles.emptyText}>No pending bills.</Text>
+      );
+    if (activeStat === "paid")
+      return recent.paid_bills.length > 0 ? (
+        recent.paid_bills.slice(0, 3).map((b, idx) => renderBillItem(b, idx))
+      ) : (
+        <Text style={styles.emptyText}>No paid bills.</Text>
+      );
 
     if (activeStat === "collected") {
-      return recent.payments.length > 0 ? recent.payments.slice(0, 3).map((p, idx) => (
-        <View key={`pay-${idx}`} style={styles.activityTap}>
-          <View style={styles.activityRow}>
-            <MaterialCommunityIcons name="cash-check" size={24} color="#1e293b" />
-            <View style={{ marginLeft: 12 }}>
-              <Text style={styles.activityItem}>{formatMoney(p.Payment_Amount)}</Text>
-              <Text style={styles.activitySub}>{p.Customer_Name}</Text>
+      return recent.payments.length > 0 ? (
+        recent.payments.slice(0, 3).map((p, idx) => (
+          <View key={`pay-${idx}`} style={styles.activityTap}>
+            <View style={styles.activityRow}>
+              <MaterialCommunityIcons
+                name="cash-check"
+                size={24}
+                color="#1e293b"
+              />
+              <View style={{ marginLeft: 12 }}>
+                <Text style={styles.activityItem}>
+                  {formatMoney(p.Payment_Amount)}
+                </Text>
+                <Text style={styles.activitySub}>{p.Customer_Name}</Text>
+              </View>
             </View>
           </View>
-        </View>
-      )) : <Text style={styles.emptyText}>No recent payments.</Text>;
+        ))
+      ) : (
+        <Text style={styles.emptyText}>No recent payments.</Text>
+      );
     }
 
     return <Text style={styles.emptyText}>No recent activity found.</Text>;
   };
 
   return (
-    <SafeAreaView style={styles.safeAreaWrapper} edges={['bottom']}>
-      <View style={{ flex: 1, backgroundColor: '#f0fdf4' }}> 
+    <SafeAreaView style={styles.safeAreaWrapper} edges={["bottom"]}>
+      <View style={{ flex: 1, backgroundColor: "#f0fdf4" }}>
         <LinearGradient
-          colors={["#86efadd0","#f0fdf4", "#86edacd0", "#ffffff99"]} 
+          colors={["#86efadd0", "#f0fdf4", "#86edacd0", "#ffffff99"]}
           style={styles.screenWrapper}
           start={{ x: 0, y: 0 }}
           end={{ x: 0, y: 1 }}
         >
-          <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
-            
+          <ScrollView
+            style={styles.container}
+            showsVerticalScrollIndicator={false}
+          >
             <LinearGradient
-              colors={['#275ddb', '#5bc9ed']}
+              colors={["#275ddb", "#5bc9ed"]}
               start={{ x: 0, y: 0 }}
               end={{ x: 0.5, y: 0 }}
               style={styles.header}
@@ -259,8 +311,8 @@ export default function DashboardScreen({ navigation }) {
                 <Text style={styles.headerTitle}>Dashboard</Text>
                 <Text style={styles.headerSub}>Hello, {userName}!</Text>
               </View>
-              <TouchableOpacity 
-                style={styles.logoutBtn} 
+              <TouchableOpacity
+                style={styles.logoutBtn}
                 onPress={async () => {
                   await AsyncStorage.clear();
                   navigation.replace("Login");
@@ -271,31 +323,78 @@ export default function DashboardScreen({ navigation }) {
             </LinearGradient>
 
             <View style={styles.statGrid}>
-              <StatCard color="#3cbf00" icon="store" label="Shops" value={stats.shops.toString()} active={activeStat === "shops"} onPress={() => setActiveStat("shops")} />
-              <StatCard color="#ef4444" icon="clock-outline" label="Pending" value={stats.pending.toString()} active={activeStat === "pending"} onPress={() => setActiveStat("pending")} />
-              <StatCard color="#f97316" icon="trending-up" label="Collected" value={formatMoney(stats.collected)} active={activeStat === "collected"} onPress={() => setActiveStat("collected")} />
-              <StatCard color="#3b82f6" icon="check-all" label="Paid" value={stats.paid.toString()} active={activeStat === "paid"} onPress={() => setActiveStat("paid")} />
+              <StatCard
+                color="#3cbf00"
+                icon="store"
+                label="Shops"
+                value={stats.shops.toString()}
+                active={activeStat === "shops"}
+                onPress={() => setActiveStat("shops")}
+              />
+              <StatCard
+                color="#ef4444"
+                icon="clock-outline"
+                label="Pending"
+                value={stats.pending.toString()}
+                active={activeStat === "pending"}
+                onPress={() => setActiveStat("pending")}
+              />
+              <StatCard
+                color="#f97316"
+                icon="trending-up"
+                label="Collected"
+                value={formatMoney(stats.collected)}
+                active={activeStat === "collected"}
+                onPress={() => setActiveStat("collected")}
+              />
+              <StatCard
+                color="#3b82f6"
+                icon="check-all"
+                label="Paid"
+                value={stats.paid.toString()}
+                active={activeStat === "paid"}
+                onPress={() => setActiveStat("paid")}
+              />
             </View>
 
             <TargetProgressBar />
 
             <Text style={styles.sectionTitle}>Quick Actions</Text>
             <View style={styles.actionRow}>
-              <ActionBtn imageSource={require("../assets/shop.jpg")} label="Shops" onPress={() => navigation.navigate("ShopList")} />
-              <ActionBtn imageSource={require("../assets/pending.png")} label="Pending" onPress={() => navigation.navigate("PendingBills")} />
-              <ActionBtn imageSource={require("../assets/payment-icon.png")} label="Payments" onPress={() => navigation.navigate("Payment")} />
+              <ActionBtn
+                imageSource={require("../assets/shop.jpg")}
+                label="Shops"
+                onPress={() => navigation.navigate("ShopList")}
+              />
+              <ActionBtn
+                imageSource={require("../assets/pending.png")}
+                label="Pending"
+                onPress={() => navigation.navigate("PendingBills")}
+              />
+              <ActionBtn
+                imageSource={require("../assets/payment-icon.png")}
+                label="Payments"
+                onPress={() => navigation.navigate("Payment")}
+              />
+            </View>
+
+            <View style={styles.actionRow}>
+              <ActionBtn
+                icon="file-chart-outline"
+                label="Reports"
+                onPress={() => navigation.navigate("DailyReport")}
+                useIcon={true}
+              />
             </View>
 
             <Text style={styles.sectionTitle}>Recent {activeStat}</Text>
-            <View style={styles.activityBox}>
-              {renderRecentActivity()}
-            </View>
+            <View style={styles.activityBox}>{renderRecentActivity()}</View>
 
-            <View style={{ height: 120 }} /> 
+            <View style={{ height: 120 }} />
           </ScrollView>
 
-          <TouchableOpacity 
-            style={styles.fab} 
+          <TouchableOpacity
+            style={styles.fab}
             activeOpacity={0.8}
             onPress={() => navigation.navigate("AddBill")}
           >
@@ -309,7 +408,14 @@ export default function DashboardScreen({ navigation }) {
 
 const StatCard = ({ color, icon, label, value, onPress, active }) => (
   <TouchableOpacity
-    style={[styles.statCard, { backgroundColor: color, borderWidth: active ? 3 : 0, borderColor: "#1e293b" }]}
+    style={[
+      styles.statCard,
+      {
+        backgroundColor: color,
+        borderWidth: active ? 3 : 0,
+        borderColor: "#1e293b",
+      },
+    ]}
     onPress={onPress}
   >
     <MaterialCommunityIcons name={icon} size={26} color="white" />
@@ -318,10 +424,14 @@ const StatCard = ({ color, icon, label, value, onPress, active }) => (
   </TouchableOpacity>
 );
 
-const ActionBtn = ({ label, onPress, imageSource }) => (
+const ActionBtn = ({ label, onPress, imageSource, icon, useIcon }) => (
   <TouchableOpacity style={styles.actionBtn} onPress={onPress}>
     <View style={styles.iconContainer}>
+      {useIcon ? (
+        <MaterialCommunityIcons name={icon} size={28} color="#2563eb" />
+      ) : (
         <Image source={imageSource} style={styles.customIcon} />
+      )}
     </View>
     <Text style={styles.actionLabel}>{label}</Text>
   </TouchableOpacity>
@@ -331,50 +441,134 @@ const styles = StyleSheet.create({
   safeAreaWrapper: { flex: 1, backgroundColor: "#131313" },
   screenWrapper: { flex: 1 },
   container: { flex: 1 },
-  header: { 
-    padding: 40, 
-    paddingTop: Platform.OS === 'ios' ? 70 : 60, 
-    borderBottomLeftRadius: 40, 
+  header: {
+    padding: 40,
+    paddingTop: Platform.OS === "ios" ? 70 : 60,
+    borderBottomLeftRadius: 40,
     borderBottomRightRadius: 40,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    overflow: 'hidden' 
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    overflow: "hidden",
   },
   headerTitle: { color: "white", fontSize: 26, fontWeight: "bold" },
   headerSub: { color: "#bfdbfe", fontSize: 16 },
   targetWrapper: {
-    backgroundColor: 'rgba(255, 255, 255, 0.5)', 
+    backgroundColor: "rgba(255, 255, 255, 0.5)",
     margin: 15,
     padding: 20,
     borderRadius: 25,
     borderWidth: 1,
-    borderColor: "rgba(255, 255, 255, 0.8)", 
+    borderColor: "rgba(255, 255, 255, 0.8)",
     marginTop: 10,
   },
-  targetHeader: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 12, alignItems: 'center' },
-  targetTitle: { fontSize: 15, fontWeight: '700', color: '#1e293b' },
-  targetPercent: { fontSize: 18, fontWeight: 'bold', color: '#16a34a' },
-  barBackground: { height: 10, backgroundColor: 'rgba(0, 0, 0, 0.05)', borderRadius: 5, overflow: 'hidden', marginBottom: 15 },
-  barFill: { height: '100%', borderRadius: 5 },
-  targetFooter: { flexDirection: 'row', justifyContent: 'space-between', paddingTop: 5 },
-  footerLabel: { fontSize: 10, color: '#64748b', textTransform: 'uppercase', marginBottom: 2 },
-  footerValue: { fontSize: 14, fontWeight: '800', color: '#0f172a' },
-  statGrid: { flexDirection: "row", flexWrap: "wrap", padding: 10, justifyContent: "space-between" },
-  statCard: { width: "47%", padding: 20, borderRadius: 20, margin: 5, height: 130, justifyContent: "space-between", elevation: 4 },
+  targetHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginBottom: 12,
+    alignItems: "center",
+  },
+  targetTitle: { fontSize: 15, fontWeight: "700", color: "#1e293b" },
+  targetPercent: { fontSize: 18, fontWeight: "bold", color: "#16a34a" },
+  barBackground: {
+    height: 10,
+    backgroundColor: "rgba(0, 0, 0, 0.05)",
+    borderRadius: 5,
+    overflow: "hidden",
+    marginBottom: 15,
+  },
+  barFill: { height: "100%", borderRadius: 5 },
+  targetFooter: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    paddingTop: 5,
+  },
+  footerLabel: {
+    fontSize: 10,
+    color: "#64748b",
+    textTransform: "uppercase",
+    marginBottom: 2,
+  },
+  footerValue: { fontSize: 14, fontWeight: "800", color: "#0f172a" },
+  statGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    padding: 10,
+    justifyContent: "space-between",
+  },
+  statCard: {
+    width: "47%",
+    padding: 20,
+    borderRadius: 20,
+    margin: 5,
+    height: 130,
+    justifyContent: "space-between",
+    elevation: 4,
+  },
   statValue: { color: "white", fontSize: 14, fontWeight: "bold" },
   statLabel: { color: "white", opacity: 0.9, fontSize: 12 },
-  sectionTitle: { paddingHorizontal: 20, paddingTop: 10, fontSize: 18, fontWeight: "bold", color: '#1e293b' },
-  actionRow: { flexDirection: "row", paddingHorizontal: 20, justifyContent: "space-between", marginTop: 15 },
-  actionBtn: { backgroundColor: "rgba(255, 255, 255, 0.4)", paddingVertical: 15, borderRadius: 25, width: "30%", alignItems: "center", borderWidth: 1, borderColor: "rgba(255, 255, 255, 0.8)" },
-  iconContainer: { backgroundColor: 'rgba(255, 255, 255, 0.8)', padding: 8, borderRadius: 12 },
-  actionLabel: { fontSize: 12, marginTop: 8, fontWeight: "bold", color: '#1e293b' },
+  sectionTitle: {
+    paddingHorizontal: 20,
+    paddingTop: 10,
+    fontSize: 18,
+    fontWeight: "bold",
+    color: "#1e293b",
+  },
+  actionRow: {
+    flexDirection: "row",
+    paddingHorizontal: 20,
+    justifyContent: "space-between",
+    marginTop: 15,
+  },
+  actionBtn: {
+    backgroundColor: "rgba(255, 255, 255, 0.4)",
+    paddingVertical: 15,
+    borderRadius: 25,
+    width: "30%",
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.8)",
+  },
+  iconContainer: {
+    backgroundColor: "rgba(255, 255, 255, 0.8)",
+    padding: 8,
+    borderRadius: 12,
+  },
+  actionLabel: {
+    fontSize: 12,
+    marginTop: 8,
+    fontWeight: "bold",
+    color: "#1e293b",
+  },
   customIcon: { width: 28, height: 28, resizeMode: "contain" },
-  activityBox: { backgroundColor: "rgba(255, 255, 255, 0.5)", margin: 20, padding: 15, borderRadius: 25, borderWidth: 1, borderColor: "rgba(255, 255, 255, 0.8)" },
-  activityItem: { fontSize: 14, color: "#1e293b", fontWeight: '700' },
+  activityBox: {
+    backgroundColor: "rgba(255, 255, 255, 0.5)",
+    margin: 20,
+    padding: 15,
+    borderRadius: 25,
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.8)",
+  },
+  activityItem: { fontSize: 14, color: "#1e293b", fontWeight: "700" },
   activitySub: { color: "#475569", fontSize: 12, marginTop: 2 },
-  activityTap: { paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: 'rgba(0, 0, 0, 0.05)' },
-  activityRow: { flexDirection: 'row', alignItems: 'center' },
-  emptyText: { textAlign: 'center', color: '#64748b', padding: 20 },
-  fab: { position: "absolute", bottom: 40, right: 25, width: 70, height: 70, backgroundColor: "#2563eb", borderRadius: 35, justifyContent: "center", alignItems: "center", elevation: 12, zIndex: 999 },
+  activityTap: {
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: "rgba(0, 0, 0, 0.05)",
+  },
+  activityRow: { flexDirection: "row", alignItems: "center" },
+  emptyText: { textAlign: "center", color: "#64748b", padding: 20 },
+  fab: {
+    position: "absolute",
+    bottom: 40,
+    right: 25,
+    width: 70,
+    height: 70,
+    backgroundColor: "#2563eb",
+    borderRadius: 35,
+    justifyContent: "center",
+    alignItems: "center",
+    elevation: 12,
+    zIndex: 999,
+  },
 });
