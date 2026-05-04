@@ -477,158 +477,152 @@ export default function BillDetailScreen({ route, navigation }) {
 
         <ScrollView contentContainerStyle={styles.content}>
           {/* Summary Card */}
-          <View style={styles.card}>
-            <View style={styles.billTop}>
-              <View style={styles.iconBox}>
-                <MaterialCommunityIcons
-                  name="file-document-outline"
-                  size={24}
-                  color="#334155"
-                />
-              </View>
-              <View style={{ flex: 1, marginLeft: 12 }}>
-                <Text style={styles.billNo}>
-                  Invoice: {bill?.Invoice_no || bill?.invoice_no}
-                </Text>
-                <Text style={styles.date}>
-                  {bill?.Invoice_date || bill?.date || "—"}
-                </Text>
-              </View>
-              <View
-                style={[
-                  styles.badge,
-                  { backgroundColor: due <= 0.5 ? "#dcfce7" : "#fee2e2" },
-                ]}
-              >
-                <Text
-                  style={[
-                    styles.badgeText,
-                    { color: due <= 0.5 ? "#166534" : "#991b1b" },
-                  ]}
-                >
-                  {due <= 0.5 ? "PAID" : "PENDING"}
-                </Text>
-              </View>
-            </View>
+<View style={styles.card}>
+  <View style={styles.billTop}>
+    <View style={styles.iconBox}>
+      <MaterialCommunityIcons
+        name="file-document-outline"
+        size={24}
+        color="#334155"
+      />
+    </View>
+    <View style={{ flex: 1, marginLeft: 12 }}>
+      <Text style={styles.billNo}>
+        Invoice: {bill?.Invoice_no || bill?.invoice_no}
+      </Text>
+      <Text style={styles.date}>
+        {bill?.Invoice_date || bill?.date || "—"}
+      </Text>
+    </View>
+    <View
+      style={[
+        styles.badge,
+        { backgroundColor: due <= 0.5 ? "#dcfce7" : "#fee2e2" },
+      ]}
+    >
+      <Text
+        style={[
+          styles.badgeText,
+          { color: due <= 0.5 ? "#166534" : "#991b1b" },
+        ]}
+      >
+        {due <= 0.5 ? "PAID" : "PENDING"}
+      </Text>
+    </View>
+  </View>
 
-            <View style={styles.divider} />
+  <View style={styles.divider} />
 
-            <View style={styles.totalRow}>
-              <Text style={styles.totalLabel}>Gross Subtotal</Text>
-              <Text style={styles.totalValue}>Rs. {subtotal.toFixed(2)}</Text>
-            </View>
+  {/* 1. Gross Subtotal */}
+  <View style={styles.totalRow}>
+    <Text style={styles.totalLabel}>Gross Subtotal</Text>
+    <Text style={styles.totalValue}>Rs. {subtotal.toFixed(2)}</Text>
+  </View>
 
-            {itemDiscountTotal > 0 && (
-              <View style={styles.totalRow}>
-                <Text style={styles.totalLabel}>Item Discount</Text>
-                <Text style={[styles.totalValue, { color: "#be123c" }]}>
-                  - {itemDiscountTotal.toFixed(2)}
-                </Text>
-              </View>
-            )}
+  {/* Additional Amount (Optional - kept for record accuracy) */}
+  {additionalAmount !== 0 && (
+    <View style={styles.totalRow}>
+      <Text style={styles.totalLabel}>Additional</Text>
+      <Text style={styles.totalValue}>+ {additionalAmount.toFixed(2)}</Text>
+    </View>
+  )}
 
-            {discountAmount > 0 && (
-              <View style={styles.totalRow}>
-                <Text style={styles.totalLabel}>Bill Discount</Text>
-                <Text style={[styles.totalValue, { color: "#be123c" }]}>
-                  - {discountAmount.toFixed(2)}
-                </Text>
-              </View>
-            )}
+  {/* 2. Discounts */}
+  {itemDiscountTotal > 0 && (
+    <View style={styles.totalRow}>
+      <Text style={styles.totalLabel}>Item Discount</Text>
+      <Text style={[styles.totalValue, { color: "#be123c" }]}>
+        - {itemDiscountTotal.toFixed(2)}
+      </Text>
+    </View>
+  )}
+  {discountAmount > 0 && (
+    <View style={styles.totalRow}>
+      <Text style={styles.totalLabel}>Bill Discount</Text>
+      <Text style={[styles.totalValue, { color: "#be123c" }]}>
+        - {discountAmount.toFixed(2)}
+      </Text>
+    </View>
+  )}
 
-            {additionalAmount !== 0 && (
-              <View style={styles.totalRow}>
-                <Text style={styles.totalLabel}>Additional</Text>
-                <Text style={styles.totalValue}>
-                  + {additionalAmount.toFixed(2)}
-                </Text>
-              </View>
-            )}
+  {/* 3. VAT */}
+  {vatAmount !== 0 && (
+    <View style={styles.totalRow}>
+      <Text style={styles.totalLabel}>
+        VAT ({bill?.vat_percent || 18}%)
+      </Text>
+      <Text style={styles.totalValue}>+ {vatAmount.toFixed(2)}</Text>
+    </View>
+  )}
 
-            {vatAmount !== 0 && (
-              <View style={styles.totalRow}>
-                <Text style={styles.totalLabel}>
-                  VAT ({bill?.vat_percent || 18}%)
-                </Text>
-                <Text style={styles.totalValue}>+ {vatAmount.toFixed(2)}</Text>
-              </View>
-            )}
+  {/* 4. Original Amount */}
+  {bill?.old_amount && bill.old_amount > total && (
+    <View style={styles.totalRow}>
+      <Text style={[styles.totalLabel, { color: "#64748b" }]}>
+        Original Amount
+      </Text>
+      <Text style={[styles.totalValue, { textDecorationLine: "line-through", color: "#94a3b8" }]}>
+        Rs. {Number(bill.old_amount).toFixed(2)}
+      </Text>
+    </View>
+  )}
 
-            <View style={[styles.divider, { marginVertical: 10 }]} />
+  {/* 5. Total Returns */}
+  {totalReturnAmount > 0 && (
+    <View style={styles.totalRow}>
+      <Text style={[styles.totalLabel, { color: "#c2410c" }]}>
+        Total Returns
+      </Text>
+      <Text style={[styles.totalValue, { color: "#c2410c" }]}>
+        - Rs. {totalReturnAmount.toFixed(2)}
+      </Text>
+    </View>
+  )}
 
-            <View style={styles.totalRow}>
-              <Text
-                style={[
-                  styles.totalLabel,
-                  { color: "#0f172a", fontWeight: "700" },
-                ]}
-              >
-                Net Amount
-              </Text>
-              <Text
-                style={[styles.totalValue, { fontSize: 18, color: "#0f172a" }]}
-              >
-                Rs.{" "}
-                {total.toLocaleString(undefined, { minimumFractionDigits: 2 })}
-              </Text>
-            </View>
+  <View style={[styles.divider, { marginVertical: 10 }]} />
 
-            {totalReturnAmount > 0 && (
-              <View style={styles.totalRow}>
-                <Text style={[styles.totalLabel, { color: "#c2410c" }]}>
-                  Total Returns
-                </Text>
-                <Text style={[styles.totalValue, { color: "#c2410c" }]}>
-                  - Rs. {totalReturnAmount.toFixed(2)}
-                </Text>
-              </View>
-            )}
+  {/* 6. Net Amount (FINAL) */}
+  <View style={styles.totalRow}>
+    <Text
+      style={[
+        styles.totalLabel,
+        { color: "#0f172a", fontWeight: "700" },
+      ]}
+    >
+      Net Amount (Final)
+    </Text>
+    <Text
+      style={[styles.totalValue, { fontSize: 18, color: "#0f172a" }]}
+    >
+      Rs.{" "}
+      {total.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+    </Text>
+  </View>
 
-            {due <= 0.5 && (
-              <>
-                <View style={styles.totalRow}>
-                  <Text style={styles.totalLabel}>Amount Paid</Text>
-                  <Text style={styles.totalValue}>
-                    Rs.{" "}
-                    {paid.toLocaleString(undefined, {
-                      minimumFractionDigits: 2,
-                    })}
-                  </Text>
-                </View>
-                <View style={styles.totalRow}>
-                  <Text style={styles.totalLabel}>Change</Text>
-                  <Text style={[styles.totalValue, { color: "#059669" }]}>
-                    Rs. {(lastChange > 0 ? lastChange : 0).toFixed(2)}
-                  </Text>
-                </View>
-              </>
-            )}
-
-            <View style={[styles.divider, { marginVertical: 5 }]} />
-
-            <View style={styles.totalRow}>
-              <Text
-                style={[
-                  styles.totalLabel,
-                  {
-                    color: due <= 0.5 ? "#059669" : "#e11d48",
-                    fontWeight: "700",
-                  },
-                ]}
-              >
-                Balance Due
-              </Text>
-              <Text
-                style={[
-                  styles.totalValue,
-                  { color: due <= 0.5 ? "#059669" : "#e11d48", fontSize: 20 },
-                ]}
-              >
-                Rs.{" "}
-                {due.toLocaleString(undefined, { minimumFractionDigits: 2 })}
-              </Text>
-            </View>
-          </View>
+  {/* 7. Balance Due */}
+  <View style={styles.totalRow}>
+    <Text
+      style={[
+        styles.totalLabel,
+        {
+          color: due <= 0.5 ? "#059669" : "#e11d48",
+          fontWeight: "700",
+        },
+      ]}
+    >
+      Balance Due
+    </Text>
+    <Text
+      style={[
+        styles.totalValue,
+        { color: due <= 0.5 ? "#059669" : "#e11d48", fontSize: 20 },
+      ]}
+    >
+      Rs.{" "}
+      {due.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+    </Text>
+  </View>
+</View>
 
           {/* Payment Input Card */}
           {due > 0.5 && (

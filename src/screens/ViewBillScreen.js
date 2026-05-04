@@ -14,6 +14,7 @@ import {
 
 import { Asset } from "expo-asset";
 import * as Print from "expo-print";
+import FileSystem from "expo-file-system";
 
 // ✅ Local asset import
 import logo from "../assets/bill-logo.png";
@@ -126,68 +127,156 @@ export default function ViewBillScreen({ route, navigation }) {
       .replaceAll(">", "&gt;");
 
   // --- HTML TEMPLATES ---
-
   const buildThermalHtml = (logoUri) => {
     const itemsHtml = items
       .map((it) => {
         const returnedQty = returnedQtyOf(it);
         const returnedAmount = returnedAmountOf(it);
+
         return `
-      <div style="margin-bottom: 14px;"> 
-        <div style="font-weight: bold; text-transform: uppercase; font-size: 14px;">${escapeHtml(it.Item_description || it.item_name)}</div>
-         <div style="display: flex; justify-content: space-between; font-family: monospace; font-size: 13px;">
-           <span>
-              ${it.QTY} x ${Number(it.Unit_price).toFixed(2)}
-              ${Number(it.Free_Issues) > 0 ? `<br/>Free issues: ${it.Free_Issues}` : ""}
-            </span>
-              <span>${Number(it.Net_value).toFixed(2)}</span>
-          </div>
-        ${it.Discount > 0 ? `<div style="font-size: 12px; color: #555;">Item Disc: -${Number(it.Discount).toFixed(2)}</div>` : ""}
-        ${returnedQty > 0 ? `<div style="font-size: 12px; color: #c2410c;">Returned: ${returnedQty} | -${returnedAmount.toFixed(2)}</div>` : ""}
+      <div style="margin-bottom: 8px;"> 
+        <div style="font-weight:bold; font-size:12px;">
+          ${escapeHtml(it.Item_description || it.item_name)}
+        </div>
+
+        <div style="display:flex; justify-content:space-between; font-size:11px;">
+          <span>${it.QTY} x ${Number(it.Unit_price).toFixed(2)}</span>
+          <span>${Number(it.Net_value).toFixed(2)}</span>
+        </div>
+
+        ${
+          Number(it.Free_Issues) > 0
+            ? `<div style="font-size:10px;">Free: ${it.Free_Issues}</div>`
+            : ""
+        }
+
+        ${
+          it.Discount > 0
+            ? `<div style="font-size:10px;">Disc: -${Number(it.Discount).toFixed(2)}</div>`
+            : ""
+        }
+
+        ${
+          returnedQty > 0
+            ? `<div style="font-size:10px;">Return: ${returnedQty} (-${returnedAmount.toFixed(2)})</div>`
+            : ""
+        }
       </div>`;
       })
       .join("");
 
     return `
-    <html>
-      <head>
-        <title>BUDDIKA DISTRIBUTORS - Invoice - ${invoiceNo}</title>
-        <style>
-          body { font-family: sans-serif; width: 280px; margin: 0 auto; padding: 5px; color: #000; }
-          .center { text-align: center; }
-          .logo { width: 100px; height: 100px; object-fit: contain; margin-bottom: 8px; }
-          .comp-name { font-size: 18px; font-weight: bold; margin-bottom: 3px; }
-          .divider { border-top: 1px dashed #000; margin: 8px 0; }
-          .total-row { display: flex; justify-content: space-between; padding: 3px 0; font-size: 13px; }
-          .grand-total { font-size: 16px; font-weight: bold; border-top: 1px solid #000; margin-top: 8px; padding-top: 8px; }
-        </style>
-      </head>
-      <body>
-        <div class="center">
-          ${logoUri ? `<img src="${logoUri}" class="logo" style="max-width:100%; height:auto;" />` : ""}
-          <div class="comp-name">${escapeHtml(company?.name || "BUDDIKA DISTRIBUTORS")}</div>
-          <div style="font-size: 12px;">Tel: ${escapeHtml(company?.co_number || "0772957067")}</div>
-          <div style="font-weight: bold; border: 1px solid #000; display: inline-block; padding: 3px 10px; margin: 5px 0; font-size: 14px;">CASH RECEIPT</div>
+  <html>
+    <head>
+      <style>
+        body {
+          font-family: monospace;
+          width: 200px;   /* ✅ FIXED WIDTH */
+          margin: 0 auto;
+          padding: 4px;
+          font-size: 11px;
+        }
+
+        .center { text-align: center; }
+
+        .divider {
+          border-top: 1px dashed #000;
+          margin: 6px 0;
+        }
+
+        .row {
+          display: flex;
+          justify-content: space-between;
+          font-size: 11px;
+        }
+
+        .total {
+          font-weight: bold;
+          font-size: 12px;
+          border-top: 1px solid #000;
+          margin-top: 6px;
+          padding-top: 6px;
+        }
+      </style>
+    </head>
+
+    <body>
+      <div class="center">
+        ${
+          logoUri
+            ? `<img src="${logoUri}" style="width:70px; margin-bottom:4px;" />`
+            : ""
+        }
+
+        <div style="font-weight:bold; font-size:13px;">
+          ${escapeHtml(company?.name || "BUDDIKA DISTRIBUTORS")}
         </div>
-        <div style="font-size: 12px; margin-top: 5px;">
-          <div style="display: flex; justify-content: space-between;"><span>Date: ${bill?.Invoice_date}</span><span>Inv: ${invoiceNo}</span></div>
-          <div style="display: flex; justify-content: space-between;">
-             <span>Customer: ${escapeHtml(shopName)}</span>
-             <span>S.man: ${escapeHtml(salesmanName)}</span>
-          </div>
+
+        <div>Tel: ${escapeHtml(company?.co_number || "")}</div>
+
+        <div style="border:1px solid #000; display:inline-block; padding:2px 6px; margin-top:4px;">
+          RECEIPT
         </div>
-        <div class="divider"></div>
-        <div>${itemsHtml}</div>
-        <div class="divider"></div>
-        <div class="total-row"><span>Sub Total</span><span>${subtotal.toFixed(2)}</span></div>
-        ${totalItemDiscount > 0 ? `<div class="total-row"><span>Item Discount</span><span>-${totalItemDiscount.toFixed(2)}</span></div>` : ""}
-        ${billDiscount > 0 ? `<div class="total-row"><span>Bill Discount</span><span>-${billDiscount.toFixed(2)}</span></div>` : ""}
-        <div class="total-row"><span>VAT (${bill?.vat_presentage || 0}%)</span><span>${vatAmount.toFixed(2)}</span></div>
-        ${totalReturnAmount > 0 ? `<div class="total-row"><span>Total Returns</span><span>-${totalReturnAmount.toFixed(2)}</span></div>` : ""}
-        <div class="total-row grand-total"><span>NET TOTAL</span><span>Rs.${(subtotal - totalItemDiscount - billDiscount + vatAmount - totalReturnAmount).toFixed(2)}</span></div>
-        <div class="center" style="margin-top: 15px; font-size: 12px;">Thank You!</div>
-      </body>
-    </html>`;
+      </div>
+
+      <div class="divider"></div>
+
+      <div>
+        <div class="row">
+          <span>${bill?.Invoice_date}</span>
+          <span>#${invoiceNo}</span>
+        </div>
+
+        <div>Cust: ${escapeHtml(shopName)}</div>
+        <div>Sales: ${escapeHtml(salesmanName)}</div>
+      </div>
+
+      <div class="divider"></div>
+
+      ${itemsHtml}
+
+      <div class="divider"></div>
+
+      <div class="row">
+        <span>Sub Total</span>
+        <span>${subtotal.toFixed(2)}</span>
+      </div>
+
+      ${
+        totalItemDiscount > 0
+          ? `<div class="row"><span>Disc</span><span>-${totalItemDiscount.toFixed(2)}</span></div>`
+          : ""
+      }
+
+      ${
+        billDiscount > 0
+          ? `<div class="row"><span>Bill Disc</span><span>-${billDiscount.toFixed(2)}</span></div>`
+          : ""
+      }
+
+      <div class="row">
+        <span>VAT</span>
+        <span>${vatAmount.toFixed(2)}</span>
+      </div>
+
+      ${
+        totalReturnAmount > 0
+          ? `<div class="row"><span>Return</span><span>-${totalReturnAmount.toFixed(2)}</span></div>`
+          : ""
+      }
+
+      <div class="row total">
+        <span>TOTAL</span>
+        <span>
+           ${(subtotal - totalItemDiscount - billDiscount + vatAmount - totalReturnAmount).toFixed(2)}
+        </span>
+      </div>
+
+      <div class="center" style="margin-top:10px;">
+        Thank You!
+      </div>
+    </body>
+  </html>`;
   };
 
   const buildFormalHtml = (logoUri) => {
@@ -280,33 +369,35 @@ export default function ViewBillScreen({ route, navigation }) {
     </body></html>`;
   };
 
-  const handlePrint = async (type) => {
-    try {
-      setProcessing(true);
-      const asset = Asset.fromModule(logo);
-      await asset.downloadAsync();
-      const logoUri = asset.localUri || asset.uri;
+const handlePrint = async (type) => {
+  try {
+    setProcessing(true);
 
-      const finalHtml =
-        type === "thermal"
-          ? buildThermalHtml(logoUri)
-          : buildFormalHtml(logoUri);
-      const jobName = `BUDDIKA DISTRIBUTORS - Invoice - ${invoiceNo}`;
+    const asset = Asset.fromModule(logo);
+    await asset.downloadAsync();
 
-      if (Platform.OS === "web") {
-        const printWindow = window.open("", "_blank");
-        printWindow.document.write(finalHtml);
-        printWindow.document.close();
-        printWindow.print();
-      } else {
-        await Print.printAsync({ html: finalHtml, jobName: jobName });
-      }
-    } catch (_e) {
-      Alert.alert("Error", "Printing failed");
-    } finally {
-      setProcessing(false);
-    }
-  };
+    // ✅ Use URI directly (NO base64)
+    const logoUri = asset.uri;
+
+    const finalHtml =
+      type === "thermal"
+        ? buildThermalHtml(logoUri)
+        : buildFormalHtml(logoUri);
+
+    const jobName = `BUDDIKA DISTRIBUTORS - Invoice - ${invoiceNo}`;
+
+    await Print.printAsync({
+      html: finalHtml,
+      jobName: jobName,
+    });
+
+  } catch (e) {
+    console.log("PRINT ERROR:", e); // 🔥 IMPORTANT
+    Alert.alert("Error", "Printing failed");
+  } finally {
+    setProcessing(false);
+  }
+};
 
   // --- LOADING SCREEN ---
   if (loading) {

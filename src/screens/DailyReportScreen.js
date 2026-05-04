@@ -34,8 +34,10 @@ export default function DailyReportScreen({ navigation }) {
       total_sales: 0,
       total_collected: 0,
       credit_sales: 0,
+      total_returns: 0,
     },
     items: [],
+    total_return_count: 0, // Initialized for the new summary note
     sales: {
       cash: 0,
       card: 0,
@@ -44,6 +46,7 @@ export default function DailyReportScreen({ navigation }) {
       total_collected: 0,
       total_bills: 0,
       credit: 0,
+      total_returns: 0,
     },
     bills: [],
     payments: [],
@@ -181,15 +184,12 @@ export default function DailyReportScreen({ navigation }) {
       style={styles.tableRow}
     >
       <Text style={[styles.tableCell, { flex: 1 }]}>{item.name}</Text>
-      <Text style={[styles.tableCell, { textAlign: "center", width: 60 }]}>
-        {item.quantity}
+      <Text style={[styles.tableCell, { textAlign: "center", width: 50 }]}>{item.qty}</Text>
+      <Text style={[styles.tableCell, { textAlign: "center", width: 50, color: '#ef4444', fontWeight: 'bold' }]}>
+        {item.return_qty > 0 ? item.return_qty : '-'}
       </Text>
-      <Text style={[styles.tableCell, { textAlign: "right", width: 80 }]}>
-        {formatMoney(item.rate)}
-      </Text>
-      <Text style={[styles.tableCell, { textAlign: "right", width: 80 }]}>
-        {formatMoney(item.amount)}
-      </Text>
+      <Text style={[styles.tableCell, { textAlign: "right", width: 70 }]}>{formatMoney(item.rate)}</Text>
+      <Text style={[styles.tableCell, { textAlign: "right", width: 70 }]}>{formatMoney(item.amount)}</Text>
     </Animated.View>
   );
 
@@ -331,10 +331,10 @@ export default function DailyReportScreen({ navigation }) {
               <>
                 {/* Stats Section */}
                 <View style={styles.statsGrid}>
-                  {renderStat("file-document", "BILLS CREATED", data.summary.bills_count, "#3b82f6", 0)}
-                  {renderStat("storefront", "SHOPS VISITED", data.bills.length, "#10b981", 1)}
+                  {renderStat("file-document", "BILLS", data.summary.bills_count, "#3b82f6", 0)}
+                  {renderStat("storefront", "SHOPS", data.bills.length, "#10b981", 1)}
                   {renderStat("cash-multiple", "PAYMENTS", data.payments.length, "#8b5cf6", 2)}
-                  {renderStat("trending-up", "TOTAL COLLECTED", formatMoney(data.sales.total_collected), "#f59e0b", 3)}
+                  {renderStat("trending-up", "COLLECTED", formatMoney(data.sales.total_collected), "#f59e0b", 3)}
                 </View>
 
                 {/* Navigation Tabs */}
@@ -386,11 +386,19 @@ export default function DailyReportScreen({ navigation }) {
                       <View style={styles.contentBox}>
                         <View style={styles.tableHeader}>
                           <Text style={[styles.tableHeaderCell, { flex: 1 }]}>Item Name</Text>
-                          <Text style={[styles.tableHeaderCell, { textAlign: "center", width: 60 }]}>QTY</Text>
-                          <Text style={[styles.tableHeaderCell, { textAlign: "right", width: 80 }]}>RATE</Text>
-                          <Text style={[styles.tableHeaderCell, { textAlign: "right", width: 80 }]}>AMOUNT</Text>
+                          <Text style={[styles.tableHeaderCell, { textAlign: "center", width: 50 }]}>QTY</Text>
+                          <Text style={[styles.tableHeaderCell, { textAlign: "center", width: 50 }]}>RET</Text>
+                          <Text style={[styles.tableHeaderCell, { textAlign: "right", width: 70 }]}>RATE</Text>
+                          <Text style={[styles.tableHeaderCell, { textAlign: "right", width: 70 }]}>AMT</Text>
                         </View>
                         {data.items.map((item, idx) => renderItemRow(item, idx))}
+                        
+                        {/* NEW: Summary Note */}
+                        <View style={{ marginTop: 15, paddingTop: 10, borderTopWidth: 1, borderColor: '#e2e8f0' }}>
+                            <Text style={{ fontSize: 12, color: '#64748b', textAlign: 'right' }}>
+                                Total Items Returned: <Text style={{ fontWeight: 'bold', color: '#ef4444' }}>{data.total_return_count || 0}</Text>
+                            </Text>
+                        </View>
                       </View>
                     ) : (
                       <Text style={styles.emptyText}>No items sold today</Text>
@@ -431,6 +439,13 @@ export default function DailyReportScreen({ navigation }) {
                     <Text style={styles.summaryLabel}>Credit Sales</Text>
                     <Text style={[styles.summaryValue, { color: "#8b5cf6" }]}>{formatMoney(data.sales.credit)}</Text>
                   </View>
+                  
+                  <View style={styles.divider} />
+                  <View style={styles.summaryRow}>
+                    <Text style={[styles.summaryLabel, { color: '#ef4444' }]}>Total Returns</Text>
+                    <Text style={[styles.summaryValue, { color: "#ef4444" }]}>-{formatMoney(data.sales.total_returns || 0)}</Text>
+                  </View>
+                  
                   <View style={styles.divider} />
                   <View style={styles.summaryRow}>
                     <Text style={styles.summaryLabel}>Total Bills Amount</Text>
@@ -462,7 +477,16 @@ const styles = StyleSheet.create({
   safeAreaWrapper: { flex: 1, backgroundColor: "#131313" },
   screenWrapper: { flex: 1 },
   container: { flex: 1, paddingHorizontal: 0 },
-  header: { padding: 20, paddingTop: Platform.OS === "ios" ? 20 : 15, paddingBottom: 25, flexDirection: "row", alignItems: "center", gap: 15 },
+  header: { 
+    padding: 20, 
+    paddingTop: Platform.OS === "ios" ? 50 : 45, 
+    paddingBottom: 40, 
+    flexDirection: "row", 
+    alignItems: "center", 
+    borderBottomLeftRadius: 25,
+    borderBottomRightRadius: 25,
+    gap: 15 
+  },
   backBtn: { padding: 8 },
   headerTitle: { color: "white", fontSize: 24, fontWeight: "bold" },
   headerSub: { color: "#bfdbfe", fontSize: 14, marginTop: 4 },
@@ -490,9 +514,9 @@ const styles = StyleSheet.create({
   itemLabel: { fontSize: 10, color: "#64748b", marginBottom: 2 },
   itemAmount: { fontSize: 12, fontWeight: "bold", color: "#1e293b" },
   tableHeader: { flexDirection: "row", paddingBottom: 10, borderBottomWidth: 2, borderBottomColor: "#e2e8f0", marginBottom: 10 },
-  tableHeaderCell: { fontSize: 11, fontWeight: "bold", color: "#475569", textTransform: "uppercase" },
+  tableHeaderCell: { fontSize: 10, fontWeight: "bold", color: "#475569", textTransform: "uppercase" },
   tableRow: { flexDirection: "row", paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: "rgba(0, 0, 0, 0.05)" },
-  tableCell: { fontSize: 12, color: "#1e293b" },
+  tableCell: { fontSize: 11, color: "#1e293b" },
   paymentCard: { backgroundColor: "rgba(255, 255, 255, 0.5)", padding: 14, marginBottom: 10, borderRadius: 12, borderWidth: 1, borderColor: "rgba(0, 0, 0, 0.05)" },
   paymentHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
   paymentBillNo: { fontSize: 13, fontWeight: "bold", color: "#2563eb", marginBottom: 2 },
