@@ -1,6 +1,8 @@
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { useFocusEffect } from "@react-navigation/native";
 import { useCallback, useMemo, useState } from "react";
+import * as FileSystem from "expo-file-system";
+
 import {
   ActivityIndicator,
   Alert,
@@ -69,6 +71,7 @@ export default function BillDetailScreen({ route, navigation }) {
   // Status State
   const [submitting, setSubmitting] = useState(false);
   const [printing, setPrinting] = useState(false);
+  const [processing, setProcessing] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
   const [lastPaid, setLastPaid] = useState(0);
   const [lastChange, setLastChange] = useState(0);
@@ -257,142 +260,135 @@ export default function BillDetailScreen({ route, navigation }) {
   // ---------------- PRINT LOGIC ----------------
 
   const buildThermalHtml = (logoUri) => {
-    const customerName =
-      bill?.Customer_Name ||
-      bill?.Customer_name ||
-      bill?.shop_name ||
-      "Valued Customer";
-    const itemsHtml = items
-      .map((it) => {
-        const freeQty = it.Free_Issues ?? it.free_issues ?? 0;
-        const itmDisc = Number(
-          it.Discount ??
-            it.discount ??
-            it.disc_amount ??
-            it.Discount_Amount ??
-            0,
-        );
-        const returnedQty = returnedQtyOf(it);
-        const returnedAmount = returnedAmountOf(it);
-        return `
-        <div style="margin-bottom:8px; font-size: 13pt;">
-          <div style="font-weight:bold; text-transform: uppercase;">${escapeHtml(it.Item_description || it.item_desc)}</div>
-          <div style="display:flex; justify-content:space-between;">
-            <span>${it.QTY || it.qty} x ${Number(it.Unit_price || it.unit_price).toFixed(2)}</span>
-            <span>${Number(it.Net_value || it.total).toFixed(2)}</span>
-          </div>
-          ${freeQty > 0 ? `<div style="font-size: 12px; color: #444;">(Free Issues: ${freeQty})</div>` : ""}
-          ${itmDisc > 0 ? `<div style="font-size: 12px; color: #444;">(Item Disc: -${itmDisc.toFixed(2)})</div>` : ""}
-          ${returnedQty > 0 ? `<div style="font-size: 12px; color: #c2410c;">(Returned: ${returnedQty} | -${returnedAmount.toFixed(2)})</div>` : ""}
-        </div>`;
-      })
-      .join("");
+  const customerName = bill?.Customer_Name || bill?.Customer_name || bill?.shop_name || "Valued Customer";
+  
+  const itemsHtml = items
+    .map((it) => {
+      const freeQty = it.Free_Issues ?? it.free_issues ?? 0;
+      const itmDisc = Number(it.Discount ?? it.discount ?? it.disc_amount ?? it.Discount_Amount ?? 0);
+      const returnedQty = returnedQtyOf(it);
+      const returnedAmount = returnedAmountOf(it);
 
-    return `
-    <html>
-      <head>
-        <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0, user-scalable=no" />
-        <style>
-          body { 
-            font-family: 'Courier New', Courier, monospace; 
-            width: 300px; 
-            margin: 0 auto; 
-            padding: 10px; 
-            color: #000;
-            font-size: 14pt;
-          }
-          .header { text-align: center; }
-          .logo { width: 80px; margin-bottom: 5px; }
-          .title { font-size: 18px; font-weight: bold; }
-          .subtitle { font-size: 12px; }
-          .info { font-size: 14pt; margin-top: 10px; }
-          .divider { border-top: 1px dashed #000; margin: 10px 0; }
-          .items-section { font-size: 13pt; }
-          .total-row { 
-            display: flex; 
-            justify-content: space-between; 
-            font-size: 16pt;
-            font-weight: bold;
-            margin-bottom: 8px;
-          }
-          .grand-total { 
-            font-size: 18pt;
-            border-top: 2px solid #000;
-            padding-top: 10px;
-            margin-top: 10px;
-          }
-          .footer { text-align: center; margin-top: 20px; font-size: 12pt; }
-        </style>
-      </head>
-      <body>
-        <div class="header">
-          ${logoUri ? `<img src="${logoUri}" class="logo" />` : ""}
-          <div class="title">BUDDIKA DISTRIBUTORS</div>
-          <div class="subtitle">Tel: 0772957067</div>
-          <div style="border: 1.5px solid #000; display: inline-block; padding: 4px 12px; margin: 10px 0; font-weight: bold;">BILL RECEIPT</div>
+      return `
+      <div style="margin-bottom: 8px; page-break-inside: avoid;">
+        <div style="font-weight:bold; font-size:12px; text-transform: uppercase;">
+          ${escapeHtml(it.Item_description || it.item_desc)}
         </div>
-        <div class="info divider">
-          <div style="display: flex; justify-content: space-between;"><span>Date: ${bill?.Invoice_date || bill?.date}</span><span>Inv: ${invoiceNo}</span></div>
-          <div>Customer: ${escapeHtml(customerName)}</div>
-          <div>S.man: ${escapeHtml(bill?.Salesmen || bill?.salesman || "N/A")}</div>
+        <div style="display:flex; justify-content:space-between; font-size:11px;">
+          <span>${it.QTY || it.qty} x ${Number(it.Unit_price || it.unit_price).toFixed(2)}</span>
+          <span>${Number(it.Net_value || it.total).toFixed(2)}</span>
         </div>
-        <div class="items-section">
-          ${itemsHtml}
-        </div>
-        <div class="divider"></div>
-        <div>
-            ${(() => {
-              const finalTotal =
-                subtotal -
-                itemDiscountTotal -
-                discountAmount +
-                vatAmount +
-                additionalAmount -
-                totalReturnAmount;
-              return `
-            <div class="total-row">
-              <span>Sub Total</span>
-              <span>${subtotal.toFixed(2)}</span>
-            </div>
-            ${itemDiscountTotal > 0 ? `<div class="total-row"><span>Item Discount</span><span>-${itemDiscountTotal.toFixed(2)}</span></div>` : ""}
-            ${discountAmount > 0 ? `<div class="total-row"><span>Bill Discount</span><span>-${discountAmount.toFixed(2)}</span></div>` : ""}
-            ${vatAmount !== 0 ? `<div class="total-row"><span>VAT</span><span>${vatAmount.toFixed(2)}</span></div>` : ""}
-            ${additionalAmount !== 0 ? `<div class="total-row"><span>Additional</span><span>+${additionalAmount.toFixed(2)}</span></div>` : ""}
-            ${totalReturnAmount > 0 ? `<div class="total-row"><span>Total Returns</span><span>-${totalReturnAmount.toFixed(2)}</span></div>` : ""}
-            <div class="total-row grand-total">
-                <span>NET TOTAL</span>
-                <span>Rs.${finalTotal.toFixed(2)}</span>
-            </div>`;
-            })()}
-        </div>
-        <div class="footer">Thank You!</div>
-      </body>
-    </html>`;
-  };
+        ${freeQty > 0 ? `<div style="font-size:10px;">Free: ${freeQty}</div>` : ""}
+        ${itmDisc > 0 ? `<div style="font-size:10px;">Disc: -${itmDisc.toFixed(2)}</div>` : ""}
+        ${returnedQty > 0 ? `<div style="font-size:10px; color:#b91c1c;">Return: ${returnedQty} (-${returnedAmount.toFixed(2)})</div>` : ""}
+      </div>`;
+    })
+    .join("");
 
-  const handlePrint = async () => {
-    try {
-      setPrinting(true);
-      const asset = Asset.fromModule(logo);
-      await asset.downloadAsync();
-      const logoUri = asset.localUri || asset.uri;
-      const finalHtml = buildThermalHtml(logoUri);
-      const jobName = `BUDDIKA_DISTRIBUTORS_INV_${invoiceNo}`;
+  const finalTotal = subtotal - itemDiscountTotal - discountAmount + vatAmount + additionalAmount - totalReturnAmount;
 
-      if (Platform.OS === "web") {
-        const w = window.open("");
-        w.document.write(finalHtml);
-        w.document.close();
-        w.print();
-      } else {
-        await Print.printAsync({ html: finalHtml, jobName: jobName });
-      }
-    } catch (e) {
-      Alert.alert("Print Error", "Could not generate print document.");
-    } finally {
-      setPrinting(false);
-    }
-  };
+  return `
+  <html>
+    <head>
+      <style>
+        /* CRITICAL: Force printer to ignore margins and headers */
+        @page {
+          size: auto;
+          margin: 0mm;
+        }
+
+        @media print {
+          body { -webkit-print-color-adjust: exact; }
+        }
+
+        body { 
+          font-family: 'Courier New', Courier, monospace; 
+          width: 200px; 
+          margin: 0 auto; 
+          padding: 5px; 
+          font-size: 11px;
+          color: #000;
+        }
+        .center { text-align: center; }
+        .divider { border-top: 1px dashed #000; margin: 6px 0; }
+        .row { display: flex; justify-content: space-between; margin-bottom: 2px; }
+        .total-row { display: flex; justify-content: space-between; font-weight: bold; margin-top: 4px; }
+        .grand-total { font-size: 13px; border-top: 1px solid #000; padding-top: 4px; margin-top: 4px; }
+      </style>
+    </head>
+    <body>
+      <div class="center">
+        ${logoUri ? `<img src="${logoUri}" style="width:70px; margin-bottom:4px;" />` : ""}
+        <div style="font-weight:bold; font-size:13px;">BUDDIKA DISTRIBUTORS</div>
+        <div>Tel: 0772957067</div>
+        <div style="border:1px solid #000; display:inline-block; padding:2px 6px; margin:6px 0; font-weight:bold;">
+          RECEIPT
+        </div>
+      </div>
+
+      <div class="divider"></div>
+
+      <div style="font-size: 11px;">
+        <div class="row"><span>${bill?.Invoice_date || bill?.date || ""}</span><span>#${invoiceNo}</span></div>
+        <div>Cust: ${escapeHtml(customerName)}</div>
+        <div>Sales: ${escapeHtml(bill?.Salesmen || bill?.salesman || "N/A")}</div>
+      </div>
+
+      <div class="divider"></div>
+
+      ${itemsHtml}
+
+      <div class="divider"></div>
+
+      <div class="row"><span>Sub Total</span><span>${subtotal.toFixed(2)}</span></div>
+      ${itemDiscountTotal > 0 ? `<div class="row"><span>Item Disc</span><span>-${itemDiscountTotal.toFixed(2)}</span></div>` : ""}
+      ${discountAmount > 0 ? `<div class="row"><span>Bill Disc</span><span>-${discountAmount.toFixed(2)}</span></div>` : ""}
+      ${vatAmount !== 0 ? `<div class="row"><span>VAT</span><span>${vatAmount.toFixed(2)}</span></div>` : ""}
+      ${additionalAmount !== 0 ? `<div class="row"><span>Extra</span><span>+${additionalAmount.toFixed(2)}</span></div>` : ""}
+      ${totalReturnAmount > 0 ? `<div class="row"><span>Return</span><span>-${totalReturnAmount.toFixed(2)}</span></div>` : ""}
+      
+      <div class="total-row grand-total">
+        <span>TOTAL</span>
+        <span>${finalTotal.toFixed(2)}</span>
+      </div>
+
+      <div class="center" style="margin-top:10px; font-size:10px;">
+        Thank You!
+      </div>
+    </body>
+  </html>`;
+};
+
+ const handlePrint = async (type) => {
+   try {
+     setProcessing(true);
+ 
+     const asset = Asset.fromModule(logo);
+     await asset.downloadAsync();
+ 
+     // ✅ Use URI directly (NO base64)
+     const logoUri = asset.uri;
+ 
+     const finalHtml =
+       type === "thermal"
+         ? buildThermalHtml(logoUri)
+         : buildThermalHtml(logoUri);
+ 
+     const jobName = `BUDDIKA DISTRIBUTORS - Invoice - ${invoiceNo}`;
+ 
+     await Print.printAsync({
+       html: finalHtml,
+       jobName: jobName,
+     });
+ 
+   } catch (e) {
+     console.log("PRINT ERROR:", e); // 🔥 IMPORTANT
+     Alert.alert("Error", "Printing failed");
+   } finally {
+     setProcessing(false);
+   }
+ };
+
 
   const submitPayment = async () => {
     const amt = Number(amount || 0);
@@ -454,10 +450,10 @@ export default function BillDetailScreen({ route, navigation }) {
             </TouchableOpacity>
             <TouchableOpacity
               style={styles.headerPrintBtn}
-              onPress={handlePrint}
-              disabled={printing}
+              onPress={() => handlePrint("thermal")}
+              disabled={processing}
             >
-              {printing ? (
+              {processing ? (
                 <ActivityIndicator size="small" color="#30a830" />
               ) : (
                 <MaterialCommunityIcons
@@ -937,7 +933,9 @@ export default function BillDetailScreen({ route, navigation }) {
   );
 }
 
+
 const styles = StyleSheet.create({
+  
   safeArea: { flex: 1, backgroundColor: "#30a830" },
   container: { flex: 1, backgroundColor: "#f1f5f9" },
   header: {
@@ -1142,4 +1140,5 @@ const styles = StyleSheet.create({
     marginBottom: 15,
   },
   returnText: { color: "white", fontWeight: "700", marginLeft: 8 },
+  
 });
