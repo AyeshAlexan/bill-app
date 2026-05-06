@@ -383,7 +383,10 @@ export default function DashboardScreen({ navigation }) {
 
             <TargetProgressBar />
 
+            {/* --- QUICK ACTIONS --- */}
             <Text style={styles.sectionTitle}>Quick Actions</Text>
+            
+            {/* Top Row: 3 Buttons */}
             <View style={styles.actionRow}>
               <ActionBtn
                 imageSource={require("../assets/shop.jpg")}
@@ -400,12 +403,24 @@ export default function DashboardScreen({ navigation }) {
                 label="Payments"
                 onPress={() => navigation.navigate("Payment")}
               />
+            </View>
+
+            {/* Bottom Row: 2 Buttons */}
+            <View style={[styles.actionRow, { justifyContent: 'flex-start' }]}>
+              <View style={{ marginRight: 15 }}>
+                <ActionBtn
+                  imageSource={require("../assets/voucher.png")}
+                  label="Voucher"
+                  onPress={() => navigation.navigate("PaymentVoucher")}
+                />
+              </View>
               <ActionBtn
                 imageSource={require("../assets/Report.png")}
                 label="Reports"
                 onPress={() => navigation.navigate("DailyReport")}
               />
             </View>
+            
 
             <Text style={styles.sectionTitle}>Recent {activeStat}</Text>
             <View style={styles.activityBox}>{renderRecentActivity()}</View>
@@ -544,7 +559,7 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(255, 255, 255, 0.4)",
     paddingVertical: 15,
     borderRadius: 25,
-    width: "23%",
+    width: 100,
     alignItems: "center",
     borderWidth: 1,
     borderColor: "rgba(255, 255, 255, 0.8)",
