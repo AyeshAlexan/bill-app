@@ -176,7 +176,7 @@ export default function AddBillScreen({ navigation }) {
     },
   ]);
 
-  const [invoiceNo, setInvoiceNo] = useState("INV-506");
+  const [invoiceNo, setInvoiceNo] = useState("");
   const [billDate, setBillDate] = useState(new Date());
   const [showDatePicker, setShowDatePicker] = useState(false);
 
@@ -202,8 +202,7 @@ export default function AddBillScreen({ navigation }) {
         setItemsMaster(itms || []);
         setSalesmen(sales || []);
 
-        const count = storedInv ? parseInt(storedInv) : 506;
-        setInvoiceNo(`INV-${count}`);
+        setInvoiceNo("AUTO");
       } catch (e) {
         console.error("Load Error:", e);
       } finally {
@@ -373,8 +372,6 @@ export default function AddBillScreen({ navigation }) {
       setSavedInvoiceNo(res.invoice_no);
       setSuccessModal(true);
       
-      const currentCount = parseInt(invoiceNo.split("-")[1]) || 506;
-      await AsyncStorage.setItem("invoiceCounter", (currentCount + 1).toString());
     } catch (e) {
       Alert.alert("Error", "Failed to save bill");
       console.error(e);

@@ -116,96 +116,96 @@ export default function DashboardScreen({ navigation }) {
     `Rs.${Number(n || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}`;
 
   const TargetProgressBar = () => {
-  const target = stats.target;
-  const noTarget = !target.target_amount || target.target_amount === 0;
+    const target = stats.target;
+    const noTarget = !target.target_amount || target.target_amount === 0;
 
-  return (
-    <TouchableOpacity
-      activeOpacity={0.9}
-      onPress={() => navigationHook.navigate("Summary", { tab: "targets" })}
-    >
-      <View style={styles.targetWrapper}>
-        <View style={styles.targetHeader}>
-          <Text style={styles.targetTitle}>
-            {target.month_label || "This Month"} Target
-          </Text>
-
-          {!noTarget && (
-            <Text style={styles.targetPercent}>
-              {target.progress_percentage >= 100
-                ? "100%"
-                : `${target.progress_percentage}%`}
+    return (
+      <TouchableOpacity
+        activeOpacity={0.9}
+        onPress={() => navigationHook.navigate("Summary", { tab: "targets" })}
+      >
+        <View style={styles.targetWrapper}>
+          <View style={styles.targetHeader}>
+            <Text style={styles.targetTitle}>
+              {target.month_label || "This Month"} Target
             </Text>
-          )}
-        </View>
 
-        {/* ✅ NO TARGET UI */}
-        {noTarget ? (
-          <View style={{ paddingVertical: 20, alignItems: "center" }}>
-            <MaterialCommunityIcons
-              name="alert-circle-outline"
-              size={30}
-              color="#f59e0b"
-            />
-            <Text style={{ marginTop: 10, color: "#64748b" }}>
-              No target set yet
-            </Text>
-            <Text style={{ fontSize: 12, color: "#94a3b8", marginTop: 4 }}>
-              Tap to view summary
-            </Text>
-          </View>
-        ) : (
-          <>
-            {/* ✅ PROGRESS BAR */}
-            <View style={styles.barBackground}>
-              <LinearGradient
-                colors={["#22c55e", "#4ade80"]}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 0 }}
-                style={[
-                  styles.barFill,
-                  { width: `${Math.min(target.progress_percentage, 100)}%` },
-                ]}
-              />
-            </View>
-
-            {target.progress_percentage >= 100 && (
-              <Text
-                style={{
-                  color: "#16a34a",
-                  fontWeight: "bold",
-                  marginTop: 8,
-                  textAlign: "center",
-                }}
-              >
-                🎉 You have reached your target!
+            {!noTarget && (
+              <Text style={styles.targetPercent}>
+                {target.progress_percentage >= 100
+                  ? "100%"
+                  : `${target.progress_percentage}%`}
               </Text>
             )}
+          </View>
 
-            {/* ✅ FOOTER */}
-            <View style={styles.targetFooter}>
-              <View>
-                <Text style={styles.footerLabel}>Collected</Text>
-                <Text style={styles.footerValue}>
-                  {formatMoney(target.monthly_collected)}
-                </Text>
-              </View>
-
-              <View style={{ alignItems: "flex-end" }}>
-                <Text style={[styles.footerLabel, { color: "#ef4444" }]}>
-                  Remaining
-                </Text>
-                <Text style={[styles.footerValue, { color: "#ef4444" }]}>
-                  {formatMoney(target.needs_to_collect)}
-                </Text>
-              </View>
+          {/* ✅ NO TARGET UI */}
+          {noTarget ? (
+            <View style={{ paddingVertical: 20, alignItems: "center" }}>
+              <MaterialCommunityIcons
+                name="alert-circle-outline"
+                size={30}
+                color="#f59e0b"
+              />
+              <Text style={{ marginTop: 10, color: "#64748b" }}>
+                No target set yet
+              </Text>
+              <Text style={{ fontSize: 12, color: "#94a3b8", marginTop: 4 }}>
+                Tap to view summary
+              </Text>
             </View>
-          </>
-        )}
-      </View>
-    </TouchableOpacity>
-  );
-};
+          ) : (
+            <>
+              {/* ✅ PROGRESS BAR */}
+              <View style={styles.barBackground}>
+                <LinearGradient
+                  colors={["#22c55e", "#4ade80"]}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 0 }}
+                  style={[
+                    styles.barFill,
+                    { width: `${Math.min(target.progress_percentage, 100)}%` },
+                  ]}
+                />
+              </View>
+
+              {target.progress_percentage >= 100 && (
+                <Text
+                  style={{
+                    color: "#16a34a",
+                    fontWeight: "bold",
+                    marginTop: 8,
+                    textAlign: "center",
+                  }}
+                >
+                  🎉 You have reached your target!
+                </Text>
+              )}
+
+              {/* ✅ FOOTER */}
+              <View style={styles.targetFooter}>
+                <View>
+                  <Text style={styles.footerLabel}>Collected</Text>
+                  <Text style={styles.footerValue}>
+                    {formatMoney(target.monthly_collected)}
+                  </Text>
+                </View>
+
+                <View style={{ alignItems: "flex-end" }}>
+                  <Text style={[styles.footerLabel, { color: "#ef4444" }]}>
+                    Remaining
+                  </Text>
+                  <Text style={[styles.footerValue, { color: "#ef4444" }]}>
+                    {formatMoney(target.needs_to_collect)}
+                  </Text>
+                </View>
+              </View>
+            </>
+          )}
+        </View>
+      </TouchableOpacity>
+    );
+  };
 
   const renderBillItem = (b, idx) => {
     const total = b.after_vat_amount || b.Net_Amount || 0;
@@ -385,42 +385,42 @@ export default function DashboardScreen({ navigation }) {
 
             {/* --- QUICK ACTIONS --- */}
             <Text style={styles.sectionTitle}>Quick Actions</Text>
-            
-            {/* Top Row: 3 Buttons */}
-            <View style={styles.actionRow}>
-              <ActionBtn
-                imageSource={require("../assets/shop.jpg")}
-                label="Shops"
-                onPress={() => navigation.navigate("ShopList")}
-              />
-              <ActionBtn
-                imageSource={require("../assets/pending.png")}
-                label="Pending"
-                onPress={() => navigation.navigate("PendingBills")}
-              />
-              <ActionBtn
-                imageSource={require("../assets/payment-icon.png")}
-                label="Payments"
-                onPress={() => navigation.navigate("Payment")}
-              />
-            </View>
 
-            {/* Bottom Row: 2 Buttons */}
-            <View style={[styles.actionRow, { justifyContent: 'flex-start' }]}>
-              <View style={{ marginRight: 15 }}>
+            {/* 3x2 Grid Layout */}
+            <View style={styles.actionGrid}>
+              <View style={styles.actionGridRow}>
+                <ActionBtn
+                  imageSource={require("../assets/shop.jpg")}
+                  label="Shops"
+                  onPress={() => navigation.navigate("ShopList")}
+                />
+                <ActionBtn
+                  imageSource={require("../assets/pending.png")}
+                  label="Pending"
+                  onPress={() => navigation.navigate("PendingBills")}
+                />
+                <ActionBtn
+                  imageSource={require("../assets/payment-icon.png")}
+                  label="Payments"
+                  onPress={() => navigation.navigate("Payment")}
+                />
+              </View>
+
+              <View
+                style={[styles.actionGridRow, { justifyContent: "flex-start" }]}
+              >
                 <ActionBtn
                   imageSource={require("../assets/voucher.png")}
                   label="Voucher"
                   onPress={() => navigation.navigate("PaymentVoucher")}
                 />
+                <ActionBtn
+                  imageSource={require("../assets/Report.png")}
+                  label="Reports"
+                  onPress={() => navigation.navigate("DailyReport")}
+                />
               </View>
-              <ActionBtn
-                imageSource={require("../assets/Report.png")}
-                label="Reports"
-                onPress={() => navigation.navigate("DailyReport")}
-              />
             </View>
-            
 
             <Text style={styles.sectionTitle}>Recent {activeStat}</Text>
             <View style={styles.activityBox}>{renderRecentActivity()}</View>
@@ -549,6 +549,16 @@ const styles = StyleSheet.create({
     fontWeight: "bold",
     color: "#1e293b",
   },
+  actionGrid: {
+    paddingHorizontal: 15,
+    marginTop: 15,
+    gap: 12,
+  },
+  actionGridRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    gap: 10,
+  },
   actionRow: {
     flexDirection: "row",
     paddingHorizontal: 20,
@@ -556,17 +566,17 @@ const styles = StyleSheet.create({
     marginTop: 15,
   },
   actionBtn: {
+    flex: 1,
     backgroundColor: "rgba(255, 255, 255, 0.4)",
-    paddingVertical: 15,
+    paddingVertical: 18,
     borderRadius: 25,
-    width: 100,
     alignItems: "center",
     borderWidth: 1,
     borderColor: "rgba(255, 255, 255, 0.8)",
   },
   iconContainer: {
     backgroundColor: "rgba(255, 255, 255, 0.8)",
-    padding: 8,
+    padding: 10,
     borderRadius: 12,
   },
   actionLabel: {
@@ -575,7 +585,7 @@ const styles = StyleSheet.create({
     fontWeight: "bold",
     color: "#1e293b",
   },
-  customIcon: { width: 28, height: 28, resizeMode: "contain" },
+  customIcon: { width: 32, height: 32, resizeMode: "contain" },
   activityBox: {
     backgroundColor: "rgba(255, 255, 255, 0.5)",
     margin: 20,
