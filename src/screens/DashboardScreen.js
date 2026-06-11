@@ -497,7 +497,8 @@ const styles = StyleSheet.create({
     borderColor: "rgba(255, 255, 255, 0.8)",
     marginTop: 10,
   },
-    
+  
+  
   targetHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
