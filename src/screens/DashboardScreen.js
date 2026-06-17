@@ -498,9 +498,6 @@ const styles = StyleSheet.create({
     marginTop: 10,
   },
   
-  
-
-  
   targetHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
