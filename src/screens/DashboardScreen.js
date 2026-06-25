@@ -443,6 +443,7 @@ export default function DashboardScreen({ navigation }) {
   );
 }
 
+
 const StatCard = ({ color, icon, label, value, onPress, active }) => (
   <TouchableOpacity
     style={[
