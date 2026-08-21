@@ -173,6 +173,7 @@ export default function DashboardScreen({ navigation }) {
 
 
               
+              
 
               {target.progress_percentage >= 100 && (
                 <Text
